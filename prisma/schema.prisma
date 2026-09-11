@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  sessions     Session[]
+  createdAt    DateTime  @default(now())
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+enum ModoPublicacion {
+  DESCARGA // solo deja el MP4 listo
+  BORRADOR_TIKTOK // lo envia a borradores de TikTok
+  DIRECTO_TIKTOK // publicacion directa (requiere auditoria)
+}
+
+enum EstadoHistoria {
+  GUION
+  CLIPS
+  VOZ
+  RENDER
+  LISTA
+  SUBIDA
+  ERROR
+}
+
+model Serie {
+  id              String          @id @default(uuid())
+  nombre          String
+  tipo            String // "Reflexion" o "Historia"
+  temas           String[] // lista de temas; vacia = tema libre
+  duracion        Int             @default(65)
+  cron            String // ej. "0 9 * * *" = todos los dias a las 9:00
+  zonaHoraria     String          @default("America/Lima")
+  motor           String          @default("groq")
+  voz             Json // { proveedor, modelo, nombre }
+  musica          String? // nombre de archivo dentro de DATA_DIR/musica
+  modoPublicacion ModoPublicacion @default(DESCARGA)
+  activa          Boolean         @default(true)
+  historias       Historia[]
+  creadaEn        DateTime        @default(now())
+}
+
+model Historia {
+  id          String         @id @default(uuid())
+  serie       Serie?         @relation(fields: [serieId], references: [id], onDelete: SetNull)
+  serieId     String?
+  estado      EstadoHistoria @default(GUION)
+  titulo      String?
+  guion       Json?
+  escenas     Json? // texto, keywords, clip (id, fuente, autor, pagina, licencia), duracion
+  descripcion String? // texto final para TikTok con creditos
+  archivo     String? // nombre del MP4 dentro de DATA_DIR/videos
+  publishId   String?
+  error       String?
+  creadaEn    DateTime       @default(now())
+
+  @@index([serieId, creadaEn])
+  @@index([estado])
+}
+
+model TikTokCuenta {
+  id              String   @id @default(uuid())
+  openId          String   @unique
+  nombre          String?
+  accessTokenEnc  String // cifrado con AES-256-GCM
+  refreshTokenEnc String
+  expiraEn        DateTime
+  scopes          String
+  creadaEn        DateTime @default(now())
+}

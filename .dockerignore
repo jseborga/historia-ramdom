@@ -1,0 +1,11 @@
+node_modules
+.env*
+.git
+dist
+web/node_modules
+web/dist
+data
+*.mp4
+*.wav
+*.mp3
+docs
