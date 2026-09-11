@@ -18,6 +18,9 @@ const CIFRABLES = [
   "PIXABAY_API_KEY",
   "TIKTOK_CLIENT_KEY",
   "TIKTOK_CLIENT_SECRET",
+  "REDDIT_CLIENT_ID",
+  "REDDIT_CLIENT_SECRET",
+  "API_TOKEN",
 ] as const;
 
 function descifrarEntorno(crudo: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -97,6 +100,27 @@ const Env = z.object({
   TIKTOK_CLIENT_KEY: z.string().optional(),
   TIKTOK_CLIENT_SECRET: z.string().optional(),
   TIKTOK_REDIRECT_URI: z.string().url().optional(),
+
+  /**
+   * Token para clientes sin navegador (el servidor MCP). Se envia como
+   * `Authorization: Bearer ...`. Si esta vacio, solo vale la cookie de sesion.
+   */
+  API_TOKEN: z.string().min(32).optional(),
+
+  // Reddit como detector de temas (opcional, apagado por defecto).
+  REDDIT_ACTIVO: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  REDDIT_CLIENT_ID: z.string().optional(),
+  REDDIT_CLIENT_SECRET: z.string().optional(),
+  REDDIT_USER_AGENT: z.string().default("estudio-voz-en-off/1.0"),
+  /** Listas separadas por comas, sin el prefijo r/. */
+  REDDIT_SUBS_ES: z.string().default("PreguntaleAReddit,es"),
+  REDDIT_SUBS_EN: z.string().default("AskReddit,tifu,ShortStories"),
+  REDDIT_PUNTOS_MINIMOS: z.coerce.number().int().min(0).default(500),
+  /** Horario de la busqueda de ideas. */
+  REDDIT_CRON: z.string().default("0 6 * * *"),
 
   // Dias que se conservan los MP4 antes de la limpieza automatica.
   RETENCION_DIAS: z.coerce.number().int().min(1).default(15),

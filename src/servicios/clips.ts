@@ -238,14 +238,14 @@ export function creditosDe(escenas: Pick<EscenaPreparada, "clip">[]): string {
 
 /** Descripcion lista para pegar en TikTok, con los creditos de cada clip. */
 export function crearDescripcion(
-  guion: { titulo: string; hashtags?: string[] },
+  guion: { titulo: string; gancho?: string; hashtags?: string[] },
   escenas: EscenaPreparada[],
 ): string {
   const creditos = creditosDe(escenas);
   const hashtags = (guion.hashtags ?? []).map((h) => `#${h.replace(/^#/, "")}`).join(" ");
 
   return [
-    guion.titulo,
+    guion.gancho ?? guion.titulo,
     hashtags,
     "",
     "Voz e imagenes generadas o editadas con herramientas de IA.",

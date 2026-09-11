@@ -19,6 +19,8 @@ export type EscenaRender = {
   archivo: string;
   /** nombre del audio dentro de `dir` */
   audio: string;
+  /** La escena de enganche se rotula con su propio estilo. */
+  esGancho?: boolean;
 };
 
 export async function renderizar(dir: string, escenas: EscenaRender[], musica?: string) {
@@ -54,7 +56,12 @@ export async function renderizar(dir: string, escenas: EscenaRender[], musica?: 
 
     videos.push(v);
     audios.push(a);
-    tramos.push({ inicio: t, fin: t + d - PAUSA, texto: e.texto });
+    tramos.push({
+      inicio: t,
+      fin: t + d - PAUSA,
+      texto: e.texto,
+      estilo: e.esGancho ? "Gancho" : "Voz",
+    });
     t += d;
   }
 

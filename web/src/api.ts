@@ -30,6 +30,8 @@ export function aISO(valorLocal: string): string | null {
 
 export const api = {
   get: <T>(ruta: string) => peticion<T>(ruta),
+  put: <T>(ruta: string, cuerpo: unknown) =>
+    peticion<T>(ruta, { method: "PUT", body: JSON.stringify(cuerpo) }),
   post: <T>(ruta: string, cuerpo?: unknown) =>
     peticion<T>(ruta, { method: "POST", body: cuerpo ? JSON.stringify(cuerpo) : undefined }),
   patch: <T>(ruta: string, cuerpo: unknown) =>
@@ -47,12 +49,17 @@ export type Catalogo = {
   musica: string[];
   clips: { pexels: boolean; pixabay: boolean };
   tiktok: { configurado: boolean; cuentasConectadas: number };
+  reddit: { configurado: boolean };
+  idiomas: Idioma[];
   limites: { clipMB: number; videoMB: number };
   retencionDias: number;
 };
 
+export type Idioma = "es" | "en";
+
 export type Guion = {
   titulo: string;
+  gancho: string;
   escenas: { texto: string; keywords: string[] }[];
   hashtags: string[];
 };
@@ -65,15 +72,58 @@ export type Serie = {
   tipo: "Reflexion" | "Historia";
   temas: string[];
   duracion: number;
+  idioma: Idioma;
   cron: string;
   zonaHoraria: string;
   motor: string;
   modelo: string | null;
   voz: Voz;
   musica: string | null;
+  musicaModo: "FIJA" | "ROTAR";
   modoPublicacion: ModoPublicacion;
   activa: boolean;
   _count?: { historias: number };
+};
+
+export type Metrica = {
+  vistas: number;
+  likes: number;
+  comentarios?: number;
+  compartidos?: number;
+  guardados?: number;
+  duracionSeg?: number | null;
+  tiempoPromedioSeg: number | null;
+  puntuacion: number | null;
+};
+
+export type Idea = {
+  id: string;
+  titulo: string;
+  tema: string;
+  idioma: Idioma;
+  fuente: "MANUAL" | "IA" | "REDDIT";
+  refExterna: string | null;
+  notas: string | null;
+  estado: "PENDIENTE" | "USADA" | "DESCARTADA";
+  puntuacion: number | null;
+  usos: number;
+};
+
+export type Gancho = {
+  id: string;
+  texto: string;
+  idioma: Idioma;
+  usos: number;
+  puntuacion: number | null;
+};
+
+export type Rendimiento = {
+  mejoresGanchos: Gancho[];
+  mejoresIdeas: Idea[];
+  historias: (Metrica & {
+    historiaId: string;
+    historia: { id: string; titulo: string | null; ganchoTexto: string | null };
+  })[];
 };
 
 export type Historia = {
@@ -81,6 +131,8 @@ export type Historia = {
   serieId: string | null;
   estado: "GUION" | "CLIPS" | "VOZ" | "RENDER" | "LISTA" | "SUBIDA" | "ERROR";
   titulo: string | null;
+  ganchoTexto: string | null;
+  metrica: Metrica | null;
   descripcion: string | null;
   archivo: string | null;
   publishId: string | null;

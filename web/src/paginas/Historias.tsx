@@ -1,8 +1,88 @@
 import { useCallback, useEffect, useState } from "react";
-import { aISO, api, type Historia } from "../api";
+import { aISO, api, type Historia, type Metrica } from "../api";
 import { mensajeDe } from "../App";
 
 const EN_PROCESO = ["GUION", "CLIPS", "VOZ", "RENDER"];
+
+const CAMPOS: [keyof FormMetrica, string][] = [
+  ["vistas", "Vistas"],
+  ["likes", "Likes"],
+  ["comentarios", "Comentarios"],
+  ["compartidos", "Compartidos"],
+  ["guardados", "Guardados"],
+  ["tiempoPromedioSeg", "Permanencia media (s)"],
+];
+
+type FormMetrica = {
+  vistas: string;
+  likes: string;
+  comentarios: string;
+  compartidos: string;
+  guardados: string;
+  tiempoPromedioSeg: string;
+};
+
+const desdeMetrica = (m: Metrica | null): FormMetrica => ({
+  vistas: String(m?.vistas ?? ""),
+  likes: String(m?.likes ?? ""),
+  comentarios: String(m?.comentarios ?? ""),
+  compartidos: String(m?.compartidos ?? ""),
+  guardados: String(m?.guardados ?? ""),
+  tiempoPromedioSeg: m?.tiempoPromedioSeg != null ? String(m.tiempoPromedioSeg) : "",
+});
+
+/**
+ * TikTok no entrega la permanencia media por API: se copia de TikTok Studio.
+ * El resto de cifras se rellenan solas si la subida fue por API.
+ */
+function FormularioMetrica({
+  historia,
+  alGuardar,
+}: {
+  historia: Historia;
+  alGuardar: (datos: Record<string, number | null>) => void;
+}) {
+  const [form, setForm] = useState<FormMetrica>(desdeMetrica(historia.metrica));
+
+  return (
+    <div>
+      <div className="campos">
+        {CAMPOS.map(([campo, etiqueta]) => (
+          <div key={campo}>
+            <label htmlFor={`${campo}-${historia.id}`}>{etiqueta}</label>
+            <input
+              id={`${campo}-${historia.id}`}
+              type="number"
+              min={0}
+              step={campo === "tiempoPromedioSeg" ? "0.1" : "1"}
+              value={form[campo]}
+              onChange={(e) => setForm({ ...form, [campo]: e.target.value })}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="pie">
+        <button
+          className="primario"
+          onClick={() =>
+            alGuardar({
+              vistas: Number(form.vistas || 0),
+              likes: Number(form.likes || 0),
+              comentarios: Number(form.comentarios || 0),
+              compartidos: Number(form.compartidos || 0),
+              guardados: Number(form.guardados || 0),
+              tiempoPromedioSeg: form.tiempoPromedioSeg
+                ? Number(form.tiempoPromedioSeg)
+                : null,
+            })
+          }
+        >
+          Guardar metricas
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function Historias() {
   const [historias, setHistorias] = useState<Historia[]>([]);
@@ -10,6 +90,8 @@ export function Historias() {
   const [ok, setOk] = useState("");
   /** Fecha elegida por historia para programar su subida a TikTok. */
   const [fechas, setFechas] = useState<Record<string, string>>({});
+  /** Historia cuyo formulario de metricas esta abierto. */
+  const [midiendo, setMidiendo] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -88,6 +170,18 @@ export function Historias() {
               {EN_PROCESO.includes(h.estado) && (
                 <p className="suave">En proceso; esta pagina se actualiza sola.</p>
               )}
+              {h.ganchoTexto && <p className="suave">Gancho: {h.ganchoTexto}</p>}
+              {h.metrica && h.metrica.vistas > 0 && (
+                <p className="suave">
+                  {h.metrica.vistas} vistas · {h.metrica.likes} likes
+                  {h.metrica.tiempoPromedioSeg
+                    ? ` · ${h.metrica.tiempoPromedioSeg}s de permanencia`
+                    : ""}
+                  {h.metrica.puntuacion !== null
+                    ? ` · ${h.metrica.puntuacion} pts`
+                    : " · sin puntuacion (pocas vistas)"}
+                </p>
+              )}
               {h.publicarEn && h.estado !== "SUBIDA" && (
                 <p className="suave">
                   Subida programada para {new Date(h.publicarEn).toLocaleString()}.
@@ -134,6 +228,9 @@ export function Historias() {
                     </button>
                   </>
                 )}
+                <button onClick={() => setMidiendo(midiendo === h.id ? null : h.id)}>
+                  {midiendo === h.id ? "Cerrar metricas" : "Metricas"}
+                </button>
                 <button
                   onClick={() => {
                     if (confirm("Borrar esta historia?")) {
@@ -144,6 +241,18 @@ export function Historias() {
                   Borrar
                 </button>
               </div>
+
+              {midiendo === h.id && (
+                <FormularioMetrica
+                  historia={h}
+                  alGuardar={(datos) =>
+                    accion(
+                      () => api.put(`/api/historias/${h.id}/metrica`, datos),
+                      "Metricas guardadas.",
+                    ).then(() => setMidiendo(null))
+                  }
+                />
+              )}
             </div>
           ))}
         </div>

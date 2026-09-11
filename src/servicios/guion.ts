@@ -19,8 +19,13 @@ export type Motor = (typeof MOTORES)[number];
 
 export const esMotor = (v: string): v is Motor => (MOTORES as readonly string[]).includes(v);
 
-const SISTEMA =
-  "Eres guionista de videos verticales cortos en espanol latinoamericano neutro. " +
+const IDIOMAS: Record<string, string> = {
+  es: "espanol latinoamericano neutro",
+  en: "ingles estadounidense natural",
+};
+
+const sistema = (idioma: string) =>
+  `Eres guionista de videos verticales cortos en ${IDIOMAS[idioma] ?? IDIOMAS.es}. ` +
   "Respondes unicamente con un objeto JSON valido, sin texto alrededor y sin bloques de codigo.";
 
 async function pedirJSON(url: string, init: RequestInit, servicio: string) {
@@ -41,7 +46,7 @@ function extraerJSON(texto: string): unknown {
   return JSON.parse(limpio.slice(inicio, fin + 1));
 }
 
-export async function textoConGroq(prompt: string, modelo = MODELOS.groq) {
+export async function textoConGroq(prompt: string, modelo = MODELOS.groq, idioma = "es") {
   if (!env.GROQ_API_KEY) throw new Error("Falta GROQ_API_KEY");
   const data = await pedirJSON(
     "https://api.groq.com/openai/v1/chat/completions",
@@ -54,7 +59,7 @@ export async function textoConGroq(prompt: string, modelo = MODELOS.groq) {
       body: JSON.stringify({
         model: modelo,
         messages: [
-          { role: "system", content: SISTEMA },
+          { role: "system", content: sistema(idioma) },
           { role: "user", content: prompt },
         ],
         response_format: { type: "json_object" },
@@ -65,7 +70,7 @@ export async function textoConGroq(prompt: string, modelo = MODELOS.groq) {
   return data.choices?.[0]?.message?.content as string;
 }
 
-export async function textoConOpenAI(prompt: string, modelo = MODELOS.openai) {
+export async function textoConOpenAI(prompt: string, modelo = MODELOS.openai, idioma = "es") {
   if (!env.OPENAI_API_KEY) throw new Error("Falta OPENAI_API_KEY");
   const data = await pedirJSON(
     "https://api.openai.com/v1/chat/completions",
@@ -78,7 +83,7 @@ export async function textoConOpenAI(prompt: string, modelo = MODELOS.openai) {
       body: JSON.stringify({
         model: modelo,
         messages: [
-          { role: "system", content: SISTEMA },
+          { role: "system", content: sistema(idioma) },
           { role: "user", content: prompt },
         ],
         response_format: { type: "json_object" },
@@ -89,7 +94,7 @@ export async function textoConOpenAI(prompt: string, modelo = MODELOS.openai) {
   return data.choices?.[0]?.message?.content as string;
 }
 
-export async function textoConGemini(prompt: string, modelo = MODELOS.gemini) {
+export async function textoConGemini(prompt: string, modelo = MODELOS.gemini, idioma = "es") {
   if (!env.GEMINI_API_KEY) throw new Error("Falta GEMINI_API_KEY");
   const data = await pedirJSON(
     `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`,
@@ -97,7 +102,7 @@ export async function textoConGemini(prompt: string, modelo = MODELOS.gemini) {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SISTEMA }] },
+        systemInstruction: { parts: [{ text: sistema(idioma) }] },
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         generationConfig: { responseMimeType: "application/json" },
       }),
@@ -108,7 +113,7 @@ export async function textoConGemini(prompt: string, modelo = MODELOS.gemini) {
   return partes.map((p: { text?: string }) => p.text ?? "").join("") as string;
 }
 
-export async function textoConClaude(prompt: string, modelo = MODELOS.claude) {
+export async function textoConClaude(prompt: string, modelo = MODELOS.claude, idioma = "es") {
   if (!env.ANTHROPIC_API_KEY) throw new Error("Falta ANTHROPIC_API_KEY");
   const data = await pedirJSON(
     "https://api.anthropic.com/v1/messages",
@@ -122,7 +127,7 @@ export async function textoConClaude(prompt: string, modelo = MODELOS.claude) {
       body: JSON.stringify({
         model: modelo,
         max_tokens: 8000,
-        system: SISTEMA,
+        system: sistema(idioma),
         messages: [{ role: "user", content: prompt }],
       }),
     },
@@ -140,6 +145,8 @@ export async function textoConClaude(prompt: string, modelo = MODELOS.claude) {
 
 export const GuionSchema = z.object({
   titulo: z.string().min(1).max(120),
+  /** Primera frase del video: abre un bucle y decide si se quedan o no. */
+  gancho: z.string().min(1).max(200),
   escenas: z
     .array(
       z.object({
@@ -161,10 +168,13 @@ export type PeticionGuion = {
   tipo: string;
   tema?: string;
   duracion: number;
+  idioma?: string;
+  /** Gancho ya probado que hay que reutilizar tal cual. */
+  ganchoFijo?: string | null;
   evitar?: (string | null)[];
 };
 
-function construirPrompt({ tipo, tema, duracion, evitar = [] }: PeticionGuion) {
+function construirPrompt({ tipo, tema, duracion, ganchoFijo, evitar = [] }: PeticionGuion) {
   // ~2,6 palabras por segundo de narracion pausada; 5 s de margen por escena.
   const palabras = Math.round(duracion * 2.6);
   const escenas = Math.max(4, Math.min(12, Math.round(duracion / 6)));
@@ -175,7 +185,12 @@ function construirPrompt({ tipo, tema, duracion, evitar = [] }: PeticionGuion) {
     tema ? `Tema: ${tema}.` : "Tema: elige uno libremente, que sea universal y emotivo.",
     `Duracion objetivo: ${duracion} segundos (unas ${palabras} palabras en total).`,
     `Divide el guion en ${escenas} escenas de una o dos frases cada una.`,
-    "La primera escena debe enganchar en los primeros 3 segundos.",
+    ganchoFijo
+      ? `Usa EXACTAMENTE este gancho, sin cambiar ni una palabra: "${ganchoFijo}"`
+      : "Escribe un gancho de una sola frase, de 12 palabras como maximo, que se lea en menos de 3 segundos. " +
+        "Debe abrir un bucle (una pregunta sin responder, una afirmacion inesperada o una escena a medias). " +
+        "Prohibido saludar, presentarse o decir 'en este video'.",
+    "El gancho va aparte y ademas encabeza el video; las escenas continuan desde el.",
     "La ultima escena debe cerrar con una idea memorable, sin pedir likes ni seguidores.",
     "No uses emojis, comillas tipograficas ni acotaciones de camara dentro del texto narrado.",
     titulosPrevios.length
@@ -185,6 +200,7 @@ function construirPrompt({ tipo, tema, duracion, evitar = [] }: PeticionGuion) {
     "Devuelve exactamente este JSON:",
     "{",
     '  "titulo": "titulo corto y concreto",',
+    '  "gancho": "frase de enganche",',
     '  "escenas": [',
     '    { "texto": "frase narrada", "keywords": ["palabra en ingles para buscar video de stock", "otra"] }',
     "  ],",
@@ -202,13 +218,14 @@ export async function generarGuion(peticion: PeticionGuion): Promise<Guion> {
   const modelo = peticion.modelo?.trim() || MODELOS[motor];
   const prompt = construirPrompt(peticion);
 
+  const idioma = peticion.idioma ?? "es";
   const crudo = await (motor === "claude"
-    ? textoConClaude(prompt, modelo)
+    ? textoConClaude(prompt, modelo, idioma)
     : motor === "openai"
-      ? textoConOpenAI(prompt, modelo)
+      ? textoConOpenAI(prompt, modelo, idioma)
       : motor === "gemini"
-        ? textoConGemini(prompt, modelo)
-        : textoConGroq(prompt, modelo));
+        ? textoConGemini(prompt, modelo, idioma)
+        : textoConGroq(prompt, modelo, idioma));
 
   if (!crudo) throw new Error(`El motor ${motor} (${modelo}) no devolvio contenido`);
   return GuionSchema.parse(extraerJSON(crudo));

@@ -222,5 +222,83 @@ export async function estadoPublicacion(accessToken: string, publishId: string) 
   if (j?.error?.code !== "ok") {
     throw new Error(`TikTok no devolvio el estado: ${j?.error?.code}`);
   }
-  return j.data as { status: string; fail_reason?: string };
+  return j.data as {
+    status: string;
+    fail_reason?: string;
+    publicaly_available_post_id?: (string | number)[];
+  };
+}
+
+/**
+ * Metadatos y metricas de videos propios (Display API, scope `video.list`).
+ * TikTok entrega vistas, likes, comentarios y compartidos, pero NO el tiempo
+ * medio de visualizacion: eso solo esta en TikTok Studio.
+ */
+export type VideoTikTok = {
+  id: string;
+  title?: string;
+  duration?: number;
+  view_count?: number;
+  like_count?: number;
+  comment_count?: number;
+  share_count?: number;
+  collect_count?: number;
+};
+
+const CAMPOS_VIDEO = [
+  "id",
+  "title",
+  "duration",
+  "view_count",
+  "like_count",
+  "comment_count",
+  "share_count",
+].join(",");
+
+export async function consultarVideos(
+  accessToken: string,
+  videoIds: string[],
+): Promise<VideoTikTok[]> {
+  if (!videoIds.length) return [];
+  const salida: VideoTikTok[] = [];
+
+  // La API acepta 20 ids por llamada.
+  for (let i = 0; i < videoIds.length; i += 20) {
+    const lote = videoIds.slice(i, i + 20);
+    const res = await fetch(`${API}/video/query/?fields=${CAMPOS_VIDEO}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json; charset=UTF-8",
+      },
+      body: JSON.stringify({ filters: { video_ids: lote } }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    const j = await leerJSON(res);
+    if (j?.error?.code !== "ok") {
+      throw new Error(
+        `TikTok no devolvio las metricas: ${j?.error?.code} ${j?.error?.message ?? ""}`,
+      );
+    }
+    salida.push(...((j.data?.videos ?? []) as VideoTikTok[]));
+  }
+  return salida;
+}
+
+/** Ultimos videos de la cuenta, por si hay que emparejarlos a mano. */
+export async function listarVideos(accessToken: string, cuantos = 20) {
+  const res = await fetch(`${API}/video/list/?fields=${CAMPOS_VIDEO}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json; charset=UTF-8",
+    },
+    body: JSON.stringify({ max_count: Math.min(cuantos, 20) }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  const j = await leerJSON(res);
+  if (j?.error?.code !== "ok") {
+    throw new Error(`TikTok no devolvio la lista: ${j?.error?.code} ${j?.error?.message ?? ""}`);
+  }
+  return (j.data?.videos ?? []) as VideoTikTok[];
 }

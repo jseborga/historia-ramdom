@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { aISO, api, type Catalogo, type Guion, type ModoPublicacion, type Voz } from "../api";
+import {
+  aISO,
+  api,
+  type Catalogo,
+  type Guion,
+  type Idioma,
+  type ModoPublicacion,
+  type Voz,
+} from "../api";
 import { mensajeDe } from "../App";
 import { CampoFecha, SelectorModo, SelectorMotor, SelectorMusica, SelectorVoz } from "./comunes";
 
@@ -11,6 +19,7 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
     catalogo.motores.find((m) => m.disponible)?.id ?? "groq",
   );
   const [modelo, setModelo] = useState<string | null>(null);
+  const [idioma, setIdioma] = useState<Idioma>("es");
   const [voz, setVoz] = useState<Voz>(catalogo.vozPorDefecto);
   const [musica, setMusica] = useState<string | null>(null);
   const [modo, setModo] = useState<ModoPublicacion>("DESCARGA");
@@ -36,6 +45,7 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
           tipo,
           tema: tema || undefined,
           duracion,
+          idioma,
         }),
       );
     } catch (err) {
@@ -56,6 +66,7 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
         tipo,
         tema: tema || undefined,
         duracion,
+        idioma,
         voz,
         musica,
         modoPublicacion: modo,
@@ -111,6 +122,20 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
             <input id="tema" value={tema} onChange={(e) => setTema(e.target.value)} />
           </div>
           <div>
+            <label htmlFor="idioma">Idioma</label>
+            <select
+              id="idioma"
+              value={idioma}
+              onChange={(e) => setIdioma(e.target.value as Idioma)}
+            >
+              {catalogo.idiomas.map((i) => (
+                <option key={i} value={i}>
+                  {i === "es" ? "Espanol" : "Ingles"}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label htmlFor="duracion">Duracion (segundos)</label>
             <input
               id="duracion"
@@ -145,6 +170,14 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
               id="titulo"
               value={guion.titulo}
               onChange={(e) => setGuion({ ...guion, titulo: e.target.value })}
+            />
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <label htmlFor="gancho">Gancho (primeros segundos, se rotula mas grande)</label>
+            <input
+              id="gancho"
+              value={guion.gancho}
+              onChange={(e) => setGuion({ ...guion, gancho: e.target.value })}
             />
           </div>
           <div className="lista" style={{ marginTop: 12 }}>

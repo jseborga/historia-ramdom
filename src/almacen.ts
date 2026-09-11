@@ -44,6 +44,19 @@ export async function listarMusica() {
   return archivos.filter((f) => /\.(mp3|m4a|wav|ogg)$/i.test(f));
 }
 
+/**
+ * Elige la pista menos usada recientemente, para que la musica no se repita
+ * historia tras historia. `usadas` viene de las ultimas historias de la serie.
+ */
+export async function elegirMusicaRotativa(usadas: (string | null)[] = []) {
+  const pistas = await listarMusica();
+  if (!pistas.length) return null;
+  const recientes = usadas.filter(Boolean) as string[];
+  const frescas = pistas.filter((p) => !recientes.includes(p));
+  const candidatas = frescas.length ? frescas : pistas;
+  return candidatas[Math.floor(Math.random() * candidatas.length)];
+}
+
 export function rutaMusicaSegura(nombre: string) {
   if (!/^[\w .-]+$/.test(nombre) || nombre.includes("..")) {
     throw new Error("Nombre de musica invalido");

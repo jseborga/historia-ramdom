@@ -16,12 +16,14 @@ const SerieSchema = z.object({
   tipo: z.enum(["Reflexion", "Historia"]),
   temas: z.array(z.string().min(1).max(120)).max(50).default([]),
   duracion: z.number().int().min(15).max(180).default(65),
+  idioma: z.enum(["es", "en"]).default("es"),
   cron,
   zonaHoraria: z.string().min(1).max(60).default("America/Lima"),
   motor: z.enum(MOTORES).default("groq"),
   modelo: z.string().max(80).nullable().default(null),
   voz: VozSchema,
   musica: z.string().max(120).nullable().default(null),
+  musicaModo: z.enum(["FIJA", "ROTAR"]).default("FIJA"),
   modoPublicacion: z
     .enum(["DESCARGA", "BORRADOR_TIKTOK", "DIRECTO_TIKTOK"])
     .default("DESCARGA"),

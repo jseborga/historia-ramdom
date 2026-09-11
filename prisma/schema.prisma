@@ -32,6 +32,28 @@ enum ModoPublicacion {
   DIRECTO_TIKTOK // publicacion directa (requiere auditoria)
 }
 
+enum EstadoIdea {
+  PENDIENTE
+  USADA
+  DESCARTADA
+}
+
+enum FuenteIdea {
+  MANUAL
+  IA
+  REDDIT
+}
+
+enum ModoMusica {
+  FIJA
+  ROTAR
+}
+
+enum FuenteMetrica {
+  API // TikTok Display API
+  MANUAL // copiado a mano desde TikTok Studio
+}
+
 enum EstadoHistoria {
   GUION
   CLIPS
@@ -50,10 +72,12 @@ model Serie {
   duracion        Int             @default(65)
   cron            String // ej. "0 9 * * *" = todos los dias a las 9:00
   zonaHoraria     String          @default("America/Lima")
+  idioma          String          @default("es")
   motor           String          @default("groq")
   modelo          String? // modelo concreto del motor; vacio = el del entorno
   voz             Json // { proveedor, modelo, nombre }
   musica          String? // nombre de archivo dentro de DATA_DIR/musica
+  musicaModo      ModoMusica      @default(FIJA) // ROTAR va cambiando de pista
   modoPublicacion ModoPublicacion @default(DESCARGA)
   activa          Boolean         @default(true)
   historias       Historia[]
@@ -64,19 +88,80 @@ model Historia {
   id          String         @id @default(uuid())
   serie       Serie?         @relation(fields: [serieId], references: [id], onDelete: SetNull)
   serieId     String?
+  idea        Idea?          @relation(fields: [ideaId], references: [id], onDelete: SetNull)
+  ideaId      String?
+  gancho      Gancho?        @relation(fields: [ganchoId], references: [id], onDelete: SetNull)
+  ganchoId    String?
+  ganchoTexto String?
   estado      EstadoHistoria @default(GUION)
   titulo      String?
   guion       Json?
   escenas     Json? // texto, keywords, clip (id, fuente, autor, pagina, licencia), duracion
   descripcion String? // texto final para TikTok con creditos
   archivo     String? // nombre del MP4 dentro de DATA_DIR/videos
+  musica      String? // pista usada, para no repetirla en la siguiente
   publishId   String?
+  videoTikTok String? // id publico del video, para pedir sus metricas
   publicarEn  DateTime? // subida programada a TikTok
   error       String?
+  metrica     Metrica?
   creadaEn    DateTime       @default(now())
 
   @@index([serieId, creadaEn])
   @@index([estado])
+}
+
+/// Banco de historias: ideas listas para convertirse en video.
+model Idea {
+  id         String     @id @default(uuid())
+  titulo     String
+  tema       String
+  idioma     String     @default("es")
+  fuente     FuenteIdea @default(MANUAL)
+  refExterna String?    @unique // enlace de origen; evita duplicados
+  notas      String?
+  estado     EstadoIdea @default(PENDIENTE)
+  puntuacion Float? // media de las historias que salieron de aqui
+  usos       Int        @default(0)
+  historias  Historia[]
+  creadaEn   DateTime   @default(now())
+
+  @@index([estado, puntuacion])
+  @@index([idioma])
+}
+
+/// Ganchos reutilizables: los que mejor retienen se vuelven a usar.
+model Gancho {
+  id         String     @id @default(uuid())
+  texto      String
+  idioma     String     @default("es")
+  usos       Int        @default(0)
+  puntuacion Float?
+  historias  Historia[]
+  creadoEn   DateTime   @default(now())
+
+  @@unique([texto, idioma])
+  @@index([puntuacion])
+}
+
+/// Rendimiento de una historia ya publicada.
+model Metrica {
+  id                String        @id @default(uuid())
+  historia          Historia      @relation(fields: [historiaId], references: [id], onDelete: Cascade)
+  historiaId        String        @unique
+  vistas            Int           @default(0)
+  likes             Int           @default(0)
+  comentarios       Int           @default(0)
+  compartidos       Int           @default(0)
+  guardados         Int           @default(0)
+  duracionSeg       Float?
+  /// TikTok no lo expone por API: se copia a mano desde TikTok Studio.
+  tiempoPromedioSeg Float?
+  puntuacion        Float?
+  fuente            FuenteMetrica @default(MANUAL)
+  actualizadaEn     DateTime      @updatedAt
+
+  @@index([puntuacion])
 }
 
 model TikTokCuenta {

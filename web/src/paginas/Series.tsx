@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Catalogo, type ModoPublicacion, type Serie, type Voz } from "../api";
+import { api, type Catalogo, type Idioma, type ModoPublicacion, type Serie, type Voz } from "../api";
 import { mensajeDe } from "../App";
 import { SelectorModo, SelectorMotor, SelectorMusica, SelectorVoz } from "./comunes";
 
@@ -25,6 +25,8 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
   );
   const [motor, setMotor] = useState(catalogo.motores.find((m) => m.disponible)?.id ?? "groq");
   const [modelo, setModelo] = useState<string | null>(null);
+  const [idioma, setIdioma] = useState<Idioma>("es");
+  const [musicaModo, setMusicaModo] = useState<"FIJA" | "ROTAR">("FIJA");
   const [voz, setVoz] = useState<Voz>(catalogo.vozPorDefecto);
   const [musica, setMusica] = useState<string | null>(null);
   const [modo, setModo] = useState<ModoPublicacion>("DESCARGA");
@@ -66,12 +68,14 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
             .map((t) => t.trim())
             .filter(Boolean),
           duracion,
+          idioma,
           cron,
           zonaHoraria,
           motor,
           modelo,
           voz,
-          musica,
+          musica: musicaModo === "ROTAR" ? null : musica,
+          musicaModo,
           modoPublicacion: modo,
           activa: true,
         }),
@@ -128,7 +132,34 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
             alCambiarModelo={setModelo}
           />
           <SelectorVoz catalogo={catalogo} valor={voz} alCambiar={setVoz} />
-          <SelectorMusica catalogo={catalogo} valor={musica} alCambiar={setMusica} />
+          <div>
+            <label htmlFor="idiomaSerie">Idioma</label>
+            <select
+              id="idiomaSerie"
+              value={idioma}
+              onChange={(e) => setIdioma(e.target.value as Idioma)}
+            >
+              {catalogo.idiomas.map((i) => (
+                <option key={i} value={i}>
+                  {i === "es" ? "Espanol" : "Ingles"}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="musicaModo">Musica</label>
+            <select
+              id="musicaModo"
+              value={musicaModo}
+              onChange={(e) => setMusicaModo(e.target.value as "FIJA" | "ROTAR")}
+            >
+              <option value="FIJA">Siempre la misma pista</option>
+              <option value="ROTAR">Rotar entre las pistas disponibles</option>
+            </select>
+          </div>
+          {musicaModo === "FIJA" && (
+            <SelectorMusica catalogo={catalogo} valor={musica} alCambiar={setMusica} />
+          )}
           <SelectorModo valor={modo} alCambiar={setModo} tiktokListo={tiktokListo} />
         </div>
         <div style={{ marginTop: 12 }}>
@@ -155,7 +186,7 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
                 <strong>{s.nombre}</strong>
                 <span className="estado">{s.activa ? "activa" : "en pausa"}</span>
                 <span className="suave">
-                  {s.tipo} · {s.cron} ({s.zonaHoraria}) · {s.motor}
+                  {s.tipo} · {s.idioma} · {s.cron} ({s.zonaHoraria}) · {s.motor}
                   {s.modelo ? ` (${s.modelo})` : ""} · {s.duracion}s ·{" "}
                   {s._count?.historias ?? 0} historias
                 </span>

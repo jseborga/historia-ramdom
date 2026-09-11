@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import argon2 from "argon2";
-import { randomBytes, createHash } from "node:crypto";
+import { randomBytes, createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { db } from "../db.js";
 import { env } from "../env.js";
@@ -13,6 +13,14 @@ const DIAS_SESION = 7;
 
 /** En desarrollo la app corre sobre http, donde una cookie `secure` nunca llega. */
 const COOKIE_SEGURA = env.NODE_ENV === "production";
+
+/** Comparacion en tiempo constante, para no filtrar el token por temporizacion. */
+function tokenValido(recibido: string) {
+  if (!env.API_TOKEN) return false;
+  const a = Buffer.from(recibido);
+  const b = Buffer.from(env.API_TOKEN);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 export async function registrarAuth(app: FastifyInstance) {
   app.post(
@@ -71,6 +79,11 @@ export async function registrarAuth(app: FastifyInstance) {
   app.addHook("onRequest", async (req, reply) => {
     const ruta = req.routeOptions.url ?? req.url;
     if (!req.url.startsWith("/api/") || RUTAS_PUBLICAS.has(ruta)) return;
+
+    // Clientes sin navegador (servidor MCP): Authorization: Bearer <API_TOKEN>
+    const cabecera = req.headers.authorization;
+    if (cabecera?.startsWith("Bearer ") && tokenValido(cabecera.slice(7))) return;
+
     const token = req.cookies.sid;
     const sesion = token
       ? await db.session.findUnique({ where: { tokenHash: sha256(token) } })

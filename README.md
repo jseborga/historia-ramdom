@@ -18,6 +18,12 @@ Implementa la guía de `docs/guia-original.md`.
   **subidas programadas** a la hora que elijas.
 - **Créditos.** Cada escena guarda fuente, autor, página y licencia del clip;
   se copian con un botón, sueltos o dentro de la descripción.
+- **Banco de historias.** Ideas pendientes que alimentan al programador, a mano
+  o detectadas en Reddit.
+- **Ganchos con puntuación.** El gancho es una escena propia con su rótulo; las
+  métricas lo califican y los que funcionan se vuelven a usar solos.
+- **Servidor MCP.** Claude puede consultar el banco, ver qué rinde y encargar
+  historias hablando en lenguaje natural.
 - **Descarga.** Ruta protegida por sesión; la ruta del archivo se arma con el
   ID de la base de datos.
 
@@ -194,6 +200,116 @@ pestaña **Historias** hay dos botones: *Copiar descripción* (título, hashtags
 aviso de contenido generado con IA y créditos) y *Copiar créditos* (solo la
 lista, por si prefieres pegarla en un comentario). La misma lista está en
 `GET /api/historias/:id/creditos`.
+
+## Cómo llega el vídeo a TikTok y de dónde salen las métricas
+
+Hay dos caminos, y el sistema de calificación funciona con los dos:
+
+| | Subida por API | Subida manual |
+|---|---|---|
+| Cómo | La app envía el MP4 a borradores o lo publica directo | Descargas el MP4 y lo subes en TikTok Studio |
+| Requisitos | App registrada, scope `video.upload` aprobado (y `video.publish` para publicación directa) | Nada |
+| Vistas, likes, comentarios, compartidos | Automáticas, cada 6 h, si además tienes el scope `video.list` | A mano |
+| Tiempo de permanencia | **No lo da la API**, a mano | A mano |
+
+La parte importante: **TikTok no expone el tiempo medio de visualización por
+API**. La Display API entrega `view_count`, `like_count`, `comment_count` y
+`share_count`, pero la retención solo está en la analítica de TikTok Studio. Por
+eso cada historia tiene un formulario de métricas donde ese dato se escribe a
+mano; el resto se rellena solo cuando la subida fue por API.
+
+Si subes a mano, todo el bloque se escribe a mano una vez por vídeo. Son treinta
+segundos y es lo que alimenta la calificación.
+
+## Calificación y reutilización
+
+Cada historia publicada recibe una puntuación de 0 a 100:
+
+```
+retención   = permanencia media / duración           (si la has cargado)
+interacción = (likes + comentarios + 2·compartidos + 2·guardados) / vistas
+puntuación  = 100 · (0,6·retención + 0,4·min(interacción / 0,12 , 1))
+```
+
+Compartir y guardar pesan doble porque son las señales que más empujan el
+alcance. Si no hay permanencia cargada, el peso de la retención pasa a la
+interacción. Por debajo de **200 vistas no se puntúa**: la muestra es demasiado
+pequeña y reutilizar por ruido es peor que no reutilizar.
+
+Esa puntuación se promedia hacia la **idea** y hacia el **gancho** que
+produjeron la historia. A partir de ahí:
+
+- El programador elige idea del banco con un sorteo **ponderado por
+  puntuación**: lo que funcionó sale más veces, pero lo nuevo se sigue probando.
+- Un gancho con 60 puntos o más se reutiliza tal cual, con una probabilidad del
+  35 %, en una historia nueva. El resto de las veces el modelo escribe uno nuevo.
+
+Los umbrales están juntos y comentados en `src/servicios/banco.ts` y
+`src/servicios/metricas.ts`.
+
+## Banco de historias y ganchos
+
+La pestaña **Banco** permite añadir ideas en lote (una por línea, o
+`título | tema`), descartarlas, reactivarlas y ver la puntuación de cada una y
+de cada gancho. El programador toma de ahí; si el banco está vacío, usa los
+temas de la serie como antes.
+
+El **gancho** ya no es la primera frase de la primera escena: es una escena
+propia, con su clip, su audio y un estilo de subtítulo más grande y más alto
+(`Style: Gancho` en `src/render/subtitulos.ts`). También encabeza la descripción
+que se copia para TikTok.
+
+La **música** puede fijarse o ponerse en modo *rotar*: en ese caso cada historia
+elige la pista menos usada recientemente en esa serie.
+
+## Servidor MCP
+
+`node dist/mcp/servidor.js` levanta un servidor MCP por stdio que habla con la
+API desplegada usando `API_TOKEN`. No abre ningún puerto nuevo en el servidor.
+
+```json
+{
+  "mcpServers": {
+    "estudio": {
+      "command": "node",
+      "args": ["/ruta/al/repo/dist/mcp/servidor.js"],
+      "env": {
+        "ESTUDIO_URL": "https://estudio.tudominio.com",
+        "ESTUDIO_TOKEN": "el mismo valor que API_TOKEN"
+      }
+    }
+  }
+}
+```
+
+Herramientas disponibles: `catalogo`, `listar_series`, `listar_historias`,
+`escribir_guion`, `crear_historia`, `programar_subida`, `listar_ideas`,
+`agregar_ideas`, `rendimiento` y `sincronizar_metricas`. Con ellas puedes pedir
+cosas como *"mira qué ganchos rindieron mejor este mes y prepárame tres
+historias en inglés para el viernes"*.
+
+`API_TOKEN` se genera con `openssl rand -hex 32` y se acepta como
+`Authorization: Bearer`. Si lo dejas vacío, solo se entra con la cookie de
+sesión y el servidor MCP no funciona.
+
+## Reddit como detector de temas
+
+Desactivado por defecto (`REDDIT_ACTIVO=false`). Cuando se activa, una tarea
+diaria mira los *top* del día de los subreddits configurados en español e inglés
+y deja los títulos en el banco como ideas pendientes.
+
+**Solo se guardan título, subreddit, puntuación y enlace.** El cuerpo del post
+no se descarga ni se almacena, y el guion lo escribe siempre el modelo desde
+cero. Copiar un relato ajeno en un vídeo monetizado es un problema de derechos,
+y TikTok además penaliza el contenido poco original.
+
+Dos avisos que conviene tener presentes:
+
+- El nivel gratuito de la API de Reddit es **para uso no comercial** (100
+  consultas por minuto por client ID). Monetizar el canal es uso comercial y
+  requiere un acuerdo previo con Reddit.
+- Los subreddits por defecto son un punto de partida; ajústalos en
+  `REDDIT_SUBS_ES` y `REDDIT_SUBS_EN` a los que de verdad te sirvan.
 
 ## Programar subidas
 

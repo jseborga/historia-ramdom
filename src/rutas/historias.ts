@@ -23,6 +23,7 @@ const PeticionGuionSchema = z.object({
   modelo: z.string().max(80).nullable().default(null),
   tipo: z.enum(["Reflexion", "Historia"]),
   tema: z.string().max(200).optional(),
+  idioma: z.enum(["es", "en"]).default("es"),
   duracion: z.number().int().min(15).max(180).default(65),
   evitar: z.array(z.string().max(160)).max(20).default([]),
 });
@@ -32,6 +33,7 @@ const HistoriaSueltaSchema = PeticionGuionSchema.extend({
   musica: z.string().max(120).nullable().default(null),
   modoPublicacion: z.enum(["DESCARGA", "BORRADOR_TIKTOK", "DIRECTO_TIKTOK"]).default("DESCARGA"),
   guion: GuionSchema.optional(),
+  ideaId: z.string().uuid().nullable().default(null),
   publicarEn: fechaFutura.nullable().default(null),
 });
 
@@ -59,6 +61,8 @@ export async function rutasHistorias(app: FastifyInstance) {
         serieId: true,
         estado: true,
         titulo: true,
+        ganchoTexto: true,
+        metrica: { select: { vistas: true, likes: true, puntuacion: true, tiempoPromedioSeg: true } },
         descripcion: true,
         archivo: true,
         publishId: true,
@@ -92,12 +96,14 @@ export async function rutasHistorias(app: FastifyInstance) {
       tipo: p.tipo,
       tema: p.tema,
       duracion: p.duracion,
+      idioma: p.idioma,
       motor: p.motor,
       modelo: p.modelo,
       voz: p.voz,
       musica: p.musica,
       modoPublicacion: p.modoPublicacion,
       guion: p.guion,
+      ideaId: p.ideaId,
       publicarEn: p.publicarEn,
       evitarTitulos: p.evitar,
     });

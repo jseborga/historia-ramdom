@@ -3,6 +3,7 @@ import { MOTORES, MODELOS } from "../servicios/guion.js";
 import { VOCES, VOZ_POR_DEFECTO, VOZ_OPENAI_POR_DEFECTO } from "../servicios/voz.js";
 import { listarMusica } from "../almacen.js";
 import { tiktokConfigurado } from "../servicios/tiktok.js";
+import { redditConfigurado } from "../servicios/reddit.js";
 import { env } from "../env.js";
 import { db } from "../db.js";
 
@@ -34,6 +35,8 @@ export async function rutasCatalogo(app: FastifyInstance) {
         pixabay: Boolean(env.PIXABAY_API_KEY),
       },
       tiktok: { configurado: tiktokConfigurado(), cuentasConectadas: cuentas },
+      reddit: { configurado: redditConfigurado() },
+      idiomas: ["es", "en"],
       limites: { clipMB: env.MAX_CLIP_MB, videoMB: env.MAX_VIDEO_MB },
       retencionDias: env.RETENCION_DIAS,
     };

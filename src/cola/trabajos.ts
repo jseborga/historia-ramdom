@@ -7,6 +7,12 @@ import {
   crearDescripcion,
   type EscenaPreparada,
 } from "../servicios/clips.js";
+import {
+  elegirIdea,
+  marcarIdeaUsada,
+  elegirGanchoProbado,
+  registrarGancho,
+} from "../servicios/banco.js";
 import { renderizar } from "../render/render.js";
 import {
   crearCarpetaTrabajo,
@@ -14,16 +20,20 @@ import {
   moverAVideos,
   rutaVideo,
   rutaMusicaSegura,
+  elegirMusicaRotativa,
   limpiarDisco,
 } from "../almacen.js";
 import { borrarSesionesCaducadas } from "../seguridad/auth.js";
 import { accessTokenVigente, subirABorradores, publicarDirecto } from "../servicios/tiktok.js";
+import { sincronizarMetricas } from "../servicios/sincronizar.js";
+import { buscarIdeasEnReddit } from "../servicios/reddit.js";
 import { cola } from "./conexion.js";
 
 export type OpcionesHistoria = {
   tipo: string;
   tema?: string;
   duracion: number;
+  idioma?: string;
   motor: string;
   /** Modelo concreto del motor; vacio = el configurado en el entorno. */
   modelo?: string | null;
@@ -32,10 +42,14 @@ export type OpcionesHistoria = {
   modoPublicacion: ModoPublicacion;
   /** Guion ya escrito (editor manual); si falta, lo genera el motor elegido. */
   guion?: Guion;
+  /** Idea del banco que origina la historia. */
+  ideaId?: string | null;
+  /** Gancho probado que hay que repetir tal cual. */
+  ganchoFijo?: string | null;
   /** Fecha ISO para programar la subida a TikTok; vacio = en cuanto termine. */
   publicarEn?: string | null;
   evitarTitulos?: (string | null)[];
-  clipsUsados?: Set<string>;
+  clipsUsados?: string[];
 };
 
 /** Milisegundos que faltan hasta la fecha pedida (0 si ya paso o no hay). */
@@ -45,23 +59,21 @@ export function retrasoHasta(fechaISO?: string | null) {
   return Number.isFinite(ms) && ms > 0 ? ms : 0;
 }
 
-/** Historias recientes de la serie: sirven para no repetir titulos ni clips. */
+/** Historias recientes de la serie: evitan repetir titulos, clips y musica. */
 async function recientesDeLaSerie(serieId: string) {
   return db.historia.findMany({
     where: { serieId },
     orderBy: { creadaEn: "desc" },
     take: 20,
-    select: { titulo: true, escenas: true },
+    select: { titulo: true, escenas: true, musica: true },
   });
 }
 
 function clipsDe(historias: { escenas: unknown }[]) {
-  return new Set<string>(
-    historias.flatMap((r) =>
-      ((r.escenas as EscenaPreparada[] | null) ?? [])
-        .map((e) => e?.clip?.id)
-        .filter((id): id is string => Boolean(id)),
-    ),
+  return historias.flatMap((r) =>
+    ((r.escenas as EscenaPreparada[] | null) ?? [])
+      .map((e) => e?.clip?.id)
+      .filter((id): id is string => Boolean(id)),
   );
 }
 
@@ -71,9 +83,10 @@ function clipsDe(historias: { escenas: unknown }[]) {
  */
 async function producir(historiaId: string, o: OpcionesHistoria) {
   const dir = await crearCarpetaTrabajo(historiaId);
+  const idioma = o.idioma ?? "es";
 
   try {
-    // 1. Guion
+    // 1. Guion, con su gancho (reutilizado si venia uno probado)
     const guion =
       o.guion ??
       (await generarGuion({
@@ -82,15 +95,29 @@ async function producir(historiaId: string, o: OpcionesHistoria) {
         tipo: o.tipo,
         tema: o.tema,
         duracion: o.duracion,
+        idioma,
+        ganchoFijo: o.ganchoFijo,
         evitar: o.evitarTitulos ?? [],
       }));
+
+    const gancho = await registrarGancho(guion.gancho, idioma);
     await db.historia.update({
       where: { id: historiaId },
-      data: { guion, titulo: guion.titulo, estado: "CLIPS" },
+      data: {
+        guion,
+        titulo: guion.titulo,
+        ganchoTexto: guion.gancho,
+        ganchoId: gancho.id,
+        estado: "CLIPS",
+      },
     });
 
-    // 2. Clips: no repetir los usados en las ultimas historias de la serie
-    const escenas = await elegirYDescargarClips(guion.escenas, dir, o.clipsUsados ?? new Set());
+    // 2. Clips. El gancho es su propia escena, la primera del video.
+    const guionado = [
+      { texto: guion.gancho, keywords: guion.escenas[0].keywords },
+      ...guion.escenas,
+    ];
+    const escenas = await elegirYDescargarClips(guionado, dir, new Set(o.clipsUsados ?? []));
     await db.historia.update({ where: { id: historiaId }, data: { escenas, estado: "VOZ" } });
 
     // 3. Voz escena por escena (respeta los limites por minuto del nivel gratuito)
@@ -101,16 +128,36 @@ async function producir(historiaId: string, o: OpcionesHistoria) {
 
     // 4. Render y descripcion con creditos
     const musica = o.musica ? rutaMusicaSegura(o.musica) : undefined;
-    const { archivo } = await renderizar(
+    const { archivo, duracion } = await renderizar(
       dir,
-      escenas.map((e) => ({ texto: e.texto, archivo: e.archivo, audio: e.audio! })),
+      escenas.map((e, i) => ({
+        texto: e.texto,
+        archivo: e.archivo,
+        audio: e.audio!,
+        esGancho: i === 0,
+      })),
       musica,
     );
     const final = await moverAVideos(archivo, historiaId);
     await db.historia.update({
       where: { id: historiaId },
-      data: { archivo: final, descripcion: crearDescripcion(guion, escenas), estado: "LISTA" },
+      data: {
+        archivo: final,
+        musica: o.musica ?? null,
+        descripcion: crearDescripcion(guion, escenas),
+        estado: "LISTA",
+      },
     });
+
+    // La duracion real hace falta para calcular la retencion cuando lleguen
+    // las metricas, asi que se guarda desde ya.
+    await db.metrica.upsert({
+      where: { historiaId },
+      create: { historiaId, duracionSeg: duracion },
+      update: { duracionSeg: duracion },
+    });
+
+    if (o.ideaId) await marcarIdeaUsada(o.ideaId);
 
     // 5. Publicacion segun el modo, inmediata o programada
     if (o.modoPublicacion !== "DESCARGA") {
@@ -144,19 +191,37 @@ async function producir(historiaId: string, o: OpcionesHistoria) {
 export async function crearHistoria(serieId: string) {
   const serie = await db.serie.findUniqueOrThrow({ where: { id: serieId } });
   const recientes = await recientesDeLaSerie(serieId);
-  const h = await db.historia.create({ data: { serieId, estado: "GUION" } });
+
+  // El banco manda: si hay idea pendiente se usa, si no se inventa un tema.
+  const idea = await elegirIdea(serie.idioma);
+  const ganchoProbado = await elegirGanchoProbado(serie.idioma);
+  const musica =
+    serie.musicaModo === "ROTAR"
+      ? await elegirMusicaRotativa(recientes.map((r) => r.musica))
+      : serie.musica;
+
+  const h = await db.historia.create({
+    data: { serieId, ideaId: idea?.id ?? null, estado: "GUION" },
+  });
+
+  const tema = idea
+    ? idea.tema
+    : serie.temas.length
+      ? serie.temas[Math.floor(Math.random() * serie.temas.length)]
+      : undefined;
 
   return producir(h.id, {
     tipo: serie.tipo,
-    modelo: serie.modelo,
-    tema: serie.temas.length
-      ? serie.temas[Math.floor(Math.random() * serie.temas.length)]
-      : undefined,
+    tema,
     duracion: serie.duracion,
+    idioma: serie.idioma,
     motor: serie.motor,
+    modelo: serie.modelo,
     voz: serie.voz,
-    musica: serie.musica,
+    musica,
     modoPublicacion: serie.modoPublicacion,
+    ideaId: idea?.id ?? null,
+    ganchoFijo: ganchoProbado?.texto ?? null,
     evitarTitulos: recientes.map((r) => r.titulo),
     clipsUsados: clipsDe(recientes),
   });
@@ -164,7 +229,9 @@ export async function crearHistoria(serieId: string) {
 
 /** Historia suelta creada desde el editor, sin serie asociada. */
 export async function crearHistoriaSuelta(opciones: OpcionesHistoria) {
-  const h = await db.historia.create({ data: { estado: "GUION" } });
+  const h = await db.historia.create({
+    data: { estado: "GUION", ideaId: opciones.ideaId ?? null },
+  });
   return producir(h.id, {
     ...opciones,
     guion: opciones.guion ? GuionSchema.parse(opciones.guion) : undefined,
@@ -201,6 +268,8 @@ export async function publicarHistoria(historiaId: string) {
     throw err;
   }
 }
+
+export { sincronizarMetricas, buscarIdeasEnReddit };
 
 /** Limpieza diaria: disco, referencias en base de datos y sesiones caducadas. */
 export async function limpiarArchivos() {
