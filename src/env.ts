@@ -23,6 +23,21 @@ const CIFRABLES = [
   "API_TOKEN",
 ] as const;
 
+/**
+ * Una variable escrita pero vacia (`API_TOKEN=`) es lo normal al pegar una
+ * plantilla en el panel: significa "no la uso", no "vale cadena vacia". Sin
+ * esto, las opcionales fallarian la validacion y las que tienen valor por
+ * defecto se quedarian en "" en vez de tomarlo.
+ */
+function quitarVacias(crudo: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const salida: NodeJS.ProcessEnv = {};
+  for (const [nombre, valor] of Object.entries(crudo)) {
+    if (typeof valor === "string" && valor.trim() === "") continue;
+    salida[nombre] = valor;
+  }
+  return salida;
+}
+
 function descifrarEntorno(crudo: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const cifradas = CIFRABLES.filter((k) => crudo[k] && estaCifrado(crudo[k]!));
   if (!cifradas.length) return crudo;
@@ -134,7 +149,7 @@ const Env = z.object({
   RETENCION_DIAS: z.coerce.number().int().min(1).default(15),
 });
 
-const resultado = Env.safeParse(descifrarEntorno(process.env));
+const resultado = Env.safeParse(descifrarEntorno(quitarVacias(process.env)));
 
 if (!resultado.success) {
   const detalle = resultado.error.issues

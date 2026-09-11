@@ -180,6 +180,10 @@ TIKTOK_CLIENT_KEY=
 TIKTOK_CLIENT_SECRET=
 ```
 
+**Las variables que dejes en blanco se ignoran**, así que puedes pegar el bloque
+entero y rellenar solo lo que uses. Una línea como `API_TOKEN=` es lo mismo que
+no ponerla.
+
 ### Qué es obligatorio y qué no
 
 | Variable | ¿Obligatoria? | Si falta |
@@ -368,6 +372,8 @@ prueba**: una copia que nunca se ha restaurado no es una copia.
 |---|---|
 | `Configuracion invalida. Revisa las variables de entorno` | Falta una de las cuatro obligatorias. El propio mensaje las lista. |
 | `ENCRYPTION_KEY debe ser base64 de 32 bytes` | Se generó con otro comando. Usa `openssl rand -base64 32`. |
+| `ADMIN_PASSWORD_HASH: must start with "$argon2"` | El valor no es un hash. Genéralo con `node dist/scripts/cifrar-secreto.js --password` y pega la línea entera, o deja la variable en blanco. |
+| `API_TOKEN: at least 32 character(s)` | Token demasiado corto. Usa `openssl rand -hex 32`, o déjalo en blanco si no usas el servidor MCP. |
 | `No se pudieron descifrar las variables (...)` | La `ENCRYPTION_KEY` no es la misma con la que cifraste. |
 | No conecta a la base de datos | El host es `<proyecto>_<servicio>`, no `localhost`. Revisa el nombre del proyecto. |
 | El certificado no se emite | El DNS todavía no apunta al servidor, o no propagó. |
