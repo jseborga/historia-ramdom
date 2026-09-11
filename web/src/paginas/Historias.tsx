@@ -119,6 +119,19 @@ export function Historias() {
     }
   }
 
+  /** Saca el guion en texto para llevarlo a otra IA. */
+  async function copiarGuion(id: string) {
+    setError("");
+    try {
+      const { texto, instrucciones } = await api.get<{ texto: string; instrucciones: string }>(
+        `/api/historias/${id}/texto`,
+      );
+      await copiar(`${instrucciones}\n\n${texto}`, "Guion");
+    } catch (err) {
+      setError(mensajeDe(err));
+    }
+  }
+
   async function copiarCreditos(id: string) {
     setError("");
     try {
@@ -217,6 +230,7 @@ export function Historias() {
                   <button onClick={() => copiar(h.descripcion!)}>Copiar descripcion</button>
                 )}
                 <button onClick={() => copiarCreditos(h.id)}>Copiar creditos</button>
+                <button onClick={() => copiarGuion(h.id)}>Copiar guion</button>
                 {h.archivo && h.estado !== "SUBIDA" && (
                   <>
                     <input

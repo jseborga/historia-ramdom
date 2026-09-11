@@ -57,6 +57,8 @@ export type Catalogo = {
 
 export type Idioma = "es" | "en";
 
+export type ModoAudio = "VOZ" | "MUSICA" | "MUDO";
+
 export type ClipCandidato = {
   id: string;
   fuente: "pexels" | "pixabay";
@@ -99,6 +101,8 @@ export type Serie = {
   voz: Voz;
   musica: string | null;
   musicaModo: "FIJA" | "ROTAR";
+  modoAudio: ModoAudio;
+  segundosEscena: number | null;
   modoPublicacion: ModoPublicacion;
   activa: boolean;
   _count?: { historias: number };

@@ -7,6 +7,11 @@ import { rutaVideo } from "../almacen.js";
 import { generarGuion, GuionSchema, MOTORES } from "../servicios/guion.js";
 import { VozSchema } from "../servicios/voz.js";
 import { buscarClips, creditosDe, type EscenaPreparada } from "../servicios/clips.js";
+import {
+  guionATexto,
+  textoAGuion,
+  INSTRUCCIONES_IA,
+} from "../servicios/guionTexto.js";
 import { cola, encolarHistoriaSuelta } from "../cola/cola.js";
 import { retrasoHasta } from "../cola/trabajos.js";
 
@@ -36,6 +41,8 @@ const ClipsElegidosSchema = z
 
 const HistoriaSueltaSchema = PeticionGuionSchema.extend({
   voz: VozSchema,
+  modoAudio: z.enum(["VOZ", "MUSICA", "MUDO"]).default("VOZ"),
+  segundosEscena: z.number().min(1).max(30).nullable().default(null),
   musica: z.string().max(120).nullable().default(null),
   modoPublicacion: z.enum(["DESCARGA", "BORRADOR_TIKTOK", "DIRECTO_TIKTOK"]).default("DESCARGA"),
   guion: GuionSchema.optional(),
@@ -49,6 +56,26 @@ export async function rutasHistorias(app: FastifyInstance) {
   app.post("/api/guion", async (req) => {
     const p = PeticionGuionSchema.parse(req.body);
     return generarGuion(p);
+  });
+
+  /**
+   * El guion como texto plano, para llevarlo a otra IA o reescribirlo a mano.
+   */
+  app.post("/api/guion/texto", async (req) => {
+    const { guion } = z.object({ guion: GuionSchema }).parse(req.body);
+    return { texto: guionATexto(guion), instrucciones: INSTRUCCIONES_IA };
+  });
+
+  /** Devuelve el guion editado por fuera convertido de vuelta a su estructura. */
+  app.post("/api/guion/desde-texto", async (req, reply) => {
+    const { texto } = z.object({ texto: z.string().min(20).max(20_000) }).parse(req.body);
+    try {
+      return textoAGuion(texto);
+    } catch (err) {
+      return reply
+        .code(400)
+        .send({ error: err instanceof Error ? err.message : "Texto no reconocido" });
+    }
   });
 
   app.get("/api/historias", async (req) => {
@@ -87,6 +114,16 @@ export async function rutasHistorias(app: FastifyInstance) {
     return h;
   });
 
+  /** Guion de una historia ya creada, en texto plano. */
+  app.get("/api/historias/:id/texto", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const h = await db.historia.findUnique({ where: { id }, select: { guion: true } });
+    if (!h?.guion) return reply.code(404).send({ error: "La historia no tiene guion" });
+    const guion = GuionSchema.safeParse(h.guion);
+    if (!guion.success) return reply.code(409).send({ error: "El guion guardado no es legible" });
+    return { texto: guionATexto(guion.data), instrucciones: INSTRUCCIONES_IA };
+  });
+
   /** Creditos de los clips, para pegarlos aparte en TikTok. */
   app.get("/api/historias/:id/creditos", async (req, reply) => {
     const { id } = idParam.parse(req.params);
@@ -107,6 +144,8 @@ export async function rutasHistorias(app: FastifyInstance) {
       motor: p.motor,
       modelo: p.modelo,
       voz: p.voz,
+      modoAudio: p.modoAudio,
+      segundosEscena: p.segundosEscena,
       musica: p.musica,
       modoPublicacion: p.modoPublicacion,
       guion: p.guion,

@@ -1,7 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Catalogo, type Idioma, type ModoPublicacion, type Serie, type Voz } from "../api";
+import {
+  api,
+  type Catalogo,
+  type Idioma,
+  type ModoAudio,
+  type ModoPublicacion,
+  type Serie,
+  type Voz,
+} from "../api";
 import { mensajeDe } from "../App";
-import { SelectorModo, SelectorMotor, SelectorMusica, SelectorVoz } from "./comunes";
+import {
+  CampoSegundos,
+  SelectorAudio,
+  SelectorModo,
+  SelectorMotor,
+  SelectorMusica,
+  SelectorVoz,
+} from "./comunes";
 
 const EJEMPLOS_CRON: [string, string][] = [
   ["0 9 * * *", "Todos los dias a las 9:00"],
@@ -27,6 +42,8 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
   const [modelo, setModelo] = useState<string | null>(null);
   const [idioma, setIdioma] = useState<Idioma>("es");
   const [musicaModo, setMusicaModo] = useState<"FIJA" | "ROTAR">("FIJA");
+  const [modoAudio, setModoAudio] = useState<ModoAudio>("VOZ");
+  const [segundosEscena, setSegundosEscena] = useState<number | null>(null);
   const [voz, setVoz] = useState<Voz>(catalogo.vozPorDefecto);
   const [musica, setMusica] = useState<string | null>(null);
   const [modo, setModo] = useState<ModoPublicacion>("DESCARGA");
@@ -74,6 +91,8 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
           motor,
           modelo,
           voz,
+          modoAudio,
+          segundosEscena,
           musica: musicaModo === "ROTAR" ? null : musica,
           musicaModo,
           modoPublicacion: modo,
@@ -131,7 +150,12 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
             modelo={modelo}
             alCambiarModelo={setModelo}
           />
-          <SelectorVoz catalogo={catalogo} valor={voz} alCambiar={setVoz} />
+          <SelectorAudio valor={modoAudio} alCambiar={setModoAudio} />
+          {modoAudio === "VOZ" ? (
+            <SelectorVoz catalogo={catalogo} valor={voz} alCambiar={setVoz} />
+          ) : (
+            <CampoSegundos valor={segundosEscena} alCambiar={setSegundosEscena} />
+          )}
           <div>
             <label htmlFor="idiomaSerie">Idioma</label>
             <select
@@ -186,7 +210,7 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
                 <strong>{s.nombre}</strong>
                 <span className="estado">{s.activa ? "activa" : "en pausa"}</span>
                 <span className="suave">
-                  {s.tipo} · {s.idioma} · {s.cron} ({s.zonaHoraria}) · {s.motor}
+                  {s.tipo} · {s.idioma} · {s.modoAudio} · {s.cron} ({s.zonaHoraria}) · {s.motor}
                   {s.modelo ? ` (${s.modelo})` : ""} · {s.duracion}s ·{" "}
                   {s._count?.historias ?? 0} historias
                 </span>

@@ -5,12 +5,22 @@ import {
   type Catalogo,
   type Guion,
   type Idioma,
+  type ModoAudio,
   type ModoPublicacion,
   type Voz,
 } from "../api";
 import { mensajeDe } from "../App";
-import { CampoFecha, SelectorModo, SelectorMotor, SelectorMusica, SelectorVoz } from "./comunes";
+import {
+  CampoFecha,
+  CampoSegundos,
+  SelectorAudio,
+  SelectorModo,
+  SelectorMotor,
+  SelectorMusica,
+  SelectorVoz,
+} from "./comunes";
 import { SelectorClips } from "./SelectorClips";
+import { GuionTexto } from "./GuionTexto";
 
 export function Editor({ catalogo }: { catalogo: Catalogo }) {
   const [tipo, setTipo] = useState<"Reflexion" | "Historia">("Reflexion");
@@ -23,6 +33,8 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
   const [idioma, setIdioma] = useState<Idioma>("es");
   const [voz, setVoz] = useState<Voz>(catalogo.vozPorDefecto);
   const [musica, setMusica] = useState<string | null>(null);
+  const [modoAudio, setModoAudio] = useState<ModoAudio>("VOZ");
+  const [segundosEscena, setSegundosEscena] = useState<number | null>(null);
   const [modo, setModo] = useState<ModoPublicacion>("DESCARGA");
   const [publicarEn, setPublicarEn] = useState("");
 
@@ -50,6 +62,7 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
           tema: tema || undefined,
           duracion,
           idioma,
+          narrado: modoAudio === "VOZ",
         }),
       );
     } catch (err) {
@@ -72,6 +85,8 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
         duracion,
         idioma,
         voz,
+        modoAudio,
+        segundosEscena,
         musica,
         modoPublicacion: modo,
         guion: guion ?? undefined,
@@ -207,6 +222,8 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
         </section>
       )}
 
+      {guion && <GuionTexto guion={guion} alAplicar={setGuion} />}
+
       {guion && (
         <section className="tarjeta">
           <h2>3. Clips de cada escena</h2>
@@ -235,8 +252,15 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
       <section className="tarjeta">
         <h2>{guion ? "4" : "3"}. Voz y video</h2>
         <div className="campos">
-          <SelectorVoz catalogo={catalogo} valor={voz} alCambiar={setVoz} />
-          <SelectorMusica catalogo={catalogo} valor={musica} alCambiar={setMusica} />
+          <SelectorAudio valor={modoAudio} alCambiar={setModoAudio} />
+          {modoAudio === "VOZ" ? (
+            <SelectorVoz catalogo={catalogo} valor={voz} alCambiar={setVoz} />
+          ) : (
+            <CampoSegundos valor={segundosEscena} alCambiar={setSegundosEscena} />
+          )}
+          {modoAudio !== "MUDO" && (
+            <SelectorMusica catalogo={catalogo} valor={musica} alCambiar={setMusica} />
+          )}
           <SelectorModo valor={modo} alCambiar={setModo} tiktokListo={tiktokListo} />
           {modo !== "DESCARGA" && (
             <CampoFecha

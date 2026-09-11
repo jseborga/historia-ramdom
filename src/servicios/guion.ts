@@ -169,12 +169,21 @@ export type PeticionGuion = {
   tema?: string;
   duracion: number;
   idioma?: string;
+  /** false cuando el texto se lee en pantalla en vez de narrarse. */
+  narrado?: boolean;
   /** Gancho ya probado que hay que reutilizar tal cual. */
   ganchoFijo?: string | null;
   evitar?: (string | null)[];
 };
 
-function construirPrompt({ tipo, tema, duracion, ganchoFijo, evitar = [] }: PeticionGuion) {
+function construirPrompt({
+  tipo,
+  tema,
+  duracion,
+  ganchoFijo,
+  narrado = true,
+  evitar = [],
+}: PeticionGuion) {
   // ~2,6 palabras por segundo de narracion pausada; 5 s de margen por escena.
   const palabras = Math.round(duracion * 2.6);
   const escenas = Math.max(4, Math.min(12, Math.round(duracion / 6)));
@@ -192,7 +201,10 @@ function construirPrompt({ tipo, tema, duracion, ganchoFijo, evitar = [] }: Peti
         "Prohibido saludar, presentarse o decir 'en este video'.",
     "El gancho va aparte y ademas encabeza el video; las escenas continuan desde el.",
     "La ultima escena debe cerrar con una idea memorable, sin pedir likes ni seguidores.",
-    "No uses emojis, comillas tipograficas ni acotaciones de camara dentro del texto narrado.",
+    narrado
+      ? "No uses emojis, comillas tipograficas ni acotaciones de camara dentro del texto narrado."
+      : "El texto NO se narra: se lee en pantalla como subtitulo. Frases cortas, " +
+        "como mucho 14 palabras por escena, sin emojis ni acotaciones.",
     titulosPrevios.length
       ? `Evita repetir estos titulos ya publicados: ${titulosPrevios.join(" | ")}.`
       : "",

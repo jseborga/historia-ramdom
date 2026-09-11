@@ -44,6 +44,13 @@ enum FuenteIdea {
   REDDIT
 }
 
+/// El video y la voz no tienen que ir a la par: se pueden separar o quitar.
+enum ModoAudio {
+  VOZ // narracion generada, y la escena dura lo que dura su audio
+  MUSICA // sin narracion: solo subtitulos y musica de fondo
+  MUDO // sin sonido; la duracion sale del texto
+}
+
 enum ModoMusica {
   FIJA
   ROTAR
@@ -78,6 +85,9 @@ model Serie {
   voz             Json // { proveedor, modelo, nombre }
   musica          String? // nombre de archivo dentro de DATA_DIR/musica
   musicaModo      ModoMusica      @default(FIJA) // ROTAR va cambiando de pista
+  modoAudio       ModoAudio       @default(VOZ)
+  /// Segundos por escena cuando no hay voz; vacio = se calcula por el texto.
+  segundosEscena  Float?
   modoPublicacion ModoPublicacion @default(DESCARGA)
   activa          Boolean         @default(true)
   historias       Historia[]
@@ -100,6 +110,7 @@ model Historia {
   descripcion String? // texto final para TikTok con creditos
   archivo     String? // nombre del MP4 dentro de DATA_DIR/videos
   musica      String? // pista usada, para no repetirla en la siguiente
+  modoAudio   ModoAudio      @default(VOZ)
   publishId   String?
   videoTikTok String? // id publico del video, para pedir sus metricas
   publicarEn  DateTime? // subida programada a TikTok

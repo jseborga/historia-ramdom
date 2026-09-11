@@ -24,6 +24,8 @@ const SerieSchema = z.object({
   voz: VozSchema,
   musica: z.string().max(120).nullable().default(null),
   musicaModo: z.enum(["FIJA", "ROTAR"]).default("FIJA"),
+  modoAudio: z.enum(["VOZ", "MUSICA", "MUDO"]).default("VOZ"),
+  segundosEscena: z.number().min(1).max(30).nullable().default(null),
   modoPublicacion: z
     .enum(["DESCARGA", "BORRADOR_TIKTOK", "DIRECTO_TIKTOK"])
     .default("DESCARGA"),

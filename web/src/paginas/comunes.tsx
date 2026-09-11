@@ -1,4 +1,4 @@
-import type { Catalogo, ModoPublicacion, Voz } from "../api";
+import type { Catalogo, ModoAudio, ModoPublicacion, Voz } from "../api";
 
 export function SelectorMotor({
   catalogo,
@@ -90,6 +90,56 @@ export function SelectorVoz({
         </select>
       </div>
     </>
+  );
+}
+
+/**
+ * El video y el audio no tienen que ir a la par: con MUSICA o MUDO no se
+ * genera narracion, y cada escena dura lo que cuesta leer su texto.
+ */
+export function SelectorAudio({
+  valor,
+  alCambiar,
+}: {
+  valor: ModoAudio;
+  alCambiar: (v: ModoAudio) => void;
+}) {
+  return (
+    <div>
+      <label htmlFor="modoAudio">Audio</label>
+      <select
+        id="modoAudio"
+        value={valor}
+        onChange={(e) => alCambiar(e.target.value as ModoAudio)}
+      >
+        <option value="VOZ">Voz en off (la escena dura lo que su audio)</option>
+        <option value="MUSICA">Sin voz: solo subtitulos y musica</option>
+        <option value="MUDO">Sin sonido: solo subtitulos</option>
+      </select>
+    </div>
+  );
+}
+
+export function CampoSegundos({
+  valor,
+  alCambiar,
+}: {
+  valor: number | null;
+  alCambiar: (v: number | null) => void;
+}) {
+  return (
+    <div>
+      <label htmlFor="segundosEscena">Segundos por escena (vacio = por el texto)</label>
+      <input
+        id="segundosEscena"
+        type="number"
+        min={1}
+        max={30}
+        step="0.5"
+        value={valor ?? ""}
+        onChange={(e) => alCambiar(e.target.value ? Number(e.target.value) : null)}
+      />
+    </div>
   );
 }
 

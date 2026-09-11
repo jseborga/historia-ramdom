@@ -226,6 +226,57 @@ solo el código de respuesta y una pista cuando es un 401 o un 403.
 
 También está en `GET /api/diagnostico` y como herramienta del servidor MCP.
 
+## Audio y vídeo por separado
+
+El vídeo y la voz ya no van forzosamente juntos. Cada serie —y cada historia
+del editor— elige su **modo de audio**:
+
+| Modo | Qué hace | Duración de cada escena |
+|---|---|---|
+| `VOZ` | Narración generada, como siempre | La que dure su audio |
+| `MUSICA` | Sin narración: subtítulos y música de fondo | La que cueste leer el texto |
+| `MUDO` | Sin sonido, solo subtítulos | La que cueste leer el texto |
+
+En `MUSICA` y `MUDO` **el paso de voz se salta entero**, así que no se gasta
+nada de cuota de TTS y la historia se produce bastante más rápido.
+
+Cuando no hay voz, la duración sale del texto: unas 2,2 palabras por segundo de
+lectura más un segundo de margen, acotado entre 2,5 y 10 segundos. Si prefieres
+un ritmo fijo, pon los segundos por escena en la serie o en el editor. Y el
+guion se pide distinto: frases más cortas, porque se leen en pantalla en vez de
+escucharse.
+
+En `MUSICA` la pista no se agacha —no hay voz que dejar pasar— y suena al 80 %.
+En `MUDO` se añade una pista de silencio en lugar de dejar el MP4 sin audio,
+que da menos problemas de compatibilidad.
+
+## El guion como texto, para llevarlo a otra IA
+
+Para que el proceso no sea del todo automático, el guion se puede sacar como
+texto plano, pasarlo por otra IA o reescribirlo a mano, y volver a meterlo:
+
+```
+TITULO: Lo que nadie te dice
+GANCHO: Nadie te avisa de esto a los veinte
+HASHTAGS: reflexion, vida
+
+--- Escena 1
+A los veinte crees que el tiempo sobra.
+CLIPS: city night, walking
+```
+
+En el editor, **Guion como texto → Abrir**: hay un botón para copiarlo y otro
+para copiarlo con las instrucciones de formato ya puestas delante, para pegárselo
+a cualquier modelo. *Aplicar este texto* lo convierte de vuelta y sustituye el
+guion; a partir de ahí sigues con clips, voz y render como siempre. En la lista
+de historias, *Copiar guion* hace lo mismo con una historia ya hecha.
+
+El lector es tolerante: acepta mayúsculas o minúsculas, con acentos o sin ellos,
+`CLIPS:`, `KEYWORDS:` o `PALABRAS:`, y separadores de tres guiones con o sin
+rótulo. Lo que devuelva la otra IA se valida con el mismo esquema que el guion
+generado aquí, así que un texto incompleto se rechaza con el motivo concreto
+—qué línea falta o qué escena se quedó sin clips— en vez de colarse a medias.
+
 ## Elegir los clips a mano
 
 Tras escribir el guion, el editor muestra una fila por escena —incluido el

@@ -13,7 +13,7 @@ import {
   elegirGanchoProbado,
   registrarGancho,
 } from "../servicios/banco.js";
-import { renderizar } from "../render/render.js";
+import { renderizar, duracionPorTexto, type ModoAudio } from "../render/render.js";
 import {
   crearCarpetaTrabajo,
   borrarCarpetaTemporal,
@@ -38,6 +38,10 @@ export type OpcionesHistoria = {
   /** Modelo concreto del motor; vacio = el configurado en el entorno. */
   modelo?: string | null;
   voz: unknown;
+  /** VOZ narra; MUSICA y MUDO prescinden de la voz y no gastan cuota de TTS. */
+  modoAudio?: ModoAudio;
+  /** Segundos por escena cuando no hay voz; vacio = se calcula por el texto. */
+  segundosEscena?: number | null;
   musica?: string | null;
   modoPublicacion: ModoPublicacion;
   /** Guion ya escrito (editor manual); si falta, lo genera el motor elegido. */
@@ -98,6 +102,7 @@ async function producir(historiaId: string, o: OpcionesHistoria) {
         tema: o.tema,
         duracion: o.duracion,
         idioma,
+        narrado: (o.modoAudio ?? "VOZ") === "VOZ",
         ganchoFijo: o.ganchoFijo,
         evitar: o.evitarTitulos ?? [],
       }));
@@ -125,11 +130,16 @@ async function producir(historiaId: string, o: OpcionesHistoria) {
       new Set(o.clipsUsados ?? []),
       o.clipsElegidos ?? {},
     );
-    await db.historia.update({ where: { id: historiaId }, data: { escenas, estado: "VOZ" } });
+    await db.historia.update({ where: { id: historiaId }, data: { escenas } });
 
-    // 3. Voz escena por escena (respeta los limites por minuto del nivel gratuito)
-    for (const [i, e] of escenas.entries()) {
-      e.audio = await generarVoz(o.voz, e.texto, dir, i);
+    // 3. Voz escena por escena, solo si la historia lleva narracion.
+    //    En MUSICA y MUDO este paso se salta entero: no se gasta cuota de TTS.
+    const modoAudio = o.modoAudio ?? "VOZ";
+    if (modoAudio === "VOZ") {
+      await db.historia.update({ where: { id: historiaId }, data: { estado: "VOZ" } });
+      for (const [i, e] of escenas.entries()) {
+        e.audio = await generarVoz(o.voz, e.texto, dir, i);
+      }
     }
     await db.historia.update({ where: { id: historiaId }, data: { escenas, estado: "RENDER" } });
 
@@ -140,10 +150,13 @@ async function producir(historiaId: string, o: OpcionesHistoria) {
       escenas.map((e, i) => ({
         texto: e.texto,
         archivo: e.archivo,
-        audio: e.audio!,
+        audio: e.audio,
+        // Sin voz, la duracion la marca el texto, no el audio.
+        duracion:
+          modoAudio === "VOZ" ? undefined : duracionPorTexto(e.texto, o.segundosEscena),
         esGancho: i === 0,
       })),
-      musica,
+      { modoAudio, musica },
     );
     const final = await moverAVideos(archivo, historiaId);
     await db.historia.update({
@@ -151,6 +164,7 @@ async function producir(historiaId: string, o: OpcionesHistoria) {
       data: {
         archivo: final,
         musica: o.musica ?? null,
+        modoAudio,
         descripcion: crearDescripcion(guion, escenas),
         estado: "LISTA",
       },
@@ -225,6 +239,8 @@ export async function crearHistoria(serieId: string) {
     motor: serie.motor,
     modelo: serie.modelo,
     voz: serie.voz,
+    modoAudio: serie.modoAudio,
+    segundosEscena: serie.segundosEscena,
     musica,
     modoPublicacion: serie.modoPublicacion,
     ideaId: idea?.id ?? null,
