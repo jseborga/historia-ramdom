@@ -19,6 +19,7 @@ const SerieSchema = z.object({
   cron,
   zonaHoraria: z.string().min(1).max(60).default("America/Lima"),
   motor: z.enum(MOTORES).default("groq"),
+  modelo: z.string().max(80).nullable().default(null),
   voz: VozSchema,
   musica: z.string().max(120).nullable().default(null),
   modoPublicacion: z

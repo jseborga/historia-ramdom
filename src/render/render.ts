@@ -1,5 +1,6 @@
-import { writeFile } from "node:fs/promises";
+import { stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { env, MAX_VIDEO_BYTES, MB } from "../env.js";
 import { ffmpeg, duracion } from "./ffmpeg.js";
 import { crearASS, type Tramo } from "./subtitulos.js";
 
@@ -94,5 +95,16 @@ export async function renderizar(dir: string, escenas: EscenaRender[], musica?: 
     "final.mp4",
   );
   await ffmpeg(args, dir);
-  return { archivo: join(dir, "final.mp4"), duracion: t };
+
+  // El MP4 compilado no puede pasar del limite configurado (MAX_VIDEO_MB).
+  const archivo = join(dir, "final.mp4");
+  const { size } = await stat(archivo);
+  if (size > MAX_VIDEO_BYTES) {
+    throw new Error(
+      `El video compilado pesa ${(size / MB).toFixed(1)} MB y supera el limite de ` +
+        `${env.MAX_VIDEO_MB} MB (MAX_VIDEO_MB). Sube el limite o acorta la duracion.`,
+    );
+  }
+
+  return { archivo, duracion: t, bytes: size };
 }

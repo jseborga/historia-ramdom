@@ -82,6 +82,39 @@ export async function registrarAuth(app: FastifyInstance) {
   });
 }
 
+/**
+ * Crea o actualiza el administrador maestro a partir del entorno.
+ * Se prefiere ADMIN_PASSWORD_HASH: asi la contrasena en claro nunca vive en el
+ * panel del servidor. ADMIN_PASSWORD existe para el primer arranque rapido.
+ */
+export async function asegurarAdminMaestro(log: (m: string) => void = () => {}) {
+  const email = env.ADMIN_EMAIL;
+  if (!email) return null;
+
+  const hash =
+    env.ADMIN_PASSWORD_HASH ??
+    (env.ADMIN_PASSWORD
+      ? await argon2.hash(env.ADMIN_PASSWORD, { type: argon2.argon2id })
+      : null);
+
+  if (!hash) {
+    log("ADMIN_EMAIL esta puesto pero faltan ADMIN_PASSWORD_HASH o ADMIN_PASSWORD");
+    return null;
+  }
+
+  const existente = await db.user.findUnique({ where: { email } });
+  // Solo se reescribe el hash si cambio, para no invalidar nada en cada arranque.
+  if (existente?.passwordHash === hash && existente.maestro) return existente;
+
+  const user = await db.user.upsert({
+    where: { email },
+    create: { email, passwordHash: hash, maestro: true },
+    update: { passwordHash: hash, maestro: true },
+  });
+  log(`Administrador maestro listo (${email})`);
+  return user;
+}
+
 /** La ejecuta la limpieza diaria para no acumular sesiones caducadas. */
 export async function borrarSesionesCaducadas() {
   const { count } = await db.session.deleteMany({ where: { expiresAt: { lt: new Date() } } });

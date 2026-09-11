@@ -21,6 +21,13 @@ async function peticion<T>(ruta: string, init?: RequestInit): Promise<T> {
   return datos as T;
 }
 
+/** `datetime-local` da hora local sin zona; la API espera ISO con offset. */
+export function aISO(valorLocal: string): string | null {
+  if (!valorLocal) return null;
+  const fecha = new Date(valorLocal);
+  return Number.isNaN(fecha.getTime()) ? null : fecha.toISOString();
+}
+
 export const api = {
   get: <T>(ruta: string) => peticion<T>(ruta),
   post: <T>(ruta: string, cuerpo?: unknown) =>
@@ -36,9 +43,11 @@ export type Catalogo = {
   motores: { id: string; modelo: string; disponible: boolean }[];
   voces: Record<"gemini" | "openai", string[]>;
   vozPorDefecto: Voz;
+  vozOpenAIPorDefecto: Voz;
   musica: string[];
   clips: { pexels: boolean; pixabay: boolean };
   tiktok: { configurado: boolean; cuentasConectadas: number };
+  limites: { clipMB: number; videoMB: number };
   retencionDias: number;
 };
 
@@ -59,6 +68,7 @@ export type Serie = {
   cron: string;
   zonaHoraria: string;
   motor: string;
+  modelo: string | null;
   voz: Voz;
   musica: string | null;
   modoPublicacion: ModoPublicacion;
@@ -74,6 +84,7 @@ export type Historia = {
   descripcion: string | null;
   archivo: string | null;
   publishId: string | null;
+  publicarEn: string | null;
   error: string | null;
   creadaEn: string;
 };

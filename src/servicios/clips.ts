@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { Redis } from "ioredis";
-import { env } from "../env.js";
+import { env, MAX_CLIP_BYTES } from "../env.js";
 import { leerJSON } from "../util/http.js";
 
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
@@ -18,7 +18,6 @@ const HOSTS_PERMITIDOS = new Set([
   "cdn.pixabay.com",
   "pixabay.com",
 ]);
-const MAX_BYTES = 150 * 1024 * 1024;
 
 export type ClipInfo = {
   id: string;
@@ -59,15 +58,17 @@ export async function descargarClip(url: string, destino: string) {
       continue;
     }
     if (!res.ok || !res.body) throw new Error(`Descarga fallida (${res.status})`);
-    if (Number(res.headers.get("content-length") ?? 0) > MAX_BYTES) {
-      throw new Error("Clip demasiado grande");
+    if (Number(res.headers.get("content-length") ?? 0) > MAX_CLIP_BYTES) {
+      throw new Error(`Clip demasiado grande (limite ${env.MAX_CLIP_MB} MB, MAX_CLIP_MB)`);
     }
 
     let bytes = 0;
     const limite = new Transform({
       transform(trozo, _enc, cb) {
         bytes += trozo.length;
-        bytes > MAX_BYTES ? cb(new Error("Clip demasiado grande")) : cb(null, trozo);
+        bytes > MAX_CLIP_BYTES
+          ? cb(new Error(`Clip demasiado grande (limite ${env.MAX_CLIP_MB} MB, MAX_CLIP_MB)`))
+          : cb(null, trozo);
       },
     });
     await pipeline(
@@ -225,14 +226,22 @@ export async function elegirYDescargarClips(
   return preparadas;
 }
 
+/**
+ * Creditos de los clips usados, sin repetir: fuente, autor, pagina y licencia.
+ * Es lo que hay que pegar en TikTok junto a la descripcion.
+ */
+export function creditosDe(escenas: Pick<EscenaPreparada, "clip">[]): string {
+  return [...new Map(escenas.filter((e) => e?.clip).map((e) => [e.clip.id, e.clip])).values()]
+    .map((c) => `${c.autor} (${c.fuente}, ${c.licencia}) - ${c.pagina}`)
+    .join("\n");
+}
+
 /** Descripcion lista para pegar en TikTok, con los creditos de cada clip. */
 export function crearDescripcion(
   guion: { titulo: string; hashtags?: string[] },
   escenas: EscenaPreparada[],
 ): string {
-  const creditos = [...new Map(escenas.map((e) => [e.clip.id, e.clip])).values()]
-    .map((c) => `${c.autor} (${c.fuente}) - ${c.pagina}`)
-    .join("\n");
+  const creditos = creditosDe(escenas);
   const hashtags = (guion.hashtags ?? []).map((h) => `#${h.replace(/^#/, "")}`).join(" ");
 
   return [

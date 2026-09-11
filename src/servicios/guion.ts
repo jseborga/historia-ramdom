@@ -3,18 +3,21 @@ import { env } from "../env.js";
 import { leerJSON } from "../util/http.js";
 
 /**
- * Nombres de modelo por defecto. Los proveedores los renuevan a menudo:
- * comprueba que siguen vigentes antes de desplegar.
+ * Nombres de modelo por defecto. Los proveedores los renuevan a menudo, asi
+ * que se configuran en el entorno (GROQ_MODELO, GEMINI_MODELO, ...) y se
+ * pueden afinar por serie o por historia sin tocar el codigo.
  */
-export const MODELOS = {
-  groq: "llama-3.3-70b-versatile",
-  openai: "gpt-4o-mini",
-  gemini: "gemini-2.5-flash",
-  claude: "claude-opus-5",
-} as const;
+export const MODELOS: Record<Motor, string> = {
+  groq: env.GROQ_MODELO,
+  openai: env.OPENAI_MODELO,
+  gemini: env.GEMINI_MODELO,
+  claude: env.ANTHROPIC_MODELO,
+};
 
 export const MOTORES = ["groq", "openai", "gemini", "claude"] as const;
 export type Motor = (typeof MOTORES)[number];
+
+export const esMotor = (v: string): v is Motor => (MOTORES as readonly string[]).includes(v);
 
 const SISTEMA =
   "Eres guionista de videos verticales cortos en espanol latinoamericano neutro. " +
@@ -153,6 +156,8 @@ export type Guion = z.infer<typeof GuionSchema>;
 
 export type PeticionGuion = {
   motor: string;
+  /** Modelo concreto; si falta se usa el del entorno para ese motor. */
+  modelo?: string | null;
   tipo: string;
   tema?: string;
   duracion: number;
@@ -192,17 +197,19 @@ function construirPrompt({ tipo, tema, duracion, evitar = [] }: PeticionGuion) {
 }
 
 export async function generarGuion(peticion: PeticionGuion): Promise<Guion> {
+  if (!esMotor(peticion.motor)) throw new Error(`Motor desconocido: ${peticion.motor}`);
+  const motor = peticion.motor;
+  const modelo = peticion.modelo?.trim() || MODELOS[motor];
   const prompt = construirPrompt(peticion);
-  const motor = peticion.motor as Motor;
 
   const crudo = await (motor === "claude"
-    ? textoConClaude(prompt)
+    ? textoConClaude(prompt, modelo)
     : motor === "openai"
-      ? textoConOpenAI(prompt)
+      ? textoConOpenAI(prompt, modelo)
       : motor === "gemini"
-        ? textoConGemini(prompt)
-        : textoConGroq(prompt));
+        ? textoConGemini(prompt, modelo)
+        : textoConGroq(prompt, modelo));
 
-  if (!crudo) throw new Error(`El motor ${motor} no devolvio contenido`);
+  if (!crudo) throw new Error(`El motor ${motor} (${modelo}) no devolvio contenido`);
   return GuionSchema.parse(extraerJSON(crudo));
 }

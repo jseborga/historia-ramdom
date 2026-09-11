@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Historia } from "../api";
+import { aISO, api, type Historia } from "../api";
 import { mensajeDe } from "../App";
 
 const EN_PROCESO = ["GUION", "CLIPS", "VOZ", "RENDER"];
@@ -8,6 +8,8 @@ export function Historias() {
   const [historias, setHistorias] = useState<Historia[]>([]);
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
+  /** Fecha elegida por historia para programar su subida a TikTok. */
+  const [fechas, setFechas] = useState<Record<string, string>>({});
 
   const cargar = useCallback(async () => {
     try {
@@ -24,12 +26,28 @@ export function Historias() {
     return () => clearInterval(t);
   }, [cargar]);
 
-  async function copiar(texto: string) {
+  async function copiar(texto: string, que = "Descripcion") {
     try {
       await navigator.clipboard.writeText(texto);
-      setOk("Descripcion copiada.");
+      setOk(`${que} copiada.`);
     } catch {
       setError("El navegador no dejo copiar; selecciona el texto a mano.");
+    }
+  }
+
+  async function copiarCreditos(id: string) {
+    setError("");
+    try {
+      const { creditos } = await api.get<{ creditos: string }>(
+        `/api/historias/${id}/creditos`,
+      );
+      if (!creditos) {
+        setError("Esta historia todavia no tiene clips con creditos.");
+        return;
+      }
+      await copiar(creditos, "Lista de creditos");
+    } catch (err) {
+      setError(mensajeDe(err));
     }
   }
 
@@ -70,6 +88,11 @@ export function Historias() {
               {EN_PROCESO.includes(h.estado) && (
                 <p className="suave">En proceso; esta pagina se actualiza sola.</p>
               )}
+              {h.publicarEn && h.estado !== "SUBIDA" && (
+                <p className="suave">
+                  Subida programada para {new Date(h.publicarEn).toLocaleString()}.
+                </p>
+              )}
               {h.error && <pre>{h.error}</pre>}
               {h.descripcion && <pre>{h.descripcion}</pre>}
 
@@ -82,17 +105,34 @@ export function Historias() {
                 {h.descripcion && (
                   <button onClick={() => copiar(h.descripcion!)}>Copiar descripcion</button>
                 )}
+                <button onClick={() => copiarCreditos(h.id)}>Copiar creditos</button>
                 {h.archivo && h.estado !== "SUBIDA" && (
-                  <button
-                    onClick={() =>
-                      accion(
-                        () => api.post(`/api/historias/${h.id}/publicar`),
-                        "Subida a TikTok encolada.",
-                      )
-                    }
-                  >
-                    Enviar a TikTok
-                  </button>
+                  <>
+                    <input
+                      type="datetime-local"
+                      style={{ width: "auto" }}
+                      aria-label="Fecha de subida"
+                      value={fechas[h.id] ?? ""}
+                      onChange={(e) => setFechas({ ...fechas, [h.id]: e.target.value })}
+                    />
+                    <button
+                      onClick={() =>
+                        accion(
+                          () =>
+                            api.post(`/api/historias/${h.id}/publicar`, {
+                              publicarEn: aISO(fechas[h.id] ?? ""),
+                            }),
+                          fechas[h.id]
+                            ? `Subida programada para ${new Date(
+                                fechas[h.id],
+                              ).toLocaleString()}.`
+                            : "Subida a TikTok encolada.",
+                        )
+                      }
+                    >
+                      {fechas[h.id] ? "Programar subida" : "Enviar a TikTok"}
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={() => {

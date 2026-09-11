@@ -11,10 +11,17 @@ export const VozSchema = z.object({
 });
 export type VozConfig = z.infer<typeof VozSchema>;
 
+/** Los modelos de voz se configuran en el entorno (Google AI Studio los renueva). */
 export const VOZ_POR_DEFECTO: VozConfig = {
   proveedor: "gemini",
-  modelo: "gemini-3.1-flash-tts-preview",
-  nombre: "Kore",
+  modelo: env.GEMINI_MODELO_VOZ,
+  nombre: env.GEMINI_VOZ,
+};
+
+export const VOZ_OPENAI_POR_DEFECTO: VozConfig = {
+  proveedor: "openai",
+  modelo: env.OPENAI_MODELO_VOZ,
+  nombre: env.OPENAI_VOZ,
 };
 
 /** Voces disponibles; sirven para poblar el selector del frontend. */
@@ -101,8 +108,8 @@ export async function vozGemini(
 export async function vozOpenAI(
   texto: string,
   destino: string,
-  modelo = "gpt-4o-mini-tts",
-  voz = "coral",
+  modelo = env.OPENAI_MODELO_VOZ,
+  voz = env.OPENAI_VOZ,
 ) {
   if (!env.OPENAI_API_KEY) throw new Error("Falta OPENAI_API_KEY");
   await conReintentos(async () => {

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { api, type Catalogo, type Guion, type ModoPublicacion, type Voz } from "../api";
+import { aISO, api, type Catalogo, type Guion, type ModoPublicacion, type Voz } from "../api";
 import { mensajeDe } from "../App";
-import { SelectorModo, SelectorMotor, SelectorMusica, SelectorVoz } from "./comunes";
+import { CampoFecha, SelectorModo, SelectorMotor, SelectorMusica, SelectorVoz } from "./comunes";
 
 export function Editor({ catalogo }: { catalogo: Catalogo }) {
   const [tipo, setTipo] = useState<"Reflexion" | "Historia">("Reflexion");
@@ -10,9 +10,11 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
   const [motor, setMotor] = useState(
     catalogo.motores.find((m) => m.disponible)?.id ?? "groq",
   );
+  const [modelo, setModelo] = useState<string | null>(null);
   const [voz, setVoz] = useState<Voz>(catalogo.vozPorDefecto);
   const [musica, setMusica] = useState<string | null>(null);
   const [modo, setModo] = useState<ModoPublicacion>("DESCARGA");
+  const [publicarEn, setPublicarEn] = useState("");
 
   const [guion, setGuion] = useState<Guion | null>(null);
   const [cargando, setCargando] = useState("");
@@ -27,7 +29,15 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
     setError("");
     setOk("");
     try {
-      setGuion(await api.post<Guion>("/api/guion", { motor, tipo, tema: tema || undefined, duracion }));
+      setGuion(
+        await api.post<Guion>("/api/guion", {
+          motor,
+          modelo,
+          tipo,
+          tema: tema || undefined,
+          duracion,
+        }),
+      );
     } catch (err) {
       setError(mensajeDe(err));
     } finally {
@@ -42,6 +52,7 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
     try {
       await api.post("/api/historias", {
         motor,
+        modelo,
         tipo,
         tema: tema || undefined,
         duracion,
@@ -49,8 +60,15 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
         musica,
         modoPublicacion: modo,
         guion: guion ?? undefined,
+        publicarEn: modo === "DESCARGA" ? null : aISO(publicarEn),
       });
-      setOk("Historia encolada. Sigue su avance en la pestana Historias.");
+      setOk(
+        modo !== "DESCARGA" && publicarEn
+          ? `Historia encolada. La subida a TikTok esta programada para ${new Date(
+              publicarEn,
+            ).toLocaleString()}.`
+          : "Historia encolada. Sigue su avance en la pestana Historias.",
+      );
     } catch (err) {
       setError(mensajeDe(err));
     } finally {
@@ -103,7 +121,13 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
               onChange={(e) => setDuracion(Number(e.target.value))}
             />
           </div>
-          <SelectorMotor catalogo={catalogo} valor={motor} alCambiar={setMotor} />
+          <SelectorMotor
+            catalogo={catalogo}
+            valor={motor}
+            alCambiar={setMotor}
+            modelo={modelo}
+            alCambiarModelo={setModelo}
+          />
         </div>
         <div className="pie">
           <button onClick={escribirGuion} disabled={cargando !== ""}>
@@ -151,7 +175,19 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
           <SelectorVoz catalogo={catalogo} valor={voz} alCambiar={setVoz} />
           <SelectorMusica catalogo={catalogo} valor={musica} alCambiar={setMusica} />
           <SelectorModo valor={modo} alCambiar={setModo} tiktokListo={tiktokListo} />
+          {modo !== "DESCARGA" && (
+            <CampoFecha
+              id="publicarEn"
+              etiqueta="Subir a TikTok el (vacio = al terminar)"
+              valor={publicarEn}
+              alCambiar={setPublicarEn}
+            />
+          )}
         </div>
+        <p className="suave">
+          Limites: clips de {catalogo.limites.clipMB} MB y video compilado de{" "}
+          {catalogo.limites.videoMB} MB.
+        </p>
         <div className="pie">
           <button className="primario" onClick={producir} disabled={cargando !== "" || sinClips}>
             {cargando === "video" ? "Encolando..." : "Generar video"}

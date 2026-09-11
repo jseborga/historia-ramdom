@@ -11,6 +11,7 @@ model User {
   id           String    @id @default(uuid())
   email        String    @unique
   passwordHash String
+  maestro      Boolean   @default(false) // creado desde ADMIN_EMAIL / ADMIN_PASSWORD
   sessions     Session[]
   createdAt    DateTime  @default(now())
 }
@@ -50,6 +51,7 @@ model Serie {
   cron            String // ej. "0 9 * * *" = todos los dias a las 9:00
   zonaHoraria     String          @default("America/Lima")
   motor           String          @default("groq")
+  modelo          String? // modelo concreto del motor; vacio = el del entorno
   voz             Json // { proveedor, modelo, nombre }
   musica          String? // nombre de archivo dentro de DATA_DIR/musica
   modoPublicacion ModoPublicacion @default(DESCARGA)
@@ -69,6 +71,7 @@ model Historia {
   descripcion String? // texto final para TikTok con creditos
   archivo     String? // nombre del MP4 dentro de DATA_DIR/videos
   publishId   String?
+  publicarEn  DateTime? // subida programada a TikTok
   error       String?
   creadaEn    DateTime       @default(now())
 

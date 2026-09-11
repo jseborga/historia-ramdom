@@ -25,14 +25,25 @@ export type OpcionesHistoria = {
   tema?: string;
   duracion: number;
   motor: string;
+  /** Modelo concreto del motor; vacio = el configurado en el entorno. */
+  modelo?: string | null;
   voz: unknown;
   musica?: string | null;
   modoPublicacion: ModoPublicacion;
   /** Guion ya escrito (editor manual); si falta, lo genera el motor elegido. */
   guion?: Guion;
+  /** Fecha ISO para programar la subida a TikTok; vacio = en cuanto termine. */
+  publicarEn?: string | null;
   evitarTitulos?: (string | null)[];
   clipsUsados?: Set<string>;
 };
+
+/** Milisegundos que faltan hasta la fecha pedida (0 si ya paso o no hay). */
+export function retrasoHasta(fechaISO?: string | null) {
+  if (!fechaISO) return 0;
+  const ms = new Date(fechaISO).getTime() - Date.now();
+  return Number.isFinite(ms) && ms > 0 ? ms : 0;
+}
 
 /** Historias recientes de la serie: sirven para no repetir titulos ni clips. */
 async function recientesDeLaSerie(serieId: string) {
@@ -67,6 +78,7 @@ async function producir(historiaId: string, o: OpcionesHistoria) {
       o.guion ??
       (await generarGuion({
         motor: o.motor,
+        modelo: o.modelo,
         tipo: o.tipo,
         tema: o.tema,
         duracion: o.duracion,
@@ -100,12 +112,19 @@ async function producir(historiaId: string, o: OpcionesHistoria) {
       data: { archivo: final, descripcion: crearDescripcion(guion, escenas), estado: "LISTA" },
     });
 
-    // 5. Publicacion segun el modo
+    // 5. Publicacion segun el modo, inmediata o programada
     if (o.modoPublicacion !== "DESCARGA") {
+      const delay = retrasoHasta(o.publicarEn);
+      if (o.publicarEn) {
+        await db.historia.update({
+          where: { id: historiaId },
+          data: { publicarEn: new Date(o.publicarEn) },
+        });
+      }
       await cola.add(
         "publicar",
         { historiaId },
-        { attempts: 3, backoff: { type: "exponential", delay: 120_000 } },
+        { delay, attempts: 3, backoff: { type: "exponential", delay: 120_000 } },
       );
     }
 
@@ -129,6 +148,7 @@ export async function crearHistoria(serieId: string) {
 
   return producir(h.id, {
     tipo: serie.tipo,
+    modelo: serie.modelo,
     tema: serie.temas.length
       ? serie.temas[Math.floor(Math.random() * serie.temas.length)]
       : undefined,

@@ -9,7 +9,7 @@ import { ZodError } from "zod";
 import { env } from "./env.js";
 import { db } from "./db.js";
 import { prepararCarpetas } from "./almacen.js";
-import { registrarAuth } from "./seguridad/auth.js";
+import { registrarAuth, asegurarAdminMaestro } from "./seguridad/auth.js";
 import { registrarRutas } from "./rutas/index.js";
 import { iniciarWorker, programarSerie, detenerWorker } from "./cola/cola.js";
 import { cerrarRedisClips } from "./servicios/clips.js";
@@ -66,6 +66,7 @@ app.setNotFoundHandler((req, reply) =>
 );
 
 await prepararCarpetas();
+await asegurarAdminMaestro((m) => app.log.info(m));
 await iniciarWorker();
 
 // Vuelve a registrar los horarios por si Redis se vacio entre despliegues

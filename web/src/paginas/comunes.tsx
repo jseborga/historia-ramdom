@@ -4,22 +4,38 @@ export function SelectorMotor({
   catalogo,
   valor,
   alCambiar,
+  modelo,
+  alCambiarModelo,
 }: {
   catalogo: Catalogo;
   valor: string;
   alCambiar: (v: string) => void;
+  modelo: string | null;
+  alCambiarModelo: (v: string | null) => void;
 }) {
+  const porDefecto = catalogo.motores.find((m) => m.id === valor)?.modelo ?? "";
   return (
-    <div>
-      <label htmlFor="motor">Motor del guion</label>
-      <select id="motor" value={valor} onChange={(e) => alCambiar(e.target.value)}>
-        {catalogo.motores.map((m) => (
-          <option key={m.id} value={m.id} disabled={!m.disponible}>
-            {m.id} ({m.modelo}){m.disponible ? "" : " - sin clave"}
-          </option>
-        ))}
-      </select>
-    </div>
+    <>
+      <div>
+        <label htmlFor="motor">Motor del guion</label>
+        <select id="motor" value={valor} onChange={(e) => alCambiar(e.target.value)}>
+          {catalogo.motores.map((m) => (
+            <option key={m.id} value={m.id} disabled={!m.disponible}>
+              {m.id} ({m.modelo}){m.disponible ? "" : " - sin clave"}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label htmlFor="modeloTexto">Modelo de la historia</label>
+        <input
+          id="modeloTexto"
+          value={modelo ?? ""}
+          placeholder={porDefecto}
+          onChange={(e) => alCambiarModelo(e.target.value.trim() || null)}
+        />
+      </div>
+    </>
   );
 }
 
@@ -42,12 +58,9 @@ export function SelectorVoz({
           value={valor.proveedor}
           onChange={(e) => {
             const proveedor = e.target.value as Voz["proveedor"];
-            alCambiar({
-              proveedor,
-              modelo:
-                proveedor === "openai" ? "gpt-4o-mini-tts" : catalogo.vozPorDefecto.modelo,
-              nombre: catalogo.voces[proveedor][0],
-            });
+            alCambiar(
+              proveedor === "openai" ? catalogo.vozOpenAIPorDefecto : catalogo.vozPorDefecto,
+            );
           }}
         >
           <option value="gemini">Gemini</option>
@@ -104,6 +117,30 @@ export function SelectorMusica({
           </option>
         ))}
       </select>
+    </div>
+  );
+}
+
+export function CampoFecha({
+  id,
+  etiqueta,
+  valor,
+  alCambiar,
+}: {
+  id: string;
+  etiqueta: string;
+  valor: string;
+  alCambiar: (v: string) => void;
+}) {
+  return (
+    <div>
+      <label htmlFor={id}>{etiqueta}</label>
+      <input
+        id={id}
+        type="datetime-local"
+        value={valor}
+        onChange={(e) => alCambiar(e.target.value)}
+      />
     </div>
   );
 }

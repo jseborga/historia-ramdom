@@ -1,11 +1,10 @@
 import { open, stat } from "node:fs/promises";
 import { db } from "../db.js";
-import { env } from "../env.js";
+import { env, MAX_VIDEO_BYTES, MB } from "../env.js";
 import { cifrar, descifrar } from "../seguridad/cifrado.js";
 import { leerJSON } from "../util/http.js";
 
 const API = "https://open.tiktokapis.com/v2";
-const MB = 1024 * 1024;
 /** Margen para no usar un token que caduca en mitad de la subida. */
 const MARGEN_MS = 5 * 60_000;
 
@@ -94,6 +93,16 @@ function plan(size: number) {
   return { trozo, total: Math.max(1, Math.floor(size / trozo)) };
 }
 
+/** Evita empezar una subida que TikTok o el limite propio van a rechazar. */
+function comprobarTamano(size: number) {
+  if (size > MAX_VIDEO_BYTES) {
+    throw new Error(
+      `El video pesa ${(size / MB).toFixed(1)} MB y supera el limite de ` +
+        `${env.MAX_VIDEO_MB} MB (MAX_VIDEO_MB).`,
+    );
+  }
+}
+
 async function subirTrozos(uploadUrl: string, archivo: string, size: number) {
   const { trozo, total } = plan(size);
   for (let i = 0; i < total; i++) {
@@ -134,6 +143,7 @@ async function iniciar(ruta: string, accessToken: string, cuerpo: Record<string,
 /** Opcion B: el video llega a los borradores y la publicacion se termina en la app. */
 export async function subirABorradores(accessToken: string, archivo: string) {
   const { size } = await stat(archivo);
+  comprobarTamano(size);
   const { trozo, total } = plan(size);
   const { upload_url, publish_id } = await iniciar(
     "/post/publish/inbox/video/init/",
@@ -173,6 +183,7 @@ export async function consultarCreador(accessToken: string) {
  */
 export async function publicarDirecto(accessToken: string, archivo: string, titulo: string) {
   const { size } = await stat(archivo);
+  comprobarTamano(size);
   const { trozo, total } = plan(size);
   const creador = await consultarCreador(accessToken);
   const privacidad =

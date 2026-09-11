@@ -24,6 +24,7 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
     Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Lima",
   );
   const [motor, setMotor] = useState(catalogo.motores.find((m) => m.disponible)?.id ?? "groq");
+  const [modelo, setModelo] = useState<string | null>(null);
   const [voz, setVoz] = useState<Voz>(catalogo.vozPorDefecto);
   const [musica, setMusica] = useState<string | null>(null);
   const [modo, setModo] = useState<ModoPublicacion>("DESCARGA");
@@ -68,6 +69,7 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
           cron,
           zonaHoraria,
           motor,
+          modelo,
           voz,
           musica,
           modoPublicacion: modo,
@@ -118,7 +120,13 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
             <label htmlFor="zona">Zona horaria</label>
             <input id="zona" value={zonaHoraria} onChange={(e) => setZonaHoraria(e.target.value)} />
           </div>
-          <SelectorMotor catalogo={catalogo} valor={motor} alCambiar={setMotor} />
+          <SelectorMotor
+            catalogo={catalogo}
+            valor={motor}
+            alCambiar={setMotor}
+            modelo={modelo}
+            alCambiarModelo={setModelo}
+          />
           <SelectorVoz catalogo={catalogo} valor={voz} alCambiar={setVoz} />
           <SelectorMusica catalogo={catalogo} valor={musica} alCambiar={setMusica} />
           <SelectorModo valor={modo} alCambiar={setModo} tiktokListo={tiktokListo} />
@@ -147,7 +155,8 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
                 <strong>{s.nombre}</strong>
                 <span className="estado">{s.activa ? "activa" : "en pausa"}</span>
                 <span className="suave">
-                  {s.tipo} · {s.cron} ({s.zonaHoraria}) · {s.motor} · {s.duracion}s ·{" "}
+                  {s.tipo} · {s.cron} ({s.zonaHoraria}) · {s.motor}
+                  {s.modelo ? ` (${s.modelo})` : ""} · {s.duracion}s ·{" "}
                   {s._count?.historias ?? 0} historias
                 </span>
               </div>

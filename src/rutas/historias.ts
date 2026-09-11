@@ -6,12 +6,21 @@ import { db } from "../db.js";
 import { rutaVideo } from "../almacen.js";
 import { generarGuion, GuionSchema, MOTORES } from "../servicios/guion.js";
 import { VozSchema } from "../servicios/voz.js";
+import { creditosDe, type EscenaPreparada } from "../servicios/clips.js";
 import { cola, encolarHistoriaSuelta } from "../cola/cola.js";
+import { retrasoHasta } from "../cola/trabajos.js";
 
 const idParam = z.object({ id: z.string().uuid() });
 
+/** Fecha ISO futura para programar una subida. */
+const fechaFutura = z
+  .string()
+  .datetime({ offset: true })
+  .refine((v) => new Date(v).getTime() > Date.now() - 60_000, "La fecha ya paso");
+
 const PeticionGuionSchema = z.object({
   motor: z.enum(MOTORES).default("groq"),
+  modelo: z.string().max(80).nullable().default(null),
   tipo: z.enum(["Reflexion", "Historia"]),
   tema: z.string().max(200).optional(),
   duracion: z.number().int().min(15).max(180).default(65),
@@ -23,6 +32,7 @@ const HistoriaSueltaSchema = PeticionGuionSchema.extend({
   musica: z.string().max(120).nullable().default(null),
   modoPublicacion: z.enum(["DESCARGA", "BORRADOR_TIKTOK", "DIRECTO_TIKTOK"]).default("DESCARGA"),
   guion: GuionSchema.optional(),
+  publicarEn: fechaFutura.nullable().default(null),
 });
 
 export async function rutasHistorias(app: FastifyInstance) {
@@ -52,6 +62,7 @@ export async function rutasHistorias(app: FastifyInstance) {
         descripcion: true,
         archivo: true,
         publishId: true,
+        publicarEn: true,
         error: true,
         creadaEn: true,
       },
@@ -65,6 +76,15 @@ export async function rutasHistorias(app: FastifyInstance) {
     return h;
   });
 
+  /** Creditos de los clips, para pegarlos aparte en TikTok. */
+  app.get("/api/historias/:id/creditos", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const h = await db.historia.findUnique({ where: { id }, select: { escenas: true } });
+    if (!h) return reply.code(404).send({ error: "No encontrada" });
+    const escenas = (h.escenas as EscenaPreparada[] | null) ?? [];
+    return { creditos: creditosDe(escenas) };
+  });
+
   /** Encola una historia suelta (editor manual, sin serie). */
   app.post("/api/historias", async (req, reply) => {
     const p = HistoriaSueltaSchema.parse(req.body);
@@ -73,25 +93,39 @@ export async function rutasHistorias(app: FastifyInstance) {
       tema: p.tema,
       duracion: p.duracion,
       motor: p.motor,
+      modelo: p.modelo,
       voz: p.voz,
       musica: p.musica,
       modoPublicacion: p.modoPublicacion,
       guion: p.guion,
+      publicarEn: p.publicarEn,
       evitarTitulos: p.evitar,
     });
     return reply.code(202).send({ encolada: true, jobId: job.id });
   });
 
+  /** Sube a TikTok ahora o a la hora indicada en `publicarEn`. */
   app.post("/api/historias/:id/publicar", async (req, reply) => {
     const { id } = idParam.parse(req.params);
+    const { publicarEn } = z
+      .object({ publicarEn: fechaFutura.nullable().default(null) })
+      .parse(req.body ?? {});
+
     const h = await db.historia.findUnique({ where: { id } });
     if (!h?.archivo) return reply.code(409).send({ error: "El video todavia no esta listo" });
+
+    const delay = retrasoHasta(publicarEn);
     const job = await cola.add(
       "publicar",
       { historiaId: id },
-      { attempts: 3, backoff: { type: "exponential", delay: 120_000 } },
+      { delay, attempts: 3, backoff: { type: "exponential", delay: 120_000 } },
     );
-    return reply.code(202).send({ encolada: true, jobId: job.id });
+    await db.historia.update({
+      where: { id },
+      data: { publicarEn: publicarEn ? new Date(publicarEn) : null },
+    });
+
+    return reply.code(202).send({ encolada: true, jobId: job.id, publicarEn, delay });
   });
 
   /**
