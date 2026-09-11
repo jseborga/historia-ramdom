@@ -92,6 +92,8 @@ export function Historias() {
   const [fechas, setFechas] = useState<Record<string, string>>({});
   /** Historia cuyo formulario de metricas esta abierto. */
   const [midiendo, setMidiendo] = useState<string | null>(null);
+  /** Historia que se esta viendo en el reproductor. */
+  const [viendo, setViendo] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -190,7 +192,22 @@ export function Historias() {
               {h.error && <pre>{h.error}</pre>}
               {h.descripcion && <pre>{h.descripcion}</pre>}
 
+              {viendo === h.id && h.archivo && (
+                <video
+                  className="reproductor"
+                  src={`/api/historias/${h.id}/ver`}
+                  controls
+                  autoPlay
+                  playsInline
+                />
+              )}
+
               <div className="pie">
+                {h.archivo && (
+                  <button onClick={() => setViendo(viendo === h.id ? null : h.id)}>
+                    {viendo === h.id ? "Cerrar" : "Ver video"}
+                  </button>
+                )}
                 {h.archivo && (
                   <a className="boton" href={`/api/historias/${h.id}/descargar`}>
                     Descargar MP4

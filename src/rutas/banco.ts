@@ -5,6 +5,7 @@ import { guardarIdeas } from "../servicios/banco.js";
 import { guardarMetrica, resumenRendimiento } from "../servicios/metricas.js";
 import { buscarIdeasAhora, sincronizarAhora } from "../cola/cola.js";
 import { redditConfigurado } from "../servicios/reddit.js";
+import { diagnosticar } from "../servicios/diagnostico.js";
 
 const idParam = z.object({ id: z.string().uuid() });
 
@@ -110,6 +111,11 @@ export async function rutasBanco(app: FastifyInstance) {
       fuente: "MANUAL",
     });
   });
+
+  /** Comprueba que cada clave y cada servicio responden de verdad. */
+  app.get("/api/diagnostico", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async () =>
+    diagnosticar(),
+  );
 
   app.post("/api/metricas/sincronizar", async (_req, reply) => {
     const job = await sincronizarAhora();

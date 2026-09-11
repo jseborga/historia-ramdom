@@ -26,6 +26,8 @@ export type ClipInfo = {
   pagina: string;
   licencia: string;
   url: string;
+  /** Fotograma de muestra, para elegir el clip sin descargarlo. */
+  imagen?: string;
 };
 
 export type EscenaPreparada = {
@@ -125,6 +127,7 @@ async function buscarPexels(keyword: string): Promise<Candidato[]> {
         pagina: v.url ?? "https://www.pexels.com",
         licencia: "Pexels License",
         url: mejor.link,
+        imagen: v.image,
       },
     });
   }
@@ -151,6 +154,7 @@ async function buscarPixabay(keyword: string): Promise<Candidato[]> {
       url?: string;
       width?: number;
       height?: number;
+      thumbnail?: string;
     }[];
     const mejor = variantes
       .filter((v) => v.url)
@@ -166,6 +170,7 @@ async function buscarPixabay(keyword: string): Promise<Candidato[]> {
         pagina: h.pageURL ?? "https://pixabay.com",
         licencia: "Pixabay Content License",
         url: mejor.url,
+        imagen: variantes.find((v) => v.thumbnail)?.thumbnail,
       },
     });
   }
@@ -193,6 +198,8 @@ export async function elegirYDescargarClips(
   escenas: { texto: string; keywords: string[] }[],
   dir: string,
   usados: Set<string> = new Set(),
+  /** Clip elegido a mano por escena: indice -> id de clip. */
+  preseleccion: Record<number, string> = {},
 ): Promise<EscenaPreparada[]> {
   const yaElegidos = new Set(usados);
   const preparadas: EscenaPreparada[] = [];
@@ -205,6 +212,19 @@ export async function elegirYDescargarClips(
     for (const keyword of escena.keywords) {
       const candidatos = await buscarClips(keyword);
       respaldo ??= candidatos[0];
+
+      // El id elegido a mano se resuelve contra la busqueda, no se acepta la
+      // URL que mande el navegador: asi no hay forma de colar una direccion.
+      const aMano = preseleccion[i];
+      if (aMano) {
+        const encontrado = candidatos.find((c) => c.id === aMano);
+        if (encontrado) {
+          elegido = encontrado;
+          break;
+        }
+        continue;
+      }
+
       elegido = candidatos.find((c) => !yaElegidos.has(c.id));
       if (elegido) break;
     }

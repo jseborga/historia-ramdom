@@ -25,7 +25,14 @@ await app.register(helmet, {
     directives: {
       "default-src": ["'self'"],
       "img-src": ["'self'", "data:", "https://images.pexels.com", "https://cdn.pixabay.com"],
-      "media-src": ["'self'", "blob:"],
+      // Los mismos CDN de los que el servidor ya descarga, para poder ver el
+      // clip antes de elegirlo sin pasar el archivo por nuestro ancho de banda.
+      "media-src": [
+        "'self'",
+        "blob:",
+        "https://videos.pexels.com",
+        "https://cdn.pixabay.com",
+      ],
       "connect-src": ["'self'"],
     },
   },

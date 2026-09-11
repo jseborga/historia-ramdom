@@ -6,7 +6,7 @@ import { db } from "../db.js";
 import { rutaVideo } from "../almacen.js";
 import { generarGuion, GuionSchema, MOTORES } from "../servicios/guion.js";
 import { VozSchema } from "../servicios/voz.js";
-import { creditosDe, type EscenaPreparada } from "../servicios/clips.js";
+import { buscarClips, creditosDe, type EscenaPreparada } from "../servicios/clips.js";
 import { cola, encolarHistoriaSuelta } from "../cola/cola.js";
 import { retrasoHasta } from "../cola/trabajos.js";
 
@@ -28,12 +28,19 @@ const PeticionGuionSchema = z.object({
   evitar: z.array(z.string().max(160)).max(20).default([]),
 });
 
+/** Clip elegido a mano: { "0": "pexels-123" }. La clave es el indice de escena. */
+const ClipsElegidosSchema = z
+  .record(z.string().regex(/^\d+$/), z.string().max(60))
+  .default({})
+  .transform((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [Number(k), v])));
+
 const HistoriaSueltaSchema = PeticionGuionSchema.extend({
   voz: VozSchema,
   musica: z.string().max(120).nullable().default(null),
   modoPublicacion: z.enum(["DESCARGA", "BORRADOR_TIKTOK", "DIRECTO_TIKTOK"]).default("DESCARGA"),
   guion: GuionSchema.optional(),
   ideaId: z.string().uuid().nullable().default(null),
+  clipsElegidos: ClipsElegidosSchema,
   publicarEn: fechaFutura.nullable().default(null),
 });
 
@@ -104,6 +111,7 @@ export async function rutasHistorias(app: FastifyInstance) {
       modoPublicacion: p.modoPublicacion,
       guion: p.guion,
       ideaId: p.ideaId,
+      clipsElegidos: p.clipsElegidos,
       publicarEn: p.publicarEn,
       evitarTitulos: p.evitar,
     });
@@ -132,6 +140,65 @@ export async function rutasHistorias(app: FastifyInstance) {
     });
 
     return reply.code(202).send({ encolada: true, jobId: job.id, publicarEn, delay });
+  });
+
+  /**
+   * Candidatos de clip para unas keywords, con su fotograma de muestra.
+   * Sirve para elegir a mano antes de producir el video.
+   */
+  app.get("/api/clips", async (req) => {
+    const { keywords } = z
+      .object({ keywords: z.string().min(1).max(200) })
+      .parse(req.query);
+
+    const lista = keywords
+      .split(",")
+      .map((k) => k.trim())
+      .filter(Boolean)
+      .slice(0, 3);
+
+    const resultados = await Promise.all(lista.map((k) => buscarClips(k)));
+    // Sin repetir: la misma keyword en dos escenas puede traer los mismos.
+    const unicos = new Map<string, (typeof resultados)[0][0]>();
+    for (const clip of resultados.flat()) unicos.set(clip.id, clip);
+    return [...unicos.values()].slice(0, 24);
+  });
+
+  /**
+   * Reproduccion en el navegador antes de descargar. Admite `Range` para que
+   * el reproductor pueda saltar por el video sin traerselo entero.
+   */
+  app.get("/api/historias/:id/ver", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const h = await db.historia.findUnique({ where: { id } });
+    if (!h?.archivo) return reply.code(404).send({ error: "El video todavia no esta listo" });
+
+    const ruta = rutaVideo(h.id);
+    const info = await stat(ruta).catch(() => null);
+    if (!info) return reply.code(404).send({ error: "El archivo ya no esta en el servidor" });
+
+    reply.header("Content-Type", "video/mp4").header("Accept-Ranges", "bytes");
+
+    const rango = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? "");
+    if (!rango) {
+      reply.header("Content-Length", info.size);
+      return reply.send(createReadStream(ruta));
+    }
+
+    const inicio = rango[1] ? Number(rango[1]) : 0;
+    const fin = rango[2] ? Math.min(Number(rango[2]), info.size - 1) : info.size - 1;
+    if (inicio >= info.size || fin < inicio) {
+      return reply
+        .code(416)
+        .header("Content-Range", `bytes */${info.size}`)
+        .send({ error: "Rango invalido" });
+    }
+
+    reply
+      .code(206)
+      .header("Content-Range", `bytes ${inicio}-${fin}/${info.size}`)
+      .header("Content-Length", fin - inicio + 1);
+    return reply.send(createReadStream(ruta, { start: inicio, end: fin }));
   });
 
   /**

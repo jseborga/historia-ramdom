@@ -24,6 +24,10 @@ Implementa la guía de `docs/guia-original.md`.
   métricas lo califican y los que funcionan se vuelven a usar solos.
 - **Servidor MCP.** Claude puede consultar el banco, ver qué rinde y encargar
   historias hablando en lenguaje natural.
+- **Vista previa.** El MP4 se reproduce en la propia app antes de descargarlo, y
+  los clips candidatos se ven antes de elegir cuál aparece en cada escena.
+- **Comprobación de servicios.** Un botón verifica que cada clave, la base de
+  datos, Redis, ffmpeg y el volumen responden de verdad.
 - **Descarga.** Ruta protegida por sesión; la ruta del archivo se arma con el
   ID de la base de datos.
 
@@ -206,6 +210,45 @@ aviso de contenido generado con IA y créditos) y *Copiar créditos* (solo la
 lista, por si prefieres pegarla en un comentario). La misma lista está en
 `GET /api/historias/:id/creditos`.
 
+## Comprobar que todo funciona
+
+En **Ajustes → Probar todo**. Llama de verdad a cada servicio con la petición
+más barata que demuestre que la clave sirve —listar modelos, una búsqueda de un
+resultado—, así que no genera guiones ni voz y no gasta cuota apreciable.
+
+Comprueba la base de datos, Redis, ffmpeg, ffprobe, que se puede escribir en el
+volumen, las cuatro claves de IA (y si el modelo configurado existe de verdad en
+la lista del proveedor), los modelos de voz, Pexels, Pixabay, TikTok y Reddit.
+
+Cada prueba tiene 15 segundos de margen: un servicio que no contesta sale como
+fallo, no deja la página colgada. Los mensajes de error nunca incluyen la clave,
+solo el código de respuesta y una pista cuando es un 401 o un 403.
+
+También está en `GET /api/diagnostico` y como herramienta del servidor MCP.
+
+## Elegir los clips a mano
+
+Tras escribir el guion, el editor muestra una fila por escena —incluido el
+gancho— con sus clips candidatos. Cada uno se ve como fotograma y se puede
+reproducir con el botón *Ver* antes de decidir. Lo que no elijas queda en
+automático.
+
+Las vistas previas se reproducen **directamente desde el CDN de Pexels o
+Pixabay**, los mismos dominios de los que el servidor ya descarga; por eso están
+añadidos a `media-src` en la política de seguridad. El servidor solo se descarga
+el clip que acabe usándose.
+
+Del navegador nunca se acepta una URL de vídeo: se manda el **id** del clip y el
+servidor lo resuelve contra su propia búsqueda, así que no hay forma de colar
+una dirección arbitraria.
+
+## Ver el vídeo antes de descargarlo
+
+En la lista de historias, *Ver vídeo* lo reproduce dentro de la app. La ruta
+`GET /api/historias/:id/ver` sirve el MP4 en línea y admite `Range`, así que el
+reproductor puede saltar por el vídeo sin traérselo entero. Sigue protegida por
+la sesión, igual que la descarga.
+
 ## Cómo llega el vídeo a TikTok y de dónde salen las métricas
 
 Hay dos caminos, y el sistema de calificación funciona con los dos:
@@ -287,9 +330,9 @@ API desplegada usando `API_TOKEN`. No abre ningún puerto nuevo en el servidor.
 }
 ```
 
-Herramientas disponibles: `catalogo`, `listar_series`, `listar_historias`,
-`escribir_guion`, `crear_historia`, `programar_subida`, `listar_ideas`,
-`agregar_ideas`, `rendimiento` y `sincronizar_metricas`. Con ellas puedes pedir
+Herramientas disponibles: `catalogo`, `diagnostico`, `listar_series`,
+`listar_historias`, `escribir_guion`, `crear_historia`, `programar_subida`,
+`listar_ideas`, `agregar_ideas`, `rendimiento` y `sincronizar_metricas`. Con ellas puedes pedir
 cosas como *"mira qué ganchos rindieron mejor este mes y prepárame tres
 historias en inglés para el viernes"*.
 

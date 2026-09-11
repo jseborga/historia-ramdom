@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Catalogo, type CuentaTikTok } from "../api";
+import { api, type Catalogo, type CuentaTikTok, type Prueba } from "../api";
 import { mensajeDe } from "../App";
 
 export function Ajustes({
@@ -10,6 +10,8 @@ export function Ajustes({
   alCambiar: () => void;
 }) {
   const [cuentas, setCuentas] = useState<CuentaTikTok[]>([]);
+  const [pruebas, setPruebas] = useState<Prueba[] | null>(null);
+  const [probando, setProbando] = useState(false);
   const [error, setError] = useState("");
   const [ok, setOk] = useState(
     new URLSearchParams(window.location.search).get("tiktok") === "conectado"
@@ -43,10 +45,66 @@ export function Ajustes({
 
   const si = (v: boolean) => (v ? "si" : "no");
 
+  async function probar() {
+    setProbando(true);
+    setError("");
+    try {
+      setPruebas(await api.get<Prueba[]>("/api/diagnostico"));
+    } catch (err) {
+      setError(mensajeDe(err));
+    } finally {
+      setProbando(false);
+    }
+  }
+
+  const grupos = [...new Set((pruebas ?? []).map((p) => p.grupo))];
+  const fallos = (pruebas ?? []).filter((p) => p.estado === "error").length;
+
   return (
     <>
       {error && <p className="aviso error">{error}</p>}
       {ok && <p className="aviso ok">{ok}</p>}
+
+      <section className="tarjeta">
+        <div className="fila" style={{ marginBottom: 12 }}>
+          <h2 style={{ margin: 0 }}>Comprobacion de servicios</h2>
+          <button className="primario" onClick={probar} disabled={probando}>
+            {probando ? "Probando..." : "Probar todo"}
+          </button>
+        </div>
+        <p className="suave">
+          Llama de verdad a cada servicio con la peticion mas barata que demuestre que la clave
+          sirve. No genera guiones ni voz, asi que no gasta cuota apreciable.
+        </p>
+
+        {pruebas && (
+          <p className={`aviso ${fallos ? "error" : "ok"}`}>
+            {fallos
+              ? `${fallos} servicio(s) con problemas.`
+              : "Todo lo configurado responde correctamente."}
+          </p>
+        )}
+
+        {grupos.map((grupo) => (
+          <div key={grupo} style={{ marginBottom: 12 }}>
+            <h3>{grupo}</h3>
+            {pruebas
+              ?.filter((p) => p.grupo === grupo)
+              .map((p) => (
+                <div className="prueba" key={p.id}>
+                  <div className="fila">
+                    <span className={`punto ${p.estado}`}>
+                      {p.estado === "ok" ? "OK" : p.estado === "error" ? "FALLA" : "--"}
+                    </span>
+                    <strong>{p.nombre}</strong>
+                    {p.ms > 0 && <span className="suave">{p.ms} ms</span>}
+                  </div>
+                  <span className="suave">{p.detalle}</span>
+                </div>
+              ))}
+          </div>
+        ))}
+      </section>
 
       <section className="tarjeta">
         <h2>Servicios configurados</h2>

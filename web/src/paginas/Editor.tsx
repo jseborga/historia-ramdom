@@ -10,6 +10,7 @@ import {
 } from "../api";
 import { mensajeDe } from "../App";
 import { CampoFecha, SelectorModo, SelectorMotor, SelectorMusica, SelectorVoz } from "./comunes";
+import { SelectorClips } from "./SelectorClips";
 
 export function Editor({ catalogo }: { catalogo: Catalogo }) {
   const [tipo, setTipo] = useState<"Reflexion" | "Historia">("Reflexion");
@@ -26,6 +27,8 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
   const [publicarEn, setPublicarEn] = useState("");
 
   const [guion, setGuion] = useState<Guion | null>(null);
+  /** Clip elegido a mano por escena; el 0 es el gancho. */
+  const [clipsElegidos, setClipsElegidos] = useState<Record<number, string>>({});
   const [cargando, setCargando] = useState("");
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
@@ -38,6 +41,7 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
     setError("");
     setOk("");
     try {
+      setClipsElegidos({});
       setGuion(
         await api.post<Guion>("/api/guion", {
           motor,
@@ -71,6 +75,7 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
         musica,
         modoPublicacion: modo,
         guion: guion ?? undefined,
+        clipsElegidos,
         publicarEn: modo === "DESCARGA" ? null : aISO(publicarEn),
       });
       setOk(
@@ -202,8 +207,33 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
         </section>
       )}
 
+      {guion && (
+        <section className="tarjeta">
+          <h2>3. Clips de cada escena</h2>
+          <p className="suave">
+            Por defecto los elige la app. Aqui puedes verlos y decidir cual aparece; solo se
+            descarga al servidor el que acabe usandose.
+          </p>
+          <SelectorClips
+            escenas={[
+              { texto: guion.gancho, keywords: guion.escenas[0]?.keywords ?? [] },
+              ...guion.escenas,
+            ]}
+            elegidos={clipsElegidos}
+            alElegir={(indice, clipId) =>
+              setClipsElegidos((previos) => {
+                const copia = { ...previos };
+                if (clipId) copia[indice] = clipId;
+                else delete copia[indice];
+                return copia;
+              })
+            }
+          />
+        </section>
+      )}
+
       <section className="tarjeta">
-        <h2>3. Voz y video</h2>
+        <h2>{guion ? "4" : "3"}. Voz y video</h2>
         <div className="campos">
           <SelectorVoz catalogo={catalogo} valor={voz} alCambiar={setVoz} />
           <SelectorMusica catalogo={catalogo} valor={musica} alCambiar={setMusica} />

@@ -57,6 +57,25 @@ export type Catalogo = {
 
 export type Idioma = "es" | "en";
 
+export type ClipCandidato = {
+  id: string;
+  fuente: "pexels" | "pixabay";
+  autor: string;
+  pagina: string;
+  licencia: string;
+  url: string;
+  imagen?: string;
+};
+
+export type Prueba = {
+  id: string;
+  nombre: string;
+  grupo: "Infraestructura" | "Guion" | "Voz" | "Clips" | "Publicacion";
+  estado: "ok" | "error" | "sin_configurar";
+  detalle: string;
+  ms: number;
+};
+
 export type Guion = {
   titulo: string;
   gancho: string;

@@ -46,6 +46,8 @@ export type OpcionesHistoria = {
   ideaId?: string | null;
   /** Gancho probado que hay que repetir tal cual. */
   ganchoFijo?: string | null;
+  /** Clip elegido a mano por escena (0 = el gancho): indice -> id de clip. */
+  clipsElegidos?: Record<number, string>;
   /** Fecha ISO para programar la subida a TikTok; vacio = en cuanto termine. */
   publicarEn?: string | null;
   evitarTitulos?: (string | null)[];
@@ -117,7 +119,12 @@ async function producir(historiaId: string, o: OpcionesHistoria) {
       { texto: guion.gancho, keywords: guion.escenas[0].keywords },
       ...guion.escenas,
     ];
-    const escenas = await elegirYDescargarClips(guionado, dir, new Set(o.clipsUsados ?? []));
+    const escenas = await elegirYDescargarClips(
+      guionado,
+      dir,
+      new Set(o.clipsUsados ?? []),
+      o.clipsElegidos ?? {},
+    );
     await db.historia.update({ where: { id: historiaId }, data: { escenas, estado: "VOZ" } });
 
     // 3. Voz escena por escena (respeta los limites por minuto del nivel gratuito)

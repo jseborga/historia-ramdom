@@ -64,6 +64,16 @@ servidor.registerTool(
 );
 
 servidor.registerTool(
+  "diagnostico",
+  {
+    description:
+      "Comprueba que cada clave, la base de datos, Redis, ffmpeg y el volumen responden de verdad.",
+    inputSchema: {},
+  },
+  async () => texto(await llamar("/api/diagnostico")),
+);
+
+servidor.registerTool(
   "listar_series",
   { description: "Series programadas, con su horario y su modo de publicacion.", inputSchema: {} },
   async () => texto(await llamar("/api/series")),
