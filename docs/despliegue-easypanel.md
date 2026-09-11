@@ -332,6 +332,13 @@ https://estudio.tudominio.com/api/tiktok/callback
 Copia `Client key` y `Client secret` a las variables. Luego, en **Ajustes** de
 la app, pulsa *Conectar cuenta de TikTok*.
 
+Los permisos que se piden salen de `TIKTOK_SCOPES`; por defecto
+`user.info.basic,video.upload,video.list`. Añade `video.publish` solo cuando
+TikTok te apruebe la publicación directa. **Si cambias esa variable tienes que
+volver a conectar la cuenta**: los permisos se fijan en el momento de autorizar,
+no se amplían solos. Detalles del flujo y de los tipos de cuenta en
+[`tiktok.md`](tiktok.md).
+
 **Servidor MCP.** En tu máquina, con el repo clonado y compilado:
 
 ```json

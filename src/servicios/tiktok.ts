@@ -57,6 +57,21 @@ export const canjearCodigo = (code: string) =>
  * Devuelve un access token valido: si el guardado esta por caducar,
  * pide uno nuevo con el refresh token y vuelve a cifrar ambos.
  */
+/**
+ * Comprueba que la cuenta conectada autorizo el permiso que hace falta.
+ * Sin esto, TikTok devuelve un error de scope poco descriptivo.
+ */
+export async function exigirScope(scope: string) {
+  const cuenta = await db.tikTokCuenta.findFirst({ orderBy: { creadaEn: "desc" } });
+  if (!cuenta) throw new Error("No hay ninguna cuenta de TikTok conectada");
+  if (!cuenta.scopes.split(/[,\s]+/).includes(scope)) {
+    throw new Error(
+      `La cuenta de TikTok no autorizo el permiso "${scope}" (tiene: ${cuenta.scopes}). ` +
+        "Anadelo a TIKTOK_SCOPES, comprueba que TikTok te lo aprobo y vuelve a conectar la cuenta.",
+    );
+  }
+}
+
 export async function accessTokenVigente() {
   const cuenta = await db.tikTokCuenta.findFirst({ orderBy: { creadaEn: "desc" } });
   if (!cuenta) throw new Error("No hay ninguna cuenta de TikTok conectada");
@@ -142,6 +157,7 @@ async function iniciar(ruta: string, accessToken: string, cuerpo: Record<string,
 
 /** Opcion B: el video llega a los borradores y la publicacion se termina en la app. */
 export async function subirABorradores(accessToken: string, archivo: string) {
+  await exigirScope("video.upload");
   const { size } = await stat(archivo);
   comprobarTamano(size);
   const { trozo, total } = plan(size);
@@ -182,6 +198,7 @@ export async function consultarCreador(accessToken: string) {
  * publicar en publico, haber superado la auditoria de TikTok.
  */
 export async function publicarDirecto(accessToken: string, archivo: string, titulo: string) {
+  await exigirScope("video.publish");
   const { size } = await stat(archivo);
   comprobarTamano(size);
   const { trozo, total } = plan(size);

@@ -331,6 +331,9 @@ o descargar el MP4 y agendarlo en TikTok Studio.
 
 ## TikTok
 
+**Cómo se conecta la cuenta, qué permisos hace falta pedir y qué tipo de cuenta
+sirve: [`docs/tiktok.md`](docs/tiktok.md).**
+
 - Sin auditoría superada, todo lo que publique la app queda privado, con un
   máximo de 5 usuarios en 24 horas y cuentas privadas.
 - La ruta más realista es **descargar el MP4 y programarlo en TikTok Studio**.

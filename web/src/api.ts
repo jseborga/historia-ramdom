@@ -48,7 +48,7 @@ export type Catalogo = {
   vozOpenAIPorDefecto: Voz;
   musica: string[];
   clips: { pexels: boolean; pixabay: boolean };
-  tiktok: { configurado: boolean; cuentasConectadas: number };
+  tiktok: { configurado: boolean; cuentasConectadas: number; permisos: string[] };
   reddit: { configurado: boolean };
   idiomas: Idioma[];
   limites: { clipMB: number; videoMB: number };

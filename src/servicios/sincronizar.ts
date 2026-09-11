@@ -1,6 +1,11 @@
 import { db } from "../db.js";
 import { guardarMetrica } from "./metricas.js";
-import { accessTokenVigente, consultarVideos, estadoPublicacion } from "./tiktok.js";
+import {
+  accessTokenVigente,
+  consultarVideos,
+  estadoPublicacion,
+  exigirScope,
+} from "./tiktok.js";
 
 /**
  * Trae de TikTok las metricas de las historias ya publicadas por API.
@@ -12,6 +17,9 @@ import { accessTokenVigente, consultarVideos, estadoPublicacion } from "./tiktok
 export async function sincronizarMetricas() {
   const cuentas = await db.tikTokCuenta.count();
   if (!cuentas) return { revisadas: 0, actualizadas: 0, motivo: "sin cuenta conectada" };
+
+  // Leer metricas exige video.list; sin el permiso no tiene sentido seguir.
+  await exigirScope("video.list");
 
   const publicadas = await db.historia.findMany({
     where: { estado: "SUBIDA", publishId: { not: null } },

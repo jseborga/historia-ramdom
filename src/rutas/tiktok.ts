@@ -42,7 +42,7 @@ export async function rutasTikTok(app: FastifyInstance) {
     url.search = new URLSearchParams({
       client_key: env.TIKTOK_CLIENT_KEY!,
       response_type: "code",
-      scope: "user.info.basic,video.upload",
+      scope: env.TIKTOK_SCOPES,
       redirect_uri: env.TIKTOK_REDIRECT_URI!,
       state,
     }).toString();

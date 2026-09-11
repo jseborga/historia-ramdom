@@ -97,6 +97,14 @@ const Env = z.object({
   PIXABAY_API_KEY: z.string().optional(),
 
   // TikTok (opcional)
+  /**
+   * Permisos que se piden al conectar la cuenta:
+   *   user.info.basic  perfil (obligatorio)
+   *   video.upload     enviar a borradores
+   *   video.list       leer las metricas de tus videos
+   *   video.publish    publicar directo (solo con la auditoria superada)
+   */
+  TIKTOK_SCOPES: z.string().default("user.info.basic,video.upload,video.list"),
   TIKTOK_CLIENT_KEY: z.string().optional(),
   TIKTOK_CLIENT_SECRET: z.string().optional(),
   TIKTOK_REDIRECT_URI: z.string().url().optional(),

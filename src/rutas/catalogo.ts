@@ -34,7 +34,11 @@ export async function rutasCatalogo(app: FastifyInstance) {
         pexels: Boolean(env.PEXELS_API_KEY),
         pixabay: Boolean(env.PIXABAY_API_KEY),
       },
-      tiktok: { configurado: tiktokConfigurado(), cuentasConectadas: cuentas },
+      tiktok: {
+        configurado: tiktokConfigurado(),
+        cuentasConectadas: cuentas,
+        permisos: env.TIKTOK_SCOPES.split(",").map((s) => s.trim()),
+      },
       reddit: { configurado: redditConfigurado() },
       idiomas: ["es", "en"],
       limites: { clipMB: env.MAX_CLIP_MB, videoMB: env.MAX_VIDEO_MB },

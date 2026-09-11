@@ -62,6 +62,7 @@ export function Ajustes({
           <li>Clips de Pexels: {si(catalogo.clips.pexels)}</li>
           <li>Clips de Pixabay: {si(catalogo.clips.pixabay)}</li>
           <li>Claves de TikTok: {si(catalogo.tiktok.configurado)}</li>
+          <li>Permisos que se piden a TikTok: {catalogo.tiktok.permisos.join(", ")}</li>
           <li>Los MP4 se conservan {catalogo.retencionDias} dias</li>
         </ul>
       </section>
@@ -70,7 +71,9 @@ export function Ajustes({
         <h2>TikTok</h2>
         <p className="suave">
           Lo mas simple es descargar el MP4 y programarlo en TikTok Studio desde el navegador.
-          Conectar la cuenta aqui sirve para enviar el video a borradores por API.
+          Conectar la cuenta aqui sirve para enviar el video a borradores por API y para leer
+          sus metricas. Si cambias TIKTOK_SCOPES tienes que volver a conectar la cuenta: los
+          permisos se fijan en el momento de autorizar.
         </p>
 
         {cuentas.length === 0 ? (
