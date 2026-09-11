@@ -136,7 +136,13 @@ if (!resultado.success) {
   process.exit(1);
 }
 
-export const env = resultado.data;
+export const env = {
+  ...resultado.data,
+  // Si no se indica, el callback de TikTok cuelga del dominio publico.
+  TIKTOK_REDIRECT_URI:
+    resultado.data.TIKTOK_REDIRECT_URI ??
+    `${resultado.data.PUBLIC_URL.replace(/\/$/, "")}/api/tiktok/callback`,
+};
 
 export const MB = 1024 * 1024;
 export const MAX_CLIP_BYTES = env.MAX_CLIP_MB * MB;

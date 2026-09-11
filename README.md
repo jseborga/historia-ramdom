@@ -147,6 +147,11 @@ npm run build                 # los dos, como en el Dockerfile
 
 ## Despliegue en Easypanel
 
+**Guía completa paso a paso: [`docs/despliegue-easypanel.md`](docs/despliegue-easypanel.md)**
+(variables, volumen, dominio, primer usuario y solución de problemas).
+
+Resumen:
+
 1. Proyecto `estudio`, con servicios **Postgres** y **Redis** sin puerto
    público y con contraseña.
 2. Servicio **App** apuntando a este repositorio, build por **Dockerfile**.
