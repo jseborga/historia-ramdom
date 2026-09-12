@@ -1,6 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import { MOTORES, MODELOS } from "../servicios/guion.js";
-import { VOCES, VOZ_POR_DEFECTO, VOZ_OPENAI_POR_DEFECTO } from "../servicios/voz.js";
+import {
+  VOCES,
+  VOZ_POR_DEFECTO,
+  VOZ_GEMINI_POR_DEFECTO,
+  VOZ_OPENAI_POR_DEFECTO,
+} from "../servicios/voz.js";
 import { listarMusica } from "../almacen.js";
 import { tiktokConfigurado } from "../servicios/tiktok.js";
 import { redditConfigurado } from "../servicios/reddit.js";
@@ -28,6 +33,7 @@ export async function rutasCatalogo(app: FastifyInstance) {
       })),
       voces: VOCES,
       vozPorDefecto: VOZ_POR_DEFECTO,
+      vozGeminiPorDefecto: VOZ_GEMINI_POR_DEFECTO,
       vozOpenAIPorDefecto: VOZ_OPENAI_POR_DEFECTO,
       musica: await listarMusica(),
       clips: {

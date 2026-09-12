@@ -12,6 +12,7 @@ export const DURACION_ESCENA = 4;
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color en formato #RRGGBB");
 
 export const EstiloSchema = z.object({
+  fuente: z.string().min(1).max(60).default(ESTILO_POR_DEFECTO.fuente),
   tamano: z.number().int().min(20).max(200).default(ESTILO_POR_DEFECTO.tamano),
   color: hex.default(ESTILO_POR_DEFECTO.color),
   contorno: hex.default(ESTILO_POR_DEFECTO.contorno),

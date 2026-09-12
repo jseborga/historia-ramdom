@@ -68,7 +68,14 @@ enum EstadoHistoria {
   RENDER
   LISTA
   SUBIDA
+  MONTAJE // esperando en el editor, con los clips precargados
   ERROR
+}
+
+/// Que produce cada ejecucion de la serie.
+enum SalidaSerie {
+  VIDEO // el MP4 terminado, como siempre
+  MONTAJE // un proyecto en el editor, para revisar y probar antes de renderizar
 }
 
 model Serie {
@@ -89,6 +96,7 @@ model Serie {
   /// Segundos por escena cuando no hay voz; vacio = se calcula por el texto.
   segundosEscena  Float?
   modoPublicacion ModoPublicacion @default(DESCARGA)
+  salida          SalidaSerie     @default(VIDEO)
   activa          Boolean         @default(true)
   historias       Historia[]
   creadaEn        DateTime        @default(now())

@@ -59,22 +59,29 @@ export function SelectorVoz({
           onChange={(e) => {
             const proveedor = e.target.value as Voz["proveedor"];
             alCambiar(
-              proveedor === "openai" ? catalogo.vozOpenAIPorDefecto : catalogo.vozPorDefecto,
+              proveedor === "openai"
+                ? catalogo.vozOpenAIPorDefecto
+                : proveedor === "gemini"
+                  ? catalogo.vozGeminiPorDefecto
+                  : catalogo.vozPorDefecto,
             );
           }}
         >
+          <option value="local">Voz del servidor (espeak-ng, sin coste)</option>
           <option value="gemini">Gemini</option>
           <option value="openai">OpenAI</option>
         </select>
       </div>
-      <div>
-        <label htmlFor="modeloVoz">Modelo de voz</label>
-        <input
-          id="modeloVoz"
-          value={valor.modelo}
-          onChange={(e) => alCambiar({ ...valor, modelo: e.target.value })}
-        />
-      </div>
+      {valor.proveedor !== "local" && (
+        <div>
+          <label htmlFor="modeloVoz">Modelo de voz</label>
+          <input
+            id="modeloVoz"
+            value={valor.modelo}
+            onChange={(e) => alCambiar({ ...valor, modelo: e.target.value })}
+          />
+        </div>
+      )}
       <div>
         <label htmlFor="nombreVoz">Voz</label>
         <select

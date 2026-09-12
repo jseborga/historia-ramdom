@@ -3,10 +3,13 @@ import { db } from "../db.js";
 import { generarGuion, GuionSchema, type Guion } from "../servicios/guion.js";
 import { generarVoz } from "../servicios/voz.js";
 import {
+  elegirClips,
   elegirYDescargarClips,
   crearDescripcion,
   type EscenaPreparada,
 } from "../servicios/clips.js";
+import { lineaDeTiempoDesdeGuion } from "../servicios/proyecto.js";
+import { VOZ_POR_DEFECTO } from "../servicios/voz.js";
 import {
   elegirIdea,
   marcarIdeaUsada,
@@ -149,7 +152,7 @@ async function producir(historiaId: string, o: OpcionesHistoria) {
       dir,
       escenas.map((e, i) => ({
         texto: e.texto,
-        archivo: e.archivo,
+        archivo: e.archivo!,
         audio: e.audio,
         // Sin voz, la duracion la marca el texto, no el audio.
         duracion:
@@ -208,6 +211,79 @@ async function producir(historiaId: string, o: OpcionesHistoria) {
   }
 }
 
+/**
+ * Salida MONTAJE: escribe el guion, elige los clips (solo enlaces, sin bajar
+ * nada) y deja un proyecto abierto en el editor. Nada de voz ni de render:
+ * eso se decide mirando el montaje.
+ */
+async function crearMontaje(
+  historiaId: string,
+  serie: { nombre: string; tipo: string; duracion: number; idioma: string; motor: string;
+           modelo: string | null; segundosEscena: number | null; modoAudio: string },
+  o: { tema?: string; ganchoFijo?: string | null; ideaId?: string | null;
+       evitarTitulos: (string | null)[]; clipsUsados: string[] },
+) {
+  try {
+    const guion = await generarGuion({
+      motor: serie.motor,
+      modelo: serie.modelo,
+      tipo: serie.tipo,
+      tema: o.tema,
+      duracion: serie.duracion,
+      idioma: serie.idioma,
+      narrado: serie.modoAudio === "VOZ",
+      ganchoFijo: o.ganchoFijo,
+      evitar: o.evitarTitulos,
+    });
+    const gancho = await registrarGancho(guion.gancho, serie.idioma);
+
+    const guionado = [
+      { texto: guion.gancho, keywords: guion.escenas[0].keywords },
+      ...guion.escenas,
+    ];
+    const clips = await elegirClips(guionado, new Set(o.clipsUsados));
+    const escenas: EscenaPreparada[] = guionado
+      .map((e, i) => ({ texto: e.texto, keywords: e.keywords, clip: clips[i]! }))
+      .filter((e) => e.clip);
+
+    // Las duraciones iniciales salen del texto; el editor las cambia a gusto.
+    const duraciones = guionado.map((e) => duracionPorTexto(e.texto, serie.segundosEscena));
+    const proyecto = await db.proyecto.create({
+      data: {
+        historiaId,
+        nombre: guion.titulo,
+        formato: "tiktok",
+        escenas: lineaDeTiempoDesdeGuion(guion, clips, duraciones),
+        voz: serie.modoAudio === "VOZ"
+          ? { modo: "ia", archivo: null, config: VOZ_POR_DEFECTO }
+          : { modo: "ninguna", archivo: null, config: null },
+        musica: { archivo: null, subida: false, volumen: 0.25 },
+      },
+    });
+
+    await db.historia.update({
+      where: { id: historiaId },
+      data: {
+        guion,
+        titulo: guion.titulo,
+        ganchoTexto: guion.gancho,
+        ganchoId: gancho.id,
+        escenas,
+        descripcion: crearDescripcion(guion, escenas),
+        estado: "MONTAJE",
+      },
+    });
+    if (o.ideaId) await marcarIdeaUsada(o.ideaId);
+    return proyecto.id;
+  } catch (err) {
+    await db.historia.update({
+      where: { id: historiaId },
+      data: { estado: "ERROR", error: String(err).slice(0, 800) },
+    });
+    throw err;
+  }
+}
+
 /** Trabajo del programador: una historia mas de una serie. */
 export async function crearHistoria(serieId: string) {
   const serie = await db.serie.findUniqueOrThrow({ where: { id: serieId } });
@@ -230,6 +306,16 @@ export async function crearHistoria(serieId: string) {
     : serie.temas.length
       ? serie.temas[Math.floor(Math.random() * serie.temas.length)]
       : undefined;
+
+  if (serie.salida === "MONTAJE") {
+    return crearMontaje(h.id, serie, {
+      tema,
+      ganchoFijo: ganchoProbado?.texto ?? null,
+      ideaId: idea?.id ?? null,
+      evitarTitulos: recientes.map((r) => r.titulo),
+      clipsUsados: clipsDe(recientes),
+    });
+  }
 
   return producir(h.id, {
     tipo: serie.tipo,

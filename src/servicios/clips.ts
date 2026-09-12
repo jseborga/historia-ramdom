@@ -34,7 +34,8 @@ export type EscenaPreparada = {
   texto: string;
   keywords: string[];
   clip: ClipInfo;
-  archivo: string;
+  /** Nombre del clip descargado; falta cuando solo se guardo el enlace. */
+  archivo?: string;
   audio?: string;
 };
 
@@ -191,18 +192,18 @@ export async function buscarClips(keyword: string): Promise<ClipInfo[]> {
 }
 
 /**
- * Busca un clip por escena, evitando los ya usados en historias recientes,
- * y lo descarga a la carpeta de trabajo (Pixabay no permite enlazar en caliente).
+ * Elige un clip por escena sin descargar nada: solo enlaces. Es lo que usa el
+ * editor para precargar la linea de tiempo y dejar mirar antes de bajar.
+ * Devuelve null donde no encontro nada, para que la escena quede en color.
  */
-export async function elegirYDescargarClips(
-  escenas: { texto: string; keywords: string[] }[],
-  dir: string,
+export async function elegirClips(
+  escenas: { keywords: string[] }[],
   usados: Set<string> = new Set(),
   /** Clip elegido a mano por escena: indice -> id de clip. */
   preseleccion: Record<number, string> = {},
-): Promise<EscenaPreparada[]> {
+): Promise<(ClipInfo | null)[]> {
   const yaElegidos = new Set(usados);
-  const preparadas: EscenaPreparada[] = [];
+  const salida: (ClipInfo | null)[] = [];
 
   for (const [i, escena] of escenas.entries()) {
     let elegido: ClipInfo | undefined;
@@ -229,15 +230,34 @@ export async function elegirYDescargarClips(
       if (elegido) break;
     }
     elegido ??= respaldo;
+    if (elegido) yaElegidos.add(elegido.id);
+    salida.push(elegido ?? null);
+  }
+  return salida;
+}
 
+/**
+ * Elige y ademas descarga a la carpeta de trabajo (Pixabay no permite enlazar
+ * en caliente). Falla si alguna escena se queda sin clip: el render automatico
+ * no tiene con que rellenar.
+ */
+export async function elegirYDescargarClips(
+  escenas: { texto: string; keywords: string[] }[],
+  dir: string,
+  usados: Set<string> = new Set(),
+  preseleccion: Record<number, string> = {},
+): Promise<EscenaPreparada[]> {
+  const elegidos = await elegirClips(escenas, usados, preseleccion);
+  const preparadas: EscenaPreparada[] = [];
+
+  for (const [i, escena] of escenas.entries()) {
+    const elegido = elegidos[i];
     if (!elegido) {
       throw new Error(
         `Sin clips para la escena ${i + 1} (${escena.keywords.join(", ")}). ` +
           "Revisa PEXELS_API_KEY / PIXABAY_API_KEY o cambia las keywords.",
       );
     }
-
-    yaElegidos.add(elegido.id);
     const archivo = `clip${i}.mp4`;
     await descargarClip(elegido.url, join(dir, archivo));
     preparadas.push({ texto: escena.texto, keywords: escena.keywords, clip: elegido, archivo });

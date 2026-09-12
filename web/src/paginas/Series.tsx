@@ -44,6 +44,7 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
   const [musicaModo, setMusicaModo] = useState<"FIJA" | "ROTAR">("FIJA");
   const [modoAudio, setModoAudio] = useState<ModoAudio>("VOZ");
   const [segundosEscena, setSegundosEscena] = useState<number | null>(null);
+  const [salida, setSalida] = useState<"VIDEO" | "MONTAJE">("MONTAJE");
   const [voz, setVoz] = useState<Voz>(catalogo.vozPorDefecto);
   const [musica, setMusica] = useState<string | null>(null);
   const [modo, setModo] = useState<ModoPublicacion>("DESCARGA");
@@ -93,6 +94,7 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
           voz,
           modoAudio,
           segundosEscena,
+          salida,
           musica: musicaModo === "ROTAR" ? null : musica,
           musicaModo,
           modoPublicacion: modo,
@@ -150,6 +152,17 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
             modelo={modelo}
             alCambiarModelo={setModelo}
           />
+          <div>
+            <label htmlFor="salida">Que produce cada ejecucion</label>
+            <select
+              id="salida"
+              value={salida}
+              onChange={(e) => setSalida(e.target.value as "VIDEO" | "MONTAJE")}
+            >
+              <option value="MONTAJE">Un montaje en el editor, para revisar antes de renderizar</option>
+              <option value="VIDEO">El MP4 terminado, sin pasar por el editor</option>
+            </select>
+          </div>
           <SelectorAudio valor={modoAudio} alCambiar={setModoAudio} />
           {modoAudio === "VOZ" ? (
             <SelectorVoz catalogo={catalogo} valor={voz} alCambiar={setVoz} />
@@ -210,7 +223,7 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
                 <strong>{s.nombre}</strong>
                 <span className="estado">{s.activa ? "activa" : "en pausa"}</span>
                 <span className="suave">
-                  {s.tipo} · {s.idioma} · {s.modoAudio} · {s.cron} ({s.zonaHoraria}) · {s.motor}
+                  {s.tipo} · {s.idioma} · {s.salida === "MONTAJE" ? "montaje" : "video"} · {s.modoAudio} · {s.cron} ({s.zonaHoraria}) · {s.motor}
                   {s.modelo ? ` (${s.modelo})` : ""} · {s.duracion}s ·{" "}
                   {s._count?.historias ?? 0} historias
                 </span>

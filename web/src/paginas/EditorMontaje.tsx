@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import {
   api,
   type Catalogo,
+  type ClipCandidato,
   type EscenaMontaje,
+  type Fuente,
   type MusicaCapa,
   type Preset,
   type Proyecto,
@@ -22,7 +24,14 @@ const nuevaEscena = (): EscenaMontaje => ({
   color: "#111318",
   duracion: 4,
   texto: "",
-  estilo: { tamano: 66, color: "#FFFFFF", contorno: "#000000", posicion: "abajo", negrita: false },
+  estilo: {
+    fuente: "DejaVu Serif",
+    tamano: 66,
+    color: "#FFFFFF",
+    contorno: "#000000",
+    posicion: "abajo",
+    negrita: false,
+  },
   animacion: "fundido",
   esGancho: false,
 });
@@ -39,6 +48,7 @@ export function EditorMontaje({
   const [proyecto, setProyecto] = useState<Proyecto | null>(null);
   const [presets, setPresets] = useState<Preset[]>([]);
   const [musicaDisponible, setMusicaDisponible] = useState<string[]>([]);
+  const [fuentes, setFuentes] = useState<Fuente[]>([]);
   const [indice, setIndice] = useState(0);
   const [panel, setPanel] = useState<"escena" | "capas" | "salida">("escena");
   const [buscando, setBuscando] = useState(false);
@@ -55,6 +65,7 @@ export function EditorMontaje({
       setProyecto(p);
       setPresets(lista);
       setMusicaDisponible(p.musicaDisponible ?? []);
+      setFuentes(p.fuentes ?? []);
     } catch (err) {
       setError(mensajeDe(err));
     }
@@ -63,6 +74,18 @@ export function EditorMontaje({
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  // Las fuentes del servidor se cargan en el navegador para que la vista previa
+  // use la misma letra que quemara ffmpeg.
+  useEffect(() => {
+    if (!fuentes.length) return;
+    const hoja = document.createElement("style");
+    hoja.textContent = fuentes
+      .map((f) => `@font-face{font-family:"${f.nombre}";src:url(/api/fuentes/${f.id}) format("truetype");font-display:swap}`)
+      .join("\n");
+    document.head.appendChild(hoja);
+    return () => hoja.remove();
+  }, [fuentes]);
 
   // Mientras renderiza, refrescar para ver cuando termina.
   useEffect(() => {
@@ -87,6 +110,39 @@ export function EditorMontaje({
     actualizar({
       escenas: escenas.map((e, i) => (i === indice ? { ...e, ...cambios } : e)),
     });
+
+  /** Copia tipografia, tamano, colores y animacion de esta escena al resto. */
+  function aplicarEstiloATodas() {
+    if (!escena) return;
+    actualizar({
+      escenas: escenas.map((e) => ({
+        ...e,
+        estilo: { ...escena.estilo, posicion: e.estilo.posicion },
+        animacion: escena.animacion,
+      })),
+    });
+    setOk("Estilo aplicado a todas las escenas.");
+  }
+
+  /** Otro clip al azar para la escena, buscando con su propio texto. */
+  async function clipAlAzar() {
+    if (!escena) return;
+    setError("");
+    const consulta = (escena.texto || proyecto!.nombre).split(" ").slice(0, 3).join(" ");
+    try {
+      const lista = await api.get<ClipCandidato[]>(
+        `/api/clips?keywords=${encodeURIComponent(consulta)}`,
+      );
+      const otros = lista.filter((c) => c.id !== escena.clip?.id);
+      if (!otros.length) {
+        setError("No hay mas clips para ese texto; prueba a buscar con otras palabras.");
+        return;
+      }
+      cambiarEscena({ clip: otros[Math.floor(Math.random() * otros.length)] });
+    } catch (err) {
+      setError(mensajeDe(err));
+    }
+  }
 
   function moverEscena(desde: number, hacia: number) {
     if (hacia < 0 || hacia >= escenas.length) return;
@@ -217,6 +273,23 @@ export function EditorMontaje({
 
               <div className="campos" style={{ marginTop: 12 }}>
                 <div>
+                  <label htmlFor="fuente">Tipo de letra</label>
+                  <select
+                    id="fuente"
+                    value={escena.estilo.fuente}
+                    style={{ fontFamily: `"${escena.estilo.fuente}"` }}
+                    onChange={(e) =>
+                      cambiarEscena({ estilo: { ...escena.estilo, fuente: e.target.value } })
+                    }
+                  >
+                    {(fuentes.length ? fuentes : [{ id: "x", nombre: escena.estilo.fuente, estilo: "serif" as const }]).map((f) => (
+                      <option key={f.id} value={f.nombre} style={{ fontFamily: `"${f.nombre}"` }}>
+                        {f.nombre} ({f.estilo})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
                   <label htmlFor="dur">Duracion (s)</label>
                   <input
                     id="dur"
@@ -316,9 +389,11 @@ export function EditorMontaje({
                   />
                   Negrita
                 </label>
+                <button onClick={aplicarEstiloATodas}>Aplicar estilo a todas</button>
                 <button onClick={() => setBuscando(!buscando)}>
                   {buscando ? "Cerrar clips" : escena.clip ? "Cambiar clip" : "Elegir clip"}
                 </button>
+                <button onClick={clipAlAzar}>Otro clip al azar</button>
                 {!escena.clip && (
                   <input
                     type="color"
@@ -354,7 +429,7 @@ export function EditorMontaje({
                   }
                 >
                   <option value="ninguna">Sin voz</option>
-                  <option value="ia">Generada con IA</option>
+                  <option value="ia">Generada en el servidor (voz local o IA)</option>
                   <option value="archivo">Archivo que yo subo</option>
                 </select>
               </div>
@@ -371,6 +446,7 @@ export function EditorMontaje({
 
               {voz.modo === "ia" && (
                 <p className="suave" style={{ marginTop: 8 }}>
+                  Por defecto habla la voz local del servidor: robotica, pero gratis e inmediata.
                   Si la frase dura mas que la escena, la escena se estira para no cortarla.
                 </p>
               )}

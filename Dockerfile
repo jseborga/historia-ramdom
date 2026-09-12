@@ -10,8 +10,11 @@ RUN npx prisma generate && npm run build && npm prune --omit=dev
 
 # ---- Imagen final ----
 FROM node:22-bookworm-slim
+# espeak-ng: voz local por defecto, sin clave ni red.
+# Las fuentes son las que ofrece el editor para los rotulos.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ffmpeg fonts-dejavu-core openssl ca-certificates tini \
+      ffmpeg espeak-ng openssl ca-certificates tini \
+      fonts-dejavu-core fonts-liberation2 fonts-lato fonts-open-sans fonts-roboto \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production

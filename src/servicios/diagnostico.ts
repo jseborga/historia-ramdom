@@ -7,6 +7,7 @@ import { conexion } from "../cola/conexion.js";
 import { rutaTrabajo } from "../almacen.js";
 import { MODELOS } from "./guion.js";
 import { redditConfigurado } from "./reddit.js";
+import { fuentesDisponibles } from "../render/fuentes.js";
 import { tiktokConfigurado } from "./tiktok.js";
 
 /**
@@ -78,7 +79,8 @@ async function pedir(url: string, servicio: string, init: RequestInit = {}) {
 
 function version(programa: string) {
   return new Promise<string>((resolve, reject) => {
-    const p = spawn(programa, ["-version"]);
+    // ffmpeg entiende -version; espeak-ng, --version.
+    const p = spawn(programa, [programa === "espeak-ng" ? "--version" : "-version"]);
     let salida = "";
     p.stdout.on("data", (d) => (salida += d));
     p.on("error", () => reject(new Error(`${programa} no esta instalado`)));
@@ -112,6 +114,12 @@ export async function diagnosticar(): Promise<Prueba[]> {
       await writeFile(prueba, "ok");
       await unlink(prueba);
       return `Se puede escribir en ${env.DATA_DIR}`;
+    }),
+
+    medir("fuentes", "Tipografias", "Infraestructura", async () => {
+      const lista = await fuentesDisponibles();
+      if (!lista.length) throw new Error("No se encontro ninguna fuente instalada");
+      return `${lista.length} disponibles: ${lista.map((f) => f.nombre).join(", ")}`;
     }),
 
     // ---- Motores de guion ----
@@ -170,6 +178,11 @@ export async function diagnosticar(): Promise<Prueba[]> {
     }),
 
     // ---- Voz ----
+    medir("voz_local", "Voz local (espeak-ng)", "Voz", async () => {
+      const v = await version("espeak-ng");
+      return `${v} · voz ${env.VOZ_LOCAL_VOZ} a ${env.VOZ_LOCAL_VELOCIDAD} ppm`;
+    }),
+
     medir("voz_gemini", "Voz de Google AI Studio", "Voz", async () => {
       if (!env.GEMINI_API_KEY) return SIN_CONFIGURAR;
       const res = await pedir(

@@ -26,6 +26,8 @@ const SerieSchema = z.object({
   musicaModo: z.enum(["FIJA", "ROTAR"]).default("FIJA"),
   modoAudio: z.enum(["VOZ", "MUSICA", "MUDO"]).default("VOZ"),
   segundosEscena: z.number().min(1).max(30).nullable().default(null),
+  /** VIDEO renderiza solo; MONTAJE deja un proyecto en el editor para revisar. */
+  salida: z.enum(["VIDEO", "MONTAJE"]).default("VIDEO"),
   modoPublicacion: z
     .enum(["DESCARGA", "BORRADOR_TIKTOK", "DIRECTO_TIKTOK"])
     .default("DESCARGA"),

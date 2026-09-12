@@ -7,6 +7,7 @@ import { db } from "../db.js";
 import { rutaVideo, crearCarpetaProyecto, rutaSubidaSegura, listarMusica } from "../almacen.js";
 import { PRESETS } from "../render/presets.js";
 import { tieneAudio } from "../render/ffmpeg.js";
+import { fuentesDisponibles, archivoDeFuente } from "../render/fuentes.js";
 import { GuionSchema } from "../servicios/guion.js";
 import {
   ProyectoSchema,
@@ -27,6 +28,19 @@ const EXTENSIONES = /\.(mp3|m4a|wav|ogg|aac|flac)$/i;
 
 export async function rutasProyectos(app: FastifyInstance) {
   app.get("/api/presets", async () => PRESETS);
+
+  /** Tipografias instaladas: nombre para libass y archivo para la vista previa. */
+  app.get("/api/fuentes", async () =>
+    (await fuentesDisponibles()).map(({ id, nombre, estilo }) => ({ id, nombre, estilo })),
+  );
+
+  app.get("/api/fuentes/:id", async (req, reply) => {
+    const { id } = z.object({ id: z.string().regex(/^[a-z0-9-]{1,40}$/) }).parse(req.params);
+    const archivo = await archivoDeFuente(id);
+    if (!archivo) return reply.code(404).send({ error: "Fuente desconocida" });
+    reply.header("Content-Type", "font/ttf").header("Cache-Control", "public, max-age=604800");
+    return reply.send(createReadStream(archivo));
+  });
 
   app.get("/api/proyectos", async () =>
     db.proyecto.findMany({
@@ -50,7 +64,7 @@ export async function rutasProyectos(app: FastifyInstance) {
     const { id } = idParam.parse(req.params);
     const p = await db.proyecto.findUnique({ where: { id } });
     if (!p) return reply.code(404).send({ error: "No encontrado" });
-    return { ...p, musicaDisponible: await listarMusica() };
+    return { ...p, musicaDisponible: await listarMusica(), fuentes: await fuentesDisponibles() };
   });
 
   /**

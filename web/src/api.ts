@@ -48,12 +48,15 @@ export const api = {
   borrar: <T>(ruta: string) => peticion<T>(ruta, { method: "DELETE" }),
 };
 
-export type Voz = { proveedor: "gemini" | "openai"; modelo: string; nombre: string };
+export type Voz = { proveedor: "local" | "gemini" | "openai"; modelo: string; nombre: string };
+
+export type Fuente = { id: string; nombre: string; estilo: "sans" | "serif" };
 
 export type Catalogo = {
   motores: { id: string; modelo: string; disponible: boolean }[];
-  voces: Record<"gemini" | "openai", string[]>;
+  voces: Record<"local" | "gemini" | "openai", string[]>;
   vozPorDefecto: Voz;
+  vozGeminiPorDefecto: Voz;
   vozOpenAIPorDefecto: Voz;
   musica: string[];
   clips: { pexels: boolean; pixabay: boolean };
@@ -82,6 +85,7 @@ export type Posicion = "arriba" | "centro" | "abajo";
 export type Animacion = "ninguna" | "fundido" | "subir" | "zoom";
 
 export type EstiloTexto = {
+  fuente: string;
   tamano: number;
   color: string;
   contorno: string;
@@ -126,6 +130,7 @@ export type Proyecto = {
   error: string | null;
   editadoEn: string;
   musicaDisponible?: string[];
+  fuentes?: Fuente[];
 };
 
 export type ClipCandidato = {
@@ -172,6 +177,7 @@ export type Serie = {
   musicaModo: "FIJA" | "ROTAR";
   modoAudio: ModoAudio;
   segundosEscena: number | null;
+  salida: "VIDEO" | "MONTAJE";
   modoPublicacion: ModoPublicacion;
   activa: boolean;
   _count?: { historias: number };
@@ -221,7 +227,7 @@ export type Rendimiento = {
 export type Historia = {
   id: string;
   serieId: string | null;
-  estado: "GUION" | "CLIPS" | "VOZ" | "RENDER" | "LISTA" | "SUBIDA" | "ERROR";
+  estado: "GUION" | "CLIPS" | "VOZ" | "RENDER" | "LISTA" | "SUBIDA" | "MONTAJE" | "ERROR";
   titulo: string | null;
   ganchoTexto: string | null;
   metrica: Metrica | null;

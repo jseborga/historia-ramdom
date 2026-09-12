@@ -102,6 +102,9 @@ const Env = z.object({
   GEMINI_MODELO: z.string().default("gemini-2.5-flash"),
   OPENAI_MODELO: z.string().default("gpt-4o-mini"),
   GROQ_MODELO: z.string().default("llama-3.3-70b-versatile"),
+  // Voz local del servidor (espeak-ng): sin clave, sin red, algo robotica.
+  VOZ_LOCAL_VOZ: z.string().default("es-419"),
+  VOZ_LOCAL_VELOCIDAD: z.coerce.number().int().min(80).max(300).default(150),
   GEMINI_MODELO_VOZ: z.string().default("gemini-3.1-flash-tts-preview"),
   GEMINI_VOZ: z.string().default("Kore"),
   OPENAI_MODELO_VOZ: z.string().default("gpt-4o-mini-tts"),

@@ -90,6 +90,7 @@ textarea { min-height: 80px; resize: vertical; }
 .estado { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--borde); color: var(--suave); }
 .estado.LISTA, .estado.SUBIDA { color: var(--ok); border-color: var(--ok); }
 .estado.ERROR { color: var(--error); border-color: var(--error); }
+.estado.MONTAJE { color: var(--acento); border-color: var(--acento); }
 
 .lista { display: grid; gap: 8px; }
 .item { border: 1px solid var(--borde); border-radius: 10px; padding: 12px; }

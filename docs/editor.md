@@ -19,13 +19,25 @@ montado y desde ahí se cambia pieza a pieza.
 5. **Formato.** El preset decide el lienzo; todo se recalcula sobre él.
 6. **Renderizar MP4.** Un solo archivo, listo para subir.
 
+## Precargado por el cron
+
+Una serie con salida **Montaje** hace, en cada ejecución, solo lo barato: escribe
+el guion con su título y su gancho, elige un clip por escena **guardando solo el
+enlace** —no descarga nada— y deja un proyecto abierto en la pestaña Montaje. Ni
+voz ni render: eso se decide mirándolo.
+
+Así puedes tener el cron produciendo un montaje distinto cada día, abrirlos uno a
+uno, reproducirlos con la voz del navegador para oír el ritmo, cambiar lo que no
+convenza y renderizar solo los que valgan. La historia queda en estado `MONTAJE`
+hasta entonces.
+
 ## Las capas
 
 | Capa | Opciones |
 |---|---|
 | Imagen | Un clip por escena, o un fondo de color liso |
 | Texto | Uno por escena, con estilo y animación propios |
-| Voz | Ninguna · generada con IA · un archivo que subes |
+| Voz | Ninguna · generada en el servidor (voz local por defecto, o IA) · un archivo que subes |
 | Música | Una pista de la biblioteca o una que subes, con su volumen |
 
 Cada capa se construye por separado y solo se juntan en el paso final, así que
@@ -37,6 +49,33 @@ archivo de voz propio manda tu archivo y las duraciones son las que tú pongas.
 
 Con voz, la música se agacha automáticamente cuando alguien habla; sin voz suena
 al 60 % como mínimo para que no quede vacío.
+
+## Voz: la del servidor por defecto
+
+La voz por defecto es la **local del servidor**, con `espeak-ng`: no gasta cuota,
+no necesita clave, no depende de la red y siempre está. Es robótica —de eso no
+hay duda— pero sirve para probar el montaje y para quien no quiera pagar voz.
+Cuando quieras algo mejor, en la capa de voz eliges Gemini u OpenAI.
+
+`VOZ_LOCAL_VOZ` elige el idioma y acento (`es-419` por defecto, también `es`,
+`en-us`, `en-gb`...) y `VOZ_LOCAL_VELOCIDAD` el ritmo en palabras por minuto.
+Verificado en este entorno: una frase de 15 palabras sale en 5,7 s a 150 ppm,
+coherente con el cálculo de duración por texto.
+
+Aparte, y sin renderizar, la vista previa puede **leer el texto con la voz del
+navegador** (Web Speech API) mientras reproduce. Es una maqueta para oír el
+ritmo, no la voz del MP4: la del MP4 es la que elijas en la capa de voz.
+
+## Tipo de letra
+
+Siete tipografías libres instaladas en la imagen: DejaVu Serif, DejaVu Sans,
+Liberation Sans, Liberation Serif, Lato, Open Sans y Roboto. Se elige por escena
+y con *Aplicar estilo a todas* se copia al resto (la posición de cada escena se
+respeta). El navegador carga la misma fuente desde `/api/fuentes/:id`, así que
+la vista previa usa la letra que después quemará ffmpeg.
+
+Cada escena tiene además *Otro clip al azar*, que busca con su propio texto y
+cambia el clip por otro distinto al actual.
 
 ## Animaciones
 

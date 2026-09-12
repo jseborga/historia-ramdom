@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
@@ -5,14 +6,24 @@ import { env } from "../env.js";
 import { leerJSON } from "../util/http.js";
 
 export const VozSchema = z.object({
-  proveedor: z.enum(["gemini", "openai"]),
+  proveedor: z.enum(["local", "gemini", "openai"]),
   modelo: z.string().min(1).max(80),
   nombre: z.string().min(1).max(40),
 });
 export type VozConfig = z.infer<typeof VozSchema>;
 
-/** Los modelos de voz se configuran en el entorno (Google AI Studio los renueva). */
+/**
+ * Por defecto habla la voz local del servidor: no gasta cuota, no depende de
+ * ninguna clave y siempre esta. Es robotica, pero sirve para probar el montaje
+ * y para quien no quiera pagar voz. Las de IA se eligen cuando se quiera mas.
+ */
 export const VOZ_POR_DEFECTO: VozConfig = {
+  proveedor: "local",
+  modelo: "espeak-ng",
+  nombre: env.VOZ_LOCAL_VOZ,
+};
+
+export const VOZ_GEMINI_POR_DEFECTO: VozConfig = {
   proveedor: "gemini",
   modelo: env.GEMINI_MODELO_VOZ,
   nombre: env.GEMINI_VOZ,
@@ -26,6 +37,7 @@ export const VOZ_OPENAI_POR_DEFECTO: VozConfig = {
 
 /** Voces disponibles; sirven para poblar el selector del frontend. */
 export const VOCES = {
+  local: ["es-419", "es", "en-us", "en-gb", "pt-br", "fr-fr", "it", "de"],
   gemini: ["Kore", "Puck", "Charon", "Fenrir", "Aoede", "Leda", "Orus", "Zephyr"],
   openai: ["coral", "alloy", "echo", "fable", "onyx", "nova", "shimmer", "sage"],
 } as const;
@@ -69,6 +81,40 @@ async function conReintentos<T>(fn: () => Promise<T>, intentos = 3): Promise<T> 
     }
   }
   throw ultimo;
+}
+
+/**
+ * Voz local con espeak-ng. El texto entra por stdin, nunca por la linea de
+ * comandos, asi que ni la longitud ni los caracteres raros dan problemas.
+ */
+export function vozLocal(
+  texto: string,
+  destino: string,
+  voz = env.VOZ_LOCAL_VOZ,
+  velocidad = env.VOZ_LOCAL_VELOCIDAD,
+) {
+  return new Promise<void>((resolve, reject) => {
+    // Solo letras, digitos, guiones y "+" (variantes como es+f3): nada mas llega al argumento.
+    if (!/^[a-z0-9+_-]{1,24}$/i.test(voz)) return reject(new Error(`Voz local invalida: ${voz}`));
+    const p = spawn("espeak-ng", [
+      "-v", voz,
+      "-s", String(velocidad),
+      "-p", "45",
+      "-a", "170",
+      "--stdin",
+      "-w", destino,
+    ]);
+    let errores = "";
+    p.stderr.on("data", (d) => (errores = (errores + d).slice(-1000)));
+    p.on("error", () =>
+      reject(new Error("espeak-ng no esta instalado: la voz local necesita el paquete espeak-ng")),
+    );
+    p.on("close", (code) =>
+      code === 0 ? resolve() : reject(new Error(`espeak-ng termino con codigo ${code}: ${errores}`)),
+    );
+    p.stdin.on("error", () => {});
+    p.stdin.end(texto.replace(/\s+/g, " ").trim() + "\n");
+  });
 }
 
 export async function vozGemini(
@@ -147,7 +193,8 @@ export async function generarVoz(
   const nombre = voz.proveedor === "openai" ? `voz${indice}.mp3` : `voz${indice}.wav`;
   const destino = join(dir, nombre);
 
-  if (voz.proveedor === "openai") await vozOpenAI(texto, destino, voz.modelo, voz.nombre);
+  if (voz.proveedor === "local") await vozLocal(texto, destino, voz.nombre);
+  else if (voz.proveedor === "openai") await vozOpenAI(texto, destino, voz.modelo, voz.nombre);
   else await vozGemini(texto, destino, voz.modelo, voz.nombre);
 
   return nombre;

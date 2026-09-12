@@ -1,4 +1,5 @@
 import type { Preset } from "./presets.js";
+import { FUENTE_POR_DEFECTO } from "./fuentes.js";
 
 /**
  * Rotulos del editor: texto con estilo y animacion, convertidos a ASS para que
@@ -9,6 +10,8 @@ export type Posicion = "arriba" | "centro" | "abajo";
 export type Animacion = "ninguna" | "fundido" | "subir" | "zoom";
 
 export type EstiloTexto = {
+  /** Nombre de familia tal como lo conoce libass (DejaVu Serif, Lato...). */
+  fuente: string;
   tamano: number;
   color: string; // #RRGGBB
   contorno: string; // #RRGGBB
@@ -17,6 +20,7 @@ export type EstiloTexto = {
 };
 
 export const ESTILO_POR_DEFECTO: EstiloTexto = {
+  fuente: FUENTE_POR_DEFECTO,
   tamano: 66,
   color: "#FFFFFF",
   contorno: "#000000",
@@ -51,8 +55,10 @@ const limpiar = (t: string) =>
 function etiquetas(estilo: EstiloTexto, animacion: Animacion, p: Preset) {
   const x = Math.round(p.ancho / 2);
   const y = Math.round(p.alto * ALTURA[estilo.posicion]);
+  // El nombre de fuente va entre \fn y la siguiente barra: sin barras ni llaves dentro.
+  const fuente = estilo.fuente.replace(/[\\{}]/g, "").trim() || FUENTE_POR_DEFECTO;
   const base =
-    `\\an5\\fs${estilo.tamano}\\c${colorASS(estilo.color)}` +
+    `\\an5\\fn${fuente}\\fs${estilo.tamano}\\c${colorASS(estilo.color)}` +
     `\\3c${colorASS(estilo.contorno)}\\bord4\\shad2\\b${estilo.negrita ? 1 : 0}`;
 
   switch (animacion) {

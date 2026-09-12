@@ -24,9 +24,12 @@ Implementa la guía de `docs/guia-original.md`.
   métricas lo califican y los que funcionan se vuelven a usar solos.
 - **Servidor MCP.** Claude puede consultar el banco, ver qué rinde y encargar
   historias hablando en lenguaje natural.
-- **Editor de montaje.** Línea de tiempo con vista previa, texto con estilo y
-  animaciones, capas de voz y música, y presets de formato por red
-  ([`docs/editor.md`](docs/editor.md)).
+- **Editor de montaje.** Línea de tiempo con vista previa, tipo de letra, texto
+  con estilo y animaciones, capas de voz y música, y presets de formato por red
+  ([`docs/editor.md`](docs/editor.md)). Las series pueden dejar cada ejecución
+  como montaje precargado para revisar antes de renderizar.
+- **Voz local por defecto.** `espeak-ng` en el servidor: robótica, pero gratis,
+  sin clave y siempre disponible. Gemini y OpenAI cuando se quiera más.
 - **Vista previa.** El MP4 se reproduce en la propia app antes de descargarlo, y
   los clips candidatos se ven antes de elegir cuál aparece en cada escena.
 - **Comprobación de servicios.** Un botón verifica que cada clave, la base de
