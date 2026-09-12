@@ -206,6 +206,20 @@ form.login { max-width: 340px; margin: 15vh auto 0; display: grid; gap: 12px; }
 
 .pistas { display: flex; gap: 4px; overflow-x: auto; padding: 8px 0; }
 
+/* Linea de tiempo multipista */
+.tiempo { position: relative; }
+.regla { position: relative; height: 22px; border-bottom: 1px solid var(--borde); cursor: pointer; }
+.marca { position: absolute; top: 2px; font-size: 10px; color: var(--suave); border-left: 1px solid var(--borde); padding-left: 3px; height: 18px; }
+.pista { position: relative; height: 84px; border-bottom: 1px dashed var(--borde); }
+.pistaTextos { height: 44px; }
+.pistaVoz { height: 40px; }
+.nombrePista { position: absolute; left: 4px; top: 2px; font-size: 10px; color: var(--suave); text-transform: uppercase; letter-spacing: 0.06em; pointer-events: none; }
+.bloque.texto { background: #1d2431; height: 34px; padding: 4px 6px; justify-items: start; overflow: hidden; white-space: nowrap; }
+.bloque.voz { background: #1f2a22; height: 30px; padding: 4px 6px; justify-items: start; }
+.cabezal { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--acento); pointer-events: none; z-index: 2; }
+.palabra.apagada { opacity: 0.45; filter: saturate(0.3); }
+.palabra.viva { opacity: 1; }
+
 .bloque {
   flex: 0 0 auto;
   min-width: 56px;
@@ -222,3 +236,4 @@ form.login { max-width: 340px; margin: 15vh auto 0; display: grid; gap: 12px; }
 
 .bloque.sel { border-color: var(--acento); color: var(--texto); }
 .bloque .mini { height: 46px; border-radius: 4px; background: #000; object-fit: cover; width: 100%; }
+.pista .bloque { height: 76px; overflow: hidden; }

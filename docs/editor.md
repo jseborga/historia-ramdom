@@ -3,21 +3,45 @@
 Una línea de tiempo al estilo CapCut dentro de la app: se abre con el vídeo ya
 montado y desde ahí se cambia pieza a pieza.
 
+## Tres pistas sobre el mismo tiempo
+
+El proyecto son **tres pistas independientes** sobre un único eje de tiempo,
+como en CapCut. Nada obliga a que un texto coincida con un clip ni a que la
+voz vaya al compás de ninguno de los dos.
+
+| Pista | Qué contiene | Cómo se coloca |
+|---|---|---|
+| **Vídeo** | Clips en secuencia, cada uno con su duración, su segundo de entrada y su efecto | Uno detrás de otro; se añaden, se quitan, se buscan, se mueven |
+| **Textos** | Rótulos con inicio y duración propios, estilo, animación y lectura | Donde quieras; pueden solaparse y no tienen por qué cuadrar con los clips |
+| **Voz** | La narración entera como un solo texto, leída con **una sola voz** | En el instante que digas; su duración real la marca el audio generado |
+
+Más la música de fondo, que se mezcla al final. La vista previa es un reloj
+que recorre el proyecto: en cada instante enseña el clip que toca (con su
+efecto según el progreso), los rótulos que caen encima y **la narración real
+del servidor**, no una voz sintética del navegador.
+
+Si la voz o los textos duran más que los clips, el último fotograma se congela
+para cubrir el resto: nada se corta. El resumen bajo la vista previa lo avisa.
+
 ## Cómo funciona
 
-1. **Montaje → Nuevo montaje.** Partiendo de una historia, la línea de tiempo se
-   arma sola: el gancho como primera escena y después el resto en orden, con los
-   clips que ya se habían elegido. Se abre con algo montado, no con un lienzo en
-   blanco.
-2. **Vista previa.** Reproduce las escenas en secuencia con sus duraciones
-   reales y rotula el texto donde va a quedar. *Reproducir* recorre el montaje
-   entero.
-3. **Escena.** Texto, duración, animación, posición, tamaño, color, contorno y
-   negrita. El clip se cambia buscando por palabras libres; si no hay clip, la
-   escena es un fondo de color.
-4. **Voz y música.** Dos capas independientes que se mezclan al final.
-5. **Formato.** El preset decide el lienzo; todo se recalcula sobre él.
-6. **Renderizar MP4.** Un solo archivo, listo para subir.
+1. **Montaje → Nuevo montaje.** Desde una historia: los clips en secuencia con
+   sus duraciones, un rótulo por escena colocado sobre su clip como punto de
+   partida, y la narración completa (gancho + escenas) en la pista de voz.
+2. **Voz → Generar la voz ahora.** Con la voz local tarda un segundo y te da la
+   duración real. A partir de ahí hay dos ayudas de sincronía: *Ajustar clips a
+   la voz* (escala todas las duraciones para que el vídeo dure lo que la
+   narración) y, en Textos, *Textos desde la narración* (reparte las frases
+   sobre la voz en proporción a sus palabras) o *Alinear con los clips* (cada
+   rótulo sobre el clip del mismo orden).
+3. **Clip.** Duración, segundo de entrada, efecto, buscar / parecido / al azar,
+   mover, duplicar, quitar. *Buscar clip parecido* usa el texto que cae encima
+   de ese clip en la línea de tiempo.
+4. **Texto.** Nuevo en el instante del cabezal, inicio y duración, empujar ±0,5
+   s, duplicar a continuación, estilo y animación.
+5. **Formato.** Preset y estilo global para todos los rótulos.
+6. **Renderizar MP4.** Si la narración del servidor no está generada o cambió
+   el texto, se genera en el render.
 
 ## Precargado por el cron
 
@@ -37,15 +61,17 @@ hasta entonces.
 |---|---|
 | Imagen | Un clip por escena, o un fondo de color liso |
 | Texto | Uno por escena, con estilo y animación propios |
-| Voz | Ninguna · generada en el servidor (voz local por defecto, o IA) · un archivo que subes |
+| Voz | Ninguna · leída por el servidor con una sola voz (local por defecto, o IA) · un archivo que subes |
 | Música | Una pista de la biblioteca o una que subes, con su volumen |
 
 Cada capa se construye por separado y solo se juntan en el paso final, así que
 cambiar la música no obliga a rehacer la voz ni la imagen.
 
-**Con voz de IA, la escena nunca se acorta por debajo de su audio**: si la frase
-dura más que la duración fijada, la escena se estira para no cortarla. Con un
-archivo de voz propio manda tu archivo y las duraciones son las que tú pongas.
+La narración se genera **de una sola vez con una sola voz** (con IA se trocea
+por frases y se pega, todo a 48 kHz). Su duración real se mide del audio —con
+ffprobe, o leyendo la cabecera WAV si no está— y es lo que la línea de tiempo
+usa para sincronizar. Si el texto o la voz cambian, se regenera; la huella del
+par texto+voz decide cuándo.
 
 Con voz, la música se agacha automáticamente cuando alguien habla; sin voz suena
 al 60 % como mínimo para que no quede vacío.
@@ -182,5 +208,6 @@ Para que quede claro qué esperar:
 - **La vista previa es orientativa.** Posición, tamaño, color y animación se
   corresponden con el render, pero el salto de línea puede caer distinto unos
   píxeles, porque el navegador y libass no miden el texto igual.
-- **La voz de IA se genera al renderizar**, no al editar, así que su duración
-  real no se ve en la vista previa hasta que el MP4 está hecho.
+- **Los rótulos no se arrastran con el ratón**: se colocan con inicio y
+  duración numéricos, con ±0,5 s y con las herramientas de reparto.
+- **La vista previa no reproduce la música**, solo la narración.

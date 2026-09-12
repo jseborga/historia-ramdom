@@ -146,9 +146,11 @@ model Proyecto {
   nombre     String
   /// Id de preset de formato (tiktok, youtube, cuadrado...).
   formato    String          @default("tiktok")
-  /// Escenas de la linea de tiempo: clip, duracion, texto y animacion.
+  /// Pista de video: clips en secuencia, cada uno con su duracion y efecto.
   escenas    Json
-  /// Capa de voz: { modo: "ia" | "archivo" | "ninguna", archivo?, voz? }
+  /// Pista de textos: rotulos con inicio y duracion propios, independientes de los clips.
+  textos     Json            @default("[]")
+  /// Pista de voz: { modo: "ninguna" | "servidor" | "archivo", texto, config, archivo, duracion, inicio }
   voz        Json?
   /// Capa de musica: { archivo, volumen }
   musica     Json?

@@ -1,13 +1,22 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { VozSchema, VOZ_POR_DEFECTO } from "./voz.js";
-import { ESTILO_POR_DEFECTO, type EstiloTexto } from "../render/rotulos.js";
+import { ESTILO_POR_DEFECTO, fragmentar, type EstiloTexto, type Lectura } from "../render/rotulos.js";
 import { PRESETS, PRESET_POR_DEFECTO } from "../render/presets.js";
 import type { ClipInfo } from "./clips.js";
 import type { Guion } from "./guion.js";
 
-/** Duracion por defecto de una escena cuando no la marca ningun audio. */
-export const DURACION_ESCENA = 4;
+/**
+ * Un proyecto son TRES PISTAS sobre el mismo eje de tiempo, como en CapCut:
+ *
+ *   video   clips en secuencia, cada uno con su duracion; no saben nada del texto
+ *   textos  rotulos con inicio y duracion propios, se superponen donde quieras
+ *   voz     una narracion continua leida con una sola voz, colocada en un instante
+ *
+ * Mas la musica de fondo. Nada obliga a que un texto coincida con un clip.
+ */
+
+export const DURACION_CLIP = 4;
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color en formato #RRGGBB");
 
@@ -30,32 +39,43 @@ export const ClipSchema = z.object({
   imagen: z.string().url().max(600).optional(),
 });
 
-export const EscenaSchema = z.object({
+/** Un clip de la pista de video. Su inicio es la suma de los anteriores. */
+export const ClipPistaSchema = z.object({
   id: z.string().max(60),
-  /** null = fondo de color liso, util mientras se decide el clip. */
+  /** null = fondo de color liso. */
   clip: ClipSchema.nullable().default(null),
   color: hex.default("#111318"),
-  /** Hasta tres minutos: una escena puede ser un parrafo entero leido despacio. */
-  duracion: z.number().min(0.5).max(180).default(DURACION_ESCENA),
+  duracion: z.number().min(0.5).max(180).default(DURACION_CLIP),
+  /** Segundo del clip original por el que empieza (recorte de entrada). */
+  recorte: z.number().min(0).max(3600).default(0),
+  efecto: z.enum(["ninguno", "zoomLento", "fundido", "blancoYNegro", "vineta"]).default("ninguno"),
+});
+
+/** Un rotulo de la pista de textos, con su propio sitio en el tiempo. */
+export const RotuloPistaSchema = z.object({
+  id: z.string().max(60),
+  inicio: z.number().min(0).max(3600).default(0),
+  duracion: z.number().min(0.2).max(300).default(DURACION_CLIP),
   texto: z.string().max(2000).default(""),
   estilo: EstiloSchema.default({}),
   animacion: z.enum(["ninguna", "fundido", "subir", "zoom", "resaltar"]).default("fundido"),
-  /** Como se va mostrando el texto: entero, frase a frase o por bloques. */
   lectura: z.enum(["todo", "frases", "bloques"]).default("frases"),
-  /** Efecto de imagen sobre el clip o el fondo. */
-  efecto: z.enum(["ninguno", "zoomLento", "fundido", "blancoYNegro", "vineta"]).default("ninguno"),
-  esGancho: z.boolean().default(false),
 });
 
-export const VozCapaSchema = z.object({
-  modo: z.enum(["ninguna", "ia", "archivo"]).default("ninguna"),
-  /** Nombre del archivo subido dentro de la carpeta del proyecto. */
+/** La narracion: un solo texto, una sola voz, colocada en `inicio`. */
+export const VozPistaSchema = z.object({
+  modo: z.enum(["ninguna", "servidor", "archivo"]).default("servidor"),
+  texto: z.string().max(20_000).default(""),
+  config: VozSchema.nullable().default(VOZ_POR_DEFECTO),
+  /** Archivo dentro de la carpeta del proyecto: generado o subido. */
   archivo: z.string().max(200).nullable().default(null),
-  config: VozSchema.nullable().default(null),
+  duracion: z.number().min(0).nullable().default(null),
+  inicio: z.number().min(0).max(3600).default(0),
+  /** Con que texto y voz se genero `archivo`; si cambia, hay que regenerar. */
+  huella: z.string().max(64).nullable().default(null),
 });
 
 export const MusicaCapaSchema = z.object({
-  /** Pista de DATA_DIR/musica o archivo subido al proyecto. */
   archivo: z.string().max(200).nullable().default(null),
   subida: z.boolean().default(false),
   volumen: z.number().min(0).max(1).default(0.25),
@@ -67,20 +87,47 @@ export const ProyectoSchema = z.object({
     .string()
     .refine((v) => PRESETS.some((p) => p.id === v), "Formato desconocido")
     .default(PRESET_POR_DEFECTO.id),
-  escenas: z.array(EscenaSchema).min(1).max(60),
-  voz: VozCapaSchema.default({}),
+  video: z.array(ClipPistaSchema).min(1).max(120),
+  textos: z.array(RotuloPistaSchema).max(300).default([]),
+  voz: VozPistaSchema.default({}),
   musica: MusicaCapaSchema.default({}),
 });
 
-export type Escena = z.infer<typeof EscenaSchema>;
-export type VozCapa = z.infer<typeof VozCapaSchema>;
+export type ClipPista = z.infer<typeof ClipPistaSchema>;
+export type RotuloPista = z.infer<typeof RotuloPistaSchema>;
+export type VozPista = z.infer<typeof VozPistaSchema>;
 export type MusicaCapa = z.infer<typeof MusicaCapaSchema>;
 export type ProyectoDatos = z.infer<typeof ProyectoSchema>;
 
-export const duracionTotal = (escenas: Escena[]) =>
-  escenas.reduce((suma, e) => suma + e.duracion, 0);
+// ---- Tiempo ----
 
-/** El gancho se rotula mas grande y arriba, como en la version automatica. */
+export const duracionVideo = (video: ClipPista[]) => video.reduce((s, c) => s + c.duracion, 0);
+export const inicioDeClip = (video: ClipPista[], i: number) =>
+  video.slice(0, i).reduce((s, c) => s + c.duracion, 0);
+export const finVoz = (voz: VozPista) =>
+  voz.modo === "ninguna" || !voz.duracion ? 0 : voz.inicio + voz.duracion;
+export const finTextos = (textos: RotuloPista[]) =>
+  textos.reduce((m, t) => Math.max(m, t.inicio + t.duracion), 0);
+
+/** El proyecto dura lo que la pista mas larga; el video se congela si hace falta. */
+export const duracionProyecto = (p: Pick<ProyectoDatos, "video" | "textos" | "voz">) =>
+  Math.max(duracionVideo(p.video), finVoz(p.voz), finTextos(p.textos));
+
+/** Identifica el par texto+voz con el que se genero la narracion. */
+export const huellaVoz = (voz: Pick<VozPista, "texto" | "config">) =>
+  createHash("sha1").update(JSON.stringify([voz.texto.trim(), voz.config])).digest("hex");
+
+// ---- Construccion ----
+
+export function clipVacio(duracion = DURACION_CLIP): ClipPista {
+  return ClipPistaSchema.parse({ id: randomUUID(), duracion });
+}
+
+export function rotuloNuevo(inicio: number, texto = "", duracion = DURACION_CLIP): RotuloPista {
+  return RotuloPistaSchema.parse({ id: randomUUID(), inicio, duracion, texto });
+}
+
+/** El gancho se rotula mas grande y en el centro. */
 const estiloGancho: EstiloTexto = {
   ...ESTILO_POR_DEFECTO,
   tamano: 84,
@@ -90,33 +137,110 @@ const estiloGancho: EstiloTexto = {
 };
 
 /**
- * Monta la linea de tiempo inicial: el orden secuencial del guion con los
- * clips que ya se eligieron. El editor abre con algo montado y desde ahi se
- * cambia pieza a pieza.
+ * Reparte unos textos a lo largo de un tramo, en proporcion a sus palabras.
+ * Sirve para colocar los rotulos sobre la narracion ya generada.
  */
-export function lineaDeTiempoDesdeGuion(
+export function repartirTextos(
+  textos: string[],
+  inicio: number,
+  duracionTotal: number,
+  base: Partial<RotuloPista> = {},
+): RotuloPista[] {
+  const pesos = textos.map((t) => Math.max(t.trim().split(/\s+/).filter(Boolean).length, 1));
+  const total = pesos.reduce((a, b) => a + b, 0);
+  let t = inicio;
+  return textos.map((texto, i) => {
+    const duracion = Math.max((duracionTotal * pesos[i]) / total, 0.2);
+    const r = RotuloPistaSchema.parse({ ...base, id: randomUUID(), inicio: t, duracion, texto });
+    t += duracion;
+    return r;
+  });
+}
+
+/** Rotulos a partir de la narracion, frase a frase, sobre su duracion. */
+export function textosDesdeNarracion(
+  voz: VozPista,
+  duracionSiNoHay: number,
+  lectura: Lectura = "frases",
+): RotuloPista[] {
+  const frases = fragmentar(voz.texto, lectura === "todo" ? "frases" : lectura);
+  const largo = voz.duracion && voz.modo !== "ninguna" ? voz.duracion : duracionSiNoHay;
+  return repartirTextos(frases, voz.inicio, largo, { lectura: "todo" });
+}
+
+/**
+ * Pistas iniciales desde un guion: los clips elegidos en secuencia, la
+ * narracion completa (gancho + escenas) como un solo texto, y un rotulo por
+ * escena colocado sobre su clip. Desde ahi cada pista va por su cuenta.
+ */
+export function pistasDesdeGuion(
   guion: Guion,
   clipsPorEscena: (ClipInfo | null)[] = [],
   duraciones: number[] = [],
-): Escena[] {
+): Pick<ProyectoDatos, "video" | "textos"> & { narracion: string } {
   const textos = [guion.gancho, ...guion.escenas.map((e) => e.texto)];
 
-  return textos.map((texto, i) => ({
-    id: randomUUID(),
-    clip: clipsPorEscena[i] ?? null,
-    color: "#111318",
-    duracion: duraciones[i] ?? DURACION_ESCENA,
-    texto,
-    estilo: i === 0 ? estiloGancho : ESTILO_POR_DEFECTO,
-    animacion: i === 0 ? "zoom" : "fundido",
-    lectura: "frases" as const,
-    efecto: i === 0 ? ("zoomLento" as const) : ("ninguno" as const),
-    esGancho: i === 0,
-  }));
+  const video: ClipPista[] = textos.map((_, i) =>
+    ClipPistaSchema.parse({
+      id: randomUUID(),
+      clip: clipsPorEscena[i] ?? null,
+      duracion: duraciones[i] ?? DURACION_CLIP,
+      efecto: i === 0 ? "zoomLento" : "ninguno",
+    }),
+  );
+
+  const rotulos: RotuloPista[] = textos.map((texto, i) =>
+    RotuloPistaSchema.parse({
+      id: randomUUID(),
+      inicio: inicioDeClip(video, i),
+      duracion: video[i].duracion,
+      texto,
+      estilo: i === 0 ? estiloGancho : ESTILO_POR_DEFECTO,
+      animacion: i === 0 ? "zoom" : "fundido",
+    }),
+  );
+
+  return { video, textos: rotulos, narracion: textos.join("\n\n") };
 }
 
-export function escenaVacia(): Escena {
-  return EscenaSchema.parse({ id: randomUUID(), texto: "" });
+/**
+ * Proyectos guardados con el modelo anterior (una "escena" = clip + texto):
+ * se parten en pista de video y pista de textos sin perder nada.
+ */
+export function desdeEscenasAntiguas(escenas: unknown[]): Pick<ProyectoDatos, "video" | "textos"> {
+  const video: ClipPista[] = [];
+  const textos: RotuloPista[] = [];
+  let t = 0;
+  for (const e of escenas as Record<string, unknown>[]) {
+    const c = ClipPistaSchema.safeParse({
+      id: e.id ?? randomUUID(),
+      clip: e.clip ?? null,
+      color: e.color,
+      duracion: e.duracion,
+      efecto: e.efecto,
+    });
+    if (!c.success) continue;
+    video.push(c.data);
+    if (typeof e.texto === "string" && e.texto.trim()) {
+      textos.push(
+        RotuloPistaSchema.parse({
+          id: randomUUID(),
+          inicio: t,
+          duracion: c.data.duracion,
+          texto: e.texto,
+          estilo: e.estilo,
+          animacion: e.animacion,
+          lectura: e.lectura,
+        }),
+      );
+    }
+    t += c.data.duracion;
+  }
+  return { video, textos };
 }
+
+/** Distingue el modelo nuevo (clips sin texto) del antiguo (escenas con texto). */
+export const esModeloAntiguo = (escenas: unknown[]) =>
+  escenas.some((e) => e && typeof e === "object" && "texto" in (e as object));
 
 export const VOZ_IA_POR_DEFECTO = VOZ_POR_DEFECTO;

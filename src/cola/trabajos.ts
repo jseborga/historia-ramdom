@@ -8,7 +8,7 @@ import {
   crearDescripcion,
   type EscenaPreparada,
 } from "../servicios/clips.js";
-import { lineaDeTiempoDesdeGuion } from "../servicios/proyecto.js";
+import { pistasDesdeGuion } from "../servicios/proyecto.js";
 import { VOZ_POR_DEFECTO } from "../servicios/voz.js";
 import {
   elegirIdea,
@@ -248,15 +248,22 @@ async function crearMontaje(
 
     // Las duraciones iniciales salen del texto; el editor las cambia a gusto.
     const duraciones = guionado.map((e) => duracionPorTexto(e.texto, serie.segundosEscena));
+    // Tres pistas: clips en secuencia, un rotulo por escena sobre su clip, y
+    // la narracion entera como un solo texto para leer con una sola voz.
+    const pistas = pistasDesdeGuion(guion, clips, duraciones);
     const proyecto = await db.proyecto.create({
       data: {
         historiaId,
         nombre: guion.titulo,
         formato: "tiktok",
-        escenas: lineaDeTiempoDesdeGuion(guion, clips, duraciones),
-        voz: serie.modoAudio === "VOZ"
-          ? { modo: "ia", archivo: null, config: VOZ_POR_DEFECTO }
-          : { modo: "ninguna", archivo: null, config: null },
+        escenas: pistas.video,
+        textos: pistas.textos,
+        voz: {
+          modo: serie.modoAudio === "VOZ" ? "servidor" : "ninguna",
+          texto: pistas.narracion,
+          config: VOZ_POR_DEFECTO,
+          archivo: null, duracion: null, inicio: 0, huella: null,
+        },
         musica: { archivo: null, subida: false, volumen: 0.25 },
       },
     });
@@ -390,17 +397,25 @@ export async function limpiarArchivos() {
   return borrados.length;
 }
 
-/** Trabajo del editor: renderiza la linea de tiempo de un proyecto. */
+/** Trabajo del editor: renderiza las tres pistas de un proyecto. */
 export async function renderizarProyectoTrabajo(proyectoId: string) {
   const { renderizarProyecto } = await import("../render/proyecto.js");
-  const { ProyectoSchema } = await import("../servicios/proyecto.js");
+  const { ProyectoSchema, desdeEscenasAntiguas, esModeloAntiguo, huellaVoz } = await import(
+    "../servicios/proyecto.js"
+  );
+  const { generarNarracion, narracionExiste } = await import("../servicios/narracion.js");
   const { rutaSubidaSegura } = await import("../almacen.js");
 
   const p = await db.proyecto.findUniqueOrThrow({ where: { id: proyectoId } });
+  const escenas = Array.isArray(p.escenas) ? p.escenas : [];
+  const pistas = esModeloAntiguo(escenas)
+    ? desdeEscenasAntiguas(escenas)
+    : { video: escenas, textos: Array.isArray(p.textos) ? p.textos : [] };
   const datos = ProyectoSchema.parse({
     nombre: p.nombre,
     formato: p.formato,
-    escenas: p.escenas,
+    video: pistas.video,
+    textos: pistas.textos,
     voz: p.voz ?? {},
     musica: p.musica ?? {},
   });
@@ -412,8 +427,20 @@ export async function renderizarProyectoTrabajo(proyectoId: string) {
   const dir = await crearCarpetaTrabajo(`proy-${proyectoId}`);
 
   try {
+    // La narracion del servidor se genera aqui si falta o si cambio el texto.
+    if (datos.voz.modo === "servidor" && datos.voz.texto.trim()) {
+      const vigente =
+        datos.voz.archivo &&
+        datos.voz.huella === huellaVoz(datos.voz) &&
+        (await narracionExiste(proyectoId, datos.voz.archivo));
+      if (!vigente) {
+        const r = await generarNarracion(proyectoId, datos.voz);
+        Object.assign(datos.voz, r);
+        await db.proyecto.update({ where: { id: proyectoId }, data: { voz: datos.voz } });
+      }
+    }
     const rutaVoz =
-      datos.voz.modo === "archivo" && datos.voz.archivo
+      datos.voz.modo !== "ninguna" && datos.voz.archivo
         ? rutaSubidaSegura(proyectoId, datos.voz.archivo)
         : undefined;
     const rutaMusica = datos.musica.archivo
@@ -423,8 +450,9 @@ export async function renderizarProyectoTrabajo(proyectoId: string) {
       : undefined;
 
     const { archivo, duracion } = await renderizarProyecto(dir, {
-      escenas: datos.escenas,
       formato: datos.formato,
+      video: datos.video,
+      textos: datos.textos,
       voz: datos.voz,
       musica: datos.musica,
       rutaVoz,

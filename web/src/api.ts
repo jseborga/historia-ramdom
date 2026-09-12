@@ -94,23 +94,38 @@ export type EstiloTexto = {
   negrita: boolean;
 };
 
-export type EscenaMontaje = {
+export type Lectura = "todo" | "frases" | "bloques";
+
+/** Un clip de la pista de video; su inicio es la suma de los anteriores. */
+export type ClipPista = {
   id: string;
   clip: ClipCandidato | null;
   color: string;
   duracion: number;
+  recorte: number;
+  efecto: Efecto;
+};
+
+/** Un rotulo de la pista de textos, con su propio sitio en el tiempo. */
+export type RotuloPista = {
+  id: string;
+  inicio: number;
+  duracion: number;
   texto: string;
   estilo: EstiloTexto;
   animacion: Animacion;
-  lectura: "todo" | "frases" | "bloques";
-  efecto: Efecto;
-  esGancho: boolean;
+  lectura: Lectura;
 };
 
-export type VozCapa = {
-  modo: "ninguna" | "ia" | "archivo";
-  archivo: string | null;
+/** La narracion: un solo texto, una sola voz, colocada en `inicio`. */
+export type VozPista = {
+  modo: "ninguna" | "servidor" | "archivo";
+  texto: string;
   config: Voz | null;
+  archivo: string | null;
+  duracion: number | null;
+  inicio: number;
+  huella: string | null;
 };
 
 export type MusicaCapa = {
@@ -124,8 +139,9 @@ export type Proyecto = {
   historiaId: string | null;
   nombre: string;
   formato: string;
-  escenas: EscenaMontaje[];
-  voz: VozCapa | null;
+  video: ClipPista[];
+  textos: RotuloPista[];
+  voz: VozPista;
   musica: MusicaCapa | null;
   archivo: string | null;
   duracionSeg: number | null;

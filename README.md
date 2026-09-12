@@ -24,8 +24,10 @@ Implementa la guía de `docs/guia-original.md`.
   métricas lo califican y los que funcionan se vuelven a usar solos.
 - **Servidor MCP.** Claude puede consultar el banco, ver qué rinde y encargar
   historias hablando en lenguaje natural.
-- **Editor de montaje.** Línea de tiempo con vista previa, tipo de letra, texto
-  con estilo y animaciones, capas de voz y música, y presets de formato por red
+- **Editor de montaje.** Tres pistas independientes —vídeo, textos y voz— sobre
+  el mismo tiempo, como CapCut: la narración se lee con una sola voz y su
+  duración real sincroniza el resto. Vista previa con la voz real, tipo de
+  letra, animaciones, efectos y presets de formato por red
   ([`docs/editor.md`](docs/editor.md)). Las series pueden dejar cada ejecución
   como montaje precargado para revisar antes de renderizar.
 - **Párrafos largos y karaoke.** Escenas de hasta tres minutos que se van

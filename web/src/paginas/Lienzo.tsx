@@ -1,161 +1,198 @@
-import { useEffect, useMemo, useState } from "react";
-import type { EscenaMontaje, Preset } from "../api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ClipPista, Preset, RotuloPista } from "../api";
 import { fragmentar, repartirTiempo, retardosKaraoke } from "../lectura";
 
 /**
- * Vista previa del montaje. Reproduce las escenas en secuencia con sus
- * duraciones reales, va mostrando el texto por fragmentos como hara el render,
- * y aproxima con CSS los efectos de imagen y el karaoke de palabras.
+ * Vista previa por tiempo, como un reproductor de verdad: un reloj recorre el
+ * proyecto y en cada instante muestra el clip que toca, los rotulos que caen
+ * encima y la narracion real del servidor, cada pista por su cuenta.
  */
 export function Lienzo({
-  escenas,
+  video,
+  textos,
   preset,
-  indice,
-  alCambiarIndice,
+  duracionTotal,
+  urlVoz,
+  vozInicio,
+  seek,
+  alTiempo,
 }: {
-  escenas: EscenaMontaje[];
+  video: ClipPista[];
+  textos: RotuloPista[];
   preset: Preset;
-  indice: number;
-  alCambiarIndice: (i: number) => void;
+  duracionTotal: number;
+  urlVoz: string | null;
+  vozInicio: number;
+  /** Salto pedido desde fuera (bloque pulsado, regla). `n` cambia en cada salto. */
+  seek: { t: number; n: number };
+  alTiempo: (t: number) => void;
 }) {
+  const [t, setT] = useState(0);
   const [reproduciendo, setReproduciendo] = useState(false);
-  const [leer, setLeer] = useState(true);
-  const [fragmento, setFragmento] = useState(0);
-  const escena = escenas[indice];
-  const hayVozNavegador = typeof window !== "undefined" && "speechSynthesis" in window;
+  const audio = useRef<HTMLAudioElement>(null);
+  const vid = useRef<HTMLVideoElement>(null);
+  const ultimo = useRef(0);
 
-  const fragmentos = useMemo(
-    () => (escena ? fragmentar(escena.texto, escena.lectura) : []),
-    [escena],
-  );
-  const tiempos = useMemo(
-    () => (escena ? repartirTiempo(fragmentos, escena.duracion) : []),
-    [fragmentos, escena],
-  );
-
-  // Al cambiar de escena se empieza por su primer fragmento.
-  useEffect(() => setFragmento(0), [indice, escena?.id]);
-
-  // Reproduccion: una cadena de temporizadores por fragmento; al acabar la
-  // escena salta a la siguiente.
+  // Saltos desde fuera
   useEffect(() => {
-    if (!reproduciendo || !escena) return;
-    const dura = fragmentos.length ? tiempos[fragmento] ?? escena.duracion : escena.duracion;
-    const t = setTimeout(() => {
-      if (fragmento + 1 < fragmentos.length) setFragmento(fragmento + 1);
-      else if (indice + 1 < escenas.length) alCambiarIndice(indice + 1);
-      else setReproduciendo(false);
-    }, dura * 1000);
-    return () => clearTimeout(t);
-  }, [reproduciendo, indice, fragmento, fragmentos, tiempos, escena, escenas.length, alCambiarIndice]);
+    setT(Math.max(0, Math.min(seek.t, duracionTotal)));
+  }, [seek.n]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Voz del navegador: lee cada fragmento al entrar en el. Es una maqueta del
-  // ritmo, no la voz del MP4.
+  // El reloj: requestAnimationFrame mientras se reproduce
   useEffect(() => {
-    if (!hayVozNavegador) return;
-    window.speechSynthesis.cancel();
-    const texto = fragmentos[fragmento];
-    if (!reproduciendo || !leer || !texto) return;
-    const frase = new SpeechSynthesisUtterance(texto);
-    frase.lang = /[áéíóúñ¿¡]/i.test(texto) || !/[a-z]/i.test(texto) ? "es-419" : "en-US";
-    window.speechSynthesis.speak(frase);
-    return () => window.speechSynthesis.cancel();
-  }, [reproduciendo, leer, fragmento, fragmentos, hayVozNavegador]);
+    if (!reproduciendo) return;
+    let id = 0;
+    ultimo.current = performance.now();
+    const paso = (ahora: number) => {
+      const dt = (ahora - ultimo.current) / 1000;
+      ultimo.current = ahora;
+      setT((prev) => {
+        const sig = prev + dt;
+        if (sig >= duracionTotal) {
+          setReproduciendo(false);
+          return duracionTotal;
+        }
+        return sig;
+      });
+      id = requestAnimationFrame(paso);
+    };
+    id = requestAnimationFrame(paso);
+    return () => cancelAnimationFrame(id);
+  }, [reproduciendo, duracionTotal]);
 
-  if (!escena) return <p className="suave">Anade una escena para empezar.</p>;
+  useEffect(() => alTiempo(t), [t, alTiempo]);
 
-  const total = escenas.reduce((s, e) => s + e.duracion, 0);
-  const transcurrido = escenas.slice(0, indice).reduce((s, e) => s + e.duracion, 0);
-  const tamanoRelativo = `${(escena.estilo.tamano / preset.alto) * 100}cqh`;
-  const textoActual = fragmentos[fragmento] ?? "";
-  const duraFragmento = tiempos[fragmento] ?? escena.duracion;
-  const retardos = escena.animacion === "resaltar" ? retardosKaraoke(textoActual, duraFragmento) : [];
+  // Clip activo y su instante local
+  const { clip, indice, local } = useMemo(() => {
+    let acum = 0;
+    for (const [i, c] of video.entries()) {
+      if (t < acum + c.duracion || i === video.length - 1) {
+        return { clip: c, indice: i, local: Math.min(Math.max(t - acum, 0), c.duracion) };
+      }
+      acum += c.duracion;
+    }
+    return { clip: null, indice: -1, local: 0 };
+  }, [video, t]);
+
+  // El video sigue al reloj: se resincroniza si se desvia mas de 0,35 s
+  useEffect(() => {
+    const v = vid.current;
+    if (!v || !clip?.clip) return;
+    const objetivo = local + clip.recorte;
+    if (Math.abs(v.currentTime - objetivo) > 0.35) v.currentTime = objetivo;
+    if (reproduciendo && v.paused) v.play().catch(() => {});
+    if (!reproduciendo && !v.paused) v.pause();
+  }, [t, local, clip, reproduciendo]);
+
+  // La narracion real: arranca cuando el reloj llega a su inicio
+  useEffect(() => {
+    const a = audio.current;
+    if (!a || !urlVoz) return;
+    const enVoz = t >= vozInicio && t - vozInicio < (a.duration || Infinity);
+    if (reproduciendo && enVoz) {
+      if (Math.abs(a.currentTime - (t - vozInicio)) > 0.35) a.currentTime = t - vozInicio;
+      if (a.paused) a.play().catch(() => {});
+    } else if (!a.paused) {
+      a.pause();
+    }
+  }, [t, reproduciendo, urlVoz, vozInicio]);
+
+  // Rotulos activos en este instante, cada uno con su trozo y su karaoke
+  const activos = useMemo(
+    () =>
+      textos
+        .filter((r) => r.texto.trim() && t >= r.inicio && t < r.inicio + r.duracion)
+        .map((r) => {
+          const frs = fragmentar(r.texto, r.lectura);
+          const tiempos = repartirTiempo(frs, r.duracion);
+          let rel = t - r.inicio;
+          let i = 0;
+          for (; i < frs.length - 1 && rel >= tiempos[i]; i++) rel -= tiempos[i];
+          const texto = frs[i] ?? "";
+          const encendidas =
+            r.animacion === "resaltar"
+              ? retardosKaraoke(texto, tiempos[i] ?? r.duracion).filter((d) => d <= rel).length
+              : Infinity;
+          return { r, texto, trozo: i, encendidas };
+        }),
+    [textos, t],
+  );
+
+  const progreso = clip ? local / clip.duracion : 0;
+  const estiloEfecto: React.CSSProperties =
+    clip?.efecto === "zoomLento"
+      ? { transform: `scale(${1 + 0.12 * progreso})`, transformOrigin: "center" }
+      : clip?.efecto === "fundido"
+        ? { opacity: progreso < 0.12 ? progreso / 0.12 : progreso > 0.88 ? (1 - progreso) / 0.12 : 1 }
+        : clip?.efecto === "blancoYNegro"
+          ? { filter: "grayscale(1)" }
+          : {};
 
   return (
     <>
+      {urlVoz && <audio ref={audio} src={urlVoz} preload="auto" />}
       <div
-        className={`lienzo efecto-${escena.efecto}`}
-        style={{
-          aspectRatio: `${preset.ancho} / ${preset.alto}`,
-          containerType: "size",
-          ["--dur" as string]: `${escena.duracion}s`,
-        }}
+        className="lienzo"
+        style={{ aspectRatio: `${preset.ancho} / ${preset.alto}`, containerType: "size" }}
       >
-        {escena.clip ? (
+        {clip?.clip ? (
           <video
-            key={escena.clip.id + escena.id}
+            key={clip.id}
+            ref={vid}
             className="capa"
-            src={escena.clip.url}
+            style={estiloEfecto}
+            src={clip.clip.url}
             muted
             loop
-            autoPlay
             playsInline
+            preload="auto"
           />
         ) : (
-          <div className="fondo capa" style={{ background: escena.color }} />
+          <div className="fondo capa" style={{ background: clip?.color ?? "#000", ...estiloEfecto }} />
         )}
-        {escena.efecto === "vineta" && <div className="vineta" />}
+        {clip?.efecto === "vineta" && <div className="vineta" />}
 
-        <div
-          key={`t-${escena.id}-${escena.animacion}-${fragmento}`}
-          className={`rotulo ${escena.estilo.posicion} anim-${escena.animacion}`}
-          style={{
-            fontSize: tamanoRelativo,
-            color: escena.estilo.color,
-            fontWeight: escena.estilo.negrita ? 700 : 400,
-            fontFamily: `"${escena.estilo.fuente}", "DejaVu Serif", Georgia, serif`,
-            textShadow: `0 0 6px ${escena.estilo.contorno}, 0 2px 4px ${escena.estilo.contorno}`,
-            WebkitTextStroke: `1px ${escena.estilo.contorno}`,
-          }}
-        >
-          {escena.animacion === "resaltar"
-            ? textoActual.split(/\s+/).map((w, i) => (
-                <span
-                  key={i}
-                  className="palabra"
-                  style={{ animationDelay: `${retardos[i] ?? 0}s` }}
-                >
-                  {w}{" "}
-                </span>
-              ))
-            : textoActual}
-        </div>
+        {activos.map(({ r, texto, trozo, encendidas }) => (
+          <div
+            key={`${r.id}-${trozo}`}
+            className={`rotulo ${r.estilo.posicion} anim-${r.animacion === "resaltar" ? "ninguna" : r.animacion}`}
+            style={{
+              fontSize: `${(r.estilo.tamano / preset.alto) * 100}cqh`,
+              color: r.estilo.color,
+              fontWeight: r.estilo.negrita ? 700 : 400,
+              fontFamily: `"${r.estilo.fuente}", "DejaVu Serif", Georgia, serif`,
+              textShadow: `0 0 6px ${r.estilo.contorno}, 0 2px 4px ${r.estilo.contorno}`,
+              WebkitTextStroke: `1px ${r.estilo.contorno}`,
+            }}
+          >
+            {r.animacion === "resaltar"
+              ? texto.split(/\s+/).map((w, i) => (
+                  <span key={i} className={i < encendidas ? "palabra viva" : "palabra apagada"}>
+                    {w}{" "}
+                  </span>
+                ))
+              : texto}
+          </div>
+        ))}
       </div>
 
       <div className="fila" style={{ marginTop: 8 }}>
-        <button onClick={() => setReproduciendo(!reproduciendo)}>
+        <button
+          className="primario"
+          onClick={() => {
+            if (!reproduciendo && t >= duracionTotal - 0.05) setT(0);
+            setReproduciendo(!reproduciendo);
+          }}
+        >
           {reproduciendo ? "Pausar" : "Reproducir"}
         </button>
-        <button onClick={() => alCambiarIndice(Math.max(0, indice - 1))} disabled={indice === 0}>
-          Anterior
-        </button>
-        <button
-          onClick={() => alCambiarIndice(Math.min(escenas.length - 1, indice + 1))}
-          disabled={indice >= escenas.length - 1}
-        >
-          Siguiente
-        </button>
+        <button onClick={() => { setReproduciendo(false); setT(0); }}>Inicio</button>
         <span className="suave">
-          Escena {indice + 1} de {escenas.length}
-          {fragmentos.length > 1 ? ` · trozo ${fragmento + 1} de ${fragmentos.length}` : ""} ·{" "}
-          {transcurrido.toFixed(1)}s de {total.toFixed(1)}s
+          {t.toFixed(1)}s / {duracionTotal.toFixed(1)}s
+          {indice >= 0 ? ` · clip ${indice + 1}` : ""}
+          {urlVoz ? " · narracion real" : " · sin narracion generada"}
         </span>
-        {hayVozNavegador && (
-          <label className="suave">
-            <input
-              type="checkbox"
-              style={{ width: "auto", marginRight: 6 }}
-              checked={leer}
-              onChange={(e) => setLeer(e.target.checked)}
-            />
-            Leer con la voz del navegador
-          </label>
-        )}
       </div>
-      <p className="suave">
-        Vista orientativa: posicion, letra, trozos y efectos se corresponden con el render, pero el
-        salto de linea puede variar unos pixeles.
-      </p>
     </>
   );
 }
