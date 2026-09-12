@@ -74,6 +74,29 @@ export async function elegirMusicaRotativa(usadas: (string | null)[] = []) {
   return candidatas[Math.floor(Math.random() * candidatas.length)];
 }
 
+/**
+ * Nombre legible y libre para una cancion de la biblioteca. El titulo que
+ * eligio el usuario se limpia a lo que admite `rutaMusicaSegura`, y si ya
+ * existe se numera en vez de pisar la pista anterior.
+ */
+export async function nombreMusicaLibre(titulo: string, extension: string) {
+  const base =
+    titulo
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // tildes fuera: el nombre viaja por disco y por URL
+      .replace(/[^\w .-]+/g, " ")
+      // Dos puntos seguidos serian un salto de carpeta: se quedan en uno.
+      .replace(/\.{2,}/g, ".")
+      .replace(/\s+/g, " ")
+      .slice(0, 60)
+      .replace(/^[\s.-]+|[\s.-]+$/g, "") || "cancion";
+  const existentes = new Set(await listarMusica());
+  let nombre = `${base}.${extension}`;
+  // El sufijo va con guion: los parentesis no pasan `rutaMusicaSegura`.
+  for (let i = 2; existentes.has(nombre); i++) nombre = `${base}-${i}.${extension}`;
+  return nombre;
+}
+
 export function rutaMusicaSegura(nombre: string) {
   if (!/^[\w .-]+$/.test(nombre) || nombre.includes("..")) {
     throw new Error("Nombre de musica invalido");

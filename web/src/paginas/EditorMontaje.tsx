@@ -17,7 +17,7 @@ import {
   type VozPista,
 } from "../api";
 import { mensajeDe } from "../App";
-import { SelectorRegion, SelectorVoz, ImportarSuno } from "./comunes";
+import { SelectorRegion, SelectorVoz, ImportarSuno, SubirMusica } from "./comunes";
 import { Lienzo } from "./Lienzo";
 import { BuscadorClips } from "./BuscadorClips";
 import { LineaDeTiempo, type Sel } from "./LineaDeTiempo";
@@ -170,6 +170,9 @@ export function EditorMontaje({
   }
   /** Rehace el videoclip entero: mismos tramos de la cancion, otros clips. */
   async function remontarVideoclip() {
+    // El montaje lee la cancion de la base de datos: si se acaba de subir y no
+    // se ha guardado, el servidor todavia no la tiene.
+    if (!(await guardar(true))) return;
     setOcupado("videoclip");
     setError("");
     try {
@@ -178,12 +181,12 @@ export function EditorMontaje({
       setTimeout(cargar, 4000);
     } catch (err) { setError(mensajeDe(err)); } finally { setOcupado(""); }
   }
-  async function subir(archivo: File, destino: "voz" | "musica") {
+  /** Voz en off propia: el archivo sustituye a la narracion del servidor. */
+  async function subirVoz(archivo: File) {
     setError("");
     try {
       const r = await api.subir<{ archivo: string; duracion: number | null }>(`/api/proyectos/${proyecto!.id}/subir`, archivo);
-      if (destino === "voz") actVoz({ modo: "archivo", archivo: r.archivo, duracion: r.duracion, huella: null });
-      else act({ musica: { ...musica, archivo: r.archivo, subida: true } });
+      actVoz({ modo: "archivo", archivo: r.archivo, duracion: r.duracion, huella: null });
       setOk("Archivo subido.");
     } catch (err) { setError(mensajeDe(err)); }
   }
@@ -501,8 +504,8 @@ export function EditorMontaje({
               )}
               {voz.modo === "archivo" && (
                 <div style={{ marginTop: 12 }}>
-                  <label htmlFor="subirVoz">Archivo de voz (mp3, m4a, wav, ogg; 40 MB)</label>
-                  <input id="subirVoz" type="file" accept="audio/*" onChange={(e) => e.target.files?.[0] && subir(e.target.files[0], "voz")} />
+                  <label htmlFor="subirVoz">Archivo de voz (mp3, m4a, wav, ogg; 80 MB)</label>
+                  <input id="subirVoz" type="file" accept="audio/*" onChange={(e) => e.target.files?.[0] && subirVoz(e.target.files[0])} />
                   {voz.archivo && <p className="suave">Subido: {voz.archivo}{voz.duracion ? ` · ${voz.duracion.toFixed(1)} s` : ""}</p>}
                   <div className="campos" style={{ marginTop: 12 }}>
                     <div>
@@ -531,15 +534,20 @@ export function EditorMontaje({
                   <input id="vol" type="range" min={0} max={1} step={0.05} value={musica.volumen} onChange={(e) => act({ musica: { ...musica, volumen: Number(e.target.value) } })} />
                 </div>
               </div>
-              <div style={{ marginTop: 12 }}>
-                <label htmlFor="subirMus">O sube tu propia pista</label>
-                <input id="subirMus" type="file" accept="audio/*" onChange={(e) => e.target.files?.[0] && subir(e.target.files[0], "musica")} />
-                {musica.subida && musica.archivo && <p className="suave">Subida: {musica.archivo}</p>}
-              </div>
+              {musica.subida && musica.archivo && (
+                <p className="suave" style={{ marginTop: 12 }}>Pista del proyecto: {musica.archivo}</p>
+              )}
               <div style={{ marginTop: 12 }}>
                 <ImportarSuno
                   proyectoId={proyecto.id}
                   alImportar={(archivo) => { act({ musica: { ...musica, archivo, subida: true } }); setOk("Canción de Suno añadida al proyecto."); }}
+                />
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <SubirMusica
+                  proyectoId={proyecto.id}
+                  etiqueta="O sube la canción desde tu computadora"
+                  alSubir={(archivo) => { act({ musica: { ...musica, archivo, subida: true } }); setOk("Canción subida y puesta en el proyecto."); }}
                 />
               </div>
               {proyecto.tipo === "MUSICA" && (

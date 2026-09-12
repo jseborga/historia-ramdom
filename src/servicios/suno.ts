@@ -83,7 +83,7 @@ async function descargarDesdeCDN(id: string, destino: string) {
   if (res.status === 403 || res.status === 404) {
     throw new Error(
       "Suno no dejó descargar esa canción (¿es privada o ya no existe?). " +
-        "Ábrela en Suno, descárgala y súbela aquí como archivo.",
+        "Descárgala desde Suno y súbela con la opción «Subir un archivo».",
     );
   }
   if (!res.ok || !res.body) throw new Error(`La descarga desde Suno falló (${res.status})`);

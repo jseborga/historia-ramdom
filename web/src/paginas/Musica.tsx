@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type Catalogo, type Preset, type Proyecto } from "../api";
 import { mensajeDe } from "../App";
-import { ImportarSuno } from "./comunes";
+import { ImportarSuno, SubirMusica } from "./comunes";
 import { EditorMontaje } from "./EditorMontaje";
 
 type Resumen = Pick<Proyecto, "id" | "nombre" | "tipo" | "formato" | "estado" | "archivo" | "duracionSeg" | "error" | "editadoEn">;
@@ -19,9 +19,11 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
 
   const [nombre, setNombre] = useState("");
   const [formato, setFormato] = useState("tiktok");
-  const [origen, setOrigen] = useState<"suno" | "biblioteca">("suno");
+  const [origen, setOrigen] = useState<"suno" | "archivo" | "biblioteca">("suno");
   const [enlaceSuno, setEnlaceSuno] = useState("");
   const [pista, setPista] = useState("");
+  /** Canción elegida del disco cuando se sube en vez de bajarla de Suno. */
+  const [archivo, setArchivo] = useState<File | null>(null);
   const [instrumental, setInstrumental] = useState(false);
   const [letra, setLetra] = useState("");
   const [lineamientos, setLineamientos] = useState("");
@@ -52,9 +54,10 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
     return <EditorMontaje id={abierto} catalogo={catalogo} alSalir={() => setAbierto(null)} />;
   }
 
+  const hayCancion =
+    origen === "suno" ? /suno\.(com|ai)\//.test(enlaceSuno) : origen === "archivo" ? Boolean(archivo) : Boolean(pista);
   const listo =
-    (origen === "suno" ? /suno\.(com|ai)\//.test(enlaceSuno) : Boolean(pista)) &&
-    (instrumental ? lineamientos.trim().length > 10 : letra.trim().length > 20);
+    hayCancion && (instrumental ? lineamientos.trim().length > 10 : letra.trim().length > 20);
 
   async function crear() {
     setOcupado(true);
@@ -71,6 +74,19 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
         instrumental,
         mostrarLetra,
       });
+
+      // Con archivo propio, el proyecto nace sin musica: se sube la cancion y
+      // solo entonces se pide el montaje.
+      if (origen === "archivo" && archivo) {
+        await api.subir(`/api/proyectos/${p.id}/musica-archivo`, archivo);
+        await api.post(`/api/proyectos/${p.id}/videoclip`, {
+          letra: instrumental ? undefined : letra,
+          lineamientos: lineamientos.trim() || undefined,
+          instrumental,
+          mostrarLetra,
+        });
+      }
+
       setOk("Videoclip en montaje: la cancion manda la duracion y los clips se buscan solos.");
       setAbierto(p.id);
     } catch (err) {
@@ -128,9 +144,10 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
             <select
               id="origenVc"
               value={origen}
-              onChange={(e) => setOrigen(e.target.value as "suno" | "biblioteca")}
+              onChange={(e) => setOrigen(e.target.value as "suno" | "archivo" | "biblioteca")}
             >
               <option value="suno">Enlace de Suno</option>
+              <option value="archivo">Subir un archivo</option>
               <option value="biblioteca">Pista de la biblioteca</option>
             </select>
           </div>
@@ -183,8 +200,29 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
               onChange={(e) => setEnlaceSuno(e.target.value)}
             />
             <p className="suave">
-              Se descarga al proyecto y sus creditos se añaden solos. Si Suno no la deja bajar,
-              descargala tu y subela en el editor, en la pestaña Musica.
+              Se descarga al proyecto y sus creditos se añaden solos. Si Suno no la deja bajar
+              (canciones privadas, o cuando cambia su descarga), elige «Subir un archivo».
+            </p>
+          </div>
+        )}
+
+        {origen === "archivo" && (
+          <div style={{ marginTop: 12 }}>
+            <label htmlFor="archivoVc">Canción (mp3, m4a, wav, ogg o aac, hasta 80 MB)</label>
+            <input
+              id="archivoVc"
+              type="file"
+              accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac"
+              onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+            />
+            {archivo && (
+              <p className="suave">
+                {archivo.name} · {(archivo.size / (1024 * 1024)).toFixed(1)} MB
+              </p>
+            )}
+            <p className="suave">
+              Descárgala desde Suno (o de donde sea tuya) y súbela aquí. Se guarda dentro del
+              proyecto; acuérdate de poner los créditos de la canción al publicar.
             </p>
           </div>
         )}
@@ -192,9 +230,16 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
         {origen === "biblioteca" && (
           <div style={{ marginTop: 12 }}>
             <ImportarSuno
-              alImportar={(archivo, musica) => {
+              alImportar={(nombreArchivo, musica) => {
                 if (musica) setMusicaLista(musica);
-                setPista(archivo);
+                setPista(nombreArchivo);
+              }}
+            />
+            <SubirMusica
+              etiqueta="O sube una canción a la biblioteca"
+              alSubir={(nombreArchivo, musica) => {
+                if (musica) setMusicaLista(musica);
+                setPista(nombreArchivo);
               }}
             />
           </div>
@@ -238,9 +283,11 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
           <span className="suave">
             {listo
               ? "Se monta en segundo plano; el editor se abre enseguida."
-              : instrumental
-                ? "Falta la cancion o los lineamientos."
-                : "Falta la cancion o la letra."}
+              : !hayCancion
+                ? "Falta la cancion: pega el enlace de Suno, sube un archivo o elige una pista."
+                : instrumental
+                  ? "Faltan los lineamientos: di que quieres ver."
+                  : "Falta la letra."}
           </span>
         </div>
       </section>

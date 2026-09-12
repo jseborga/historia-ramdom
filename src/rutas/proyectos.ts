@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "../db.js";
 import { rutaVideo, crearCarpetaProyecto, rutaSubidaSegura, listarMusica } from "../almacen.js";
 import { PRESETS, MAX_DURACION_SEG } from "../render/presets.js";
+import { MAX_AUDIO_BYTES, MAX_AUDIO_MB } from "../env.js";
 import { tieneAudio, duracionAudio } from "../render/ffmpeg.js";
 import { fuentesDisponibles, archivoDeFuente } from "../render/fuentes.js";
 import { GuionSchema, generarKeywords, escribirNarracion, guionComoNarracion } from "../servicios/guion.js";
@@ -35,9 +36,41 @@ import { momentosDeProyecto, esLetra } from "../servicios/videoclip.js";
 
 const idParam = z.object({ id: z.string().uuid() });
 
-/** 40 MB: de sobra para una voz en off o una pista de musica. */
-const MAX_SUBIDA = 40 * 1024 * 1024;
 const EXTENSIONES = /\.(mp3|m4a|wav|ogg|aac|flac)$/i;
+
+/**
+ * Recibe un audio subido y lo deja en la carpeta del proyecto. El nombre lo
+ * pone el servidor, la extension se comprueba contra una lista y el contenido
+ * tiene que tener pista de audio de verdad: lo dice ffprobe, no el navegador.
+ */
+async function recibirAudio(
+  req: FastifyRequest,
+  proyectoId: string,
+): Promise<
+  | { ok: false; codigo: number; mensaje: string }
+  | { ok: true; archivo: string; destino: string; duracion: number | null }
+> {
+  const fallo = (codigo: number, mensaje: string) => ({ ok: false as const, codigo, mensaje });
+  const subido = await req.file({ limits: { fileSize: MAX_AUDIO_BYTES } });
+  if (!subido) return fallo(400, "No llego ningun archivo");
+  if (!EXTENSIONES.test(subido.filename ?? "")) {
+    return fallo(415, "Formato no admitido: usa mp3, m4a, wav, ogg o aac");
+  }
+  const extension = (EXTENSIONES.exec(subido.filename)?.[1] ?? "mp3").toLowerCase();
+  const nombre = `${randomUUID()}.${extension}`;
+  const destino = rutaSubidaSegura(proyectoId, nombre);
+  const datos = await subido.toBuffer().catch(() => null);
+  if (!datos) return fallo(413, `El archivo supera los ${MAX_AUDIO_MB} MB`);
+
+  await crearCarpetaProyecto(proyectoId);
+  await writeFile(destino, datos);
+  if (!(await tieneAudio(destino))) {
+    await unlink(destino).catch(() => {});
+    return fallo(415, "El archivo no contiene ninguna pista de audio");
+  }
+  const duracion = await duracionAudio(destino).catch(() => null);
+  return { ok: true, archivo: nombre, destino, duracion };
+}
 
 /** Lee las pistas de la fila, convirtiendo proyectos del modelo antiguo. */
 function pistasDe(p: { escenas: unknown; textos: unknown }) {
@@ -307,24 +340,31 @@ export async function rutasProyectos(app: FastifyInstance) {
     const { id } = idParam.parse(req.params);
     await db.proyecto.findUniqueOrThrow({ where: { id } });
 
-    const archivo = await req.file({ limits: { fileSize: MAX_SUBIDA } });
-    if (!archivo) return reply.code(400).send({ error: "No llego ningun archivo" });
-    if (!EXTENSIONES.test(archivo.filename ?? "")) {
-      return reply.code(415).send({ error: "Formato no admitido: usa mp3, m4a, wav, ogg o aac" });
-    }
-    const extension = (EXTENSIONES.exec(archivo.filename)?.[1] ?? "mp3").toLowerCase();
-    const nombre = `${randomUUID()}.${extension}`;
-    const destino = rutaSubidaSegura(id, nombre);
-    const datos = await archivo.toBuffer().catch(() => null);
-    if (!datos) return reply.code(413).send({ error: "El archivo supera los 40 MB" });
-    await crearCarpetaProyecto(id);
-    await writeFile(destino, datos);
-    if (!(await tieneAudio(destino))) {
-      await unlink(destino).catch(() => {});
-      return reply.code(415).send({ error: "El archivo no contiene ninguna pista de audio" });
-    }
-    const duracion = await duracionAudio(destino).catch(() => null);
-    return reply.code(201).send({ archivo: nombre, duracion });
+    const r = await recibirAudio(req, id);
+    if (!r.ok) return reply.code(r.codigo).send({ error: r.mensaje });
+    return reply.code(201).send({ archivo: r.archivo, duracion: r.duracion });
+  });
+
+  /**
+   * Sube la cancion del proyecto y la deja puesta en la capa de musica. Es la
+   * salida cuando Suno no deja descargar: se baja a mano y se sube aqui.
+   */
+  app.post("/api/proyectos/:id/musica-archivo", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const p = await db.proyecto.findUniqueOrThrow({ where: { id } });
+
+    const r = await recibirAudio(req, id);
+    if (!r.ok) return reply.code(r.codigo).send({ error: r.mensaje });
+
+    const actual = (p.musica ?? {}) as { volumen?: number };
+    const musica = {
+      archivo: r.archivo,
+      subida: true,
+      // En un videoclip la cancion es el contenido: suena entera.
+      volumen: p.tipo === "MUSICA" ? 1 : (actual.volumen ?? 0.25),
+    };
+    await db.proyecto.update({ where: { id }, data: { musica } });
+    return reply.code(201).send({ ...musica, duracion: r.duracion });
   });
 
   /**

@@ -357,6 +357,18 @@ antes de aceptarlo:
 
 Los archivos viven en `DATA_DIR/proyectos/<id>/`.
 
+### Subir la canción
+
+En la pestaña **Música** del editor, «O sube la canción desde tu computadora»
+guarda el archivo dentro del proyecto y lo deja puesto como su música de una
+vez (mp3, m4a, wav, ogg, aac o flac, hasta 80 MB). El nombre lo pone el
+servidor y el contenido se comprueba con ffprobe: si no trae pista de audio, se
+borra y no se guarda nada.
+
+En un videoclip, después de subir la canción hay que pulsar «Volver a montar el
+videoclip» para que la imagen se rehaga con la duración de la pista nueva; el
+proyecto se guarda solo antes de montar.
+
 ### Música desde Suno
 
 En la pestaña **Música** del editor hay un campo *Música desde Suno*: pega el

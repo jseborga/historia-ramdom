@@ -532,6 +532,19 @@ en la app móvil.
 Copia archivos con licencia libre en `/data/musica`. Aparecen en el selector de
 música del editor y de las series.
 
+### Subir una canción
+
+En el selector de música de Crear, Series y Música hay un campo para **subir la
+canción** a la biblioteca, y en el editor de montaje otro para subirla solo a
+ese proyecto. Se aceptan mp3, m4a, wav, ogg, aac y flac hasta 80 MB; el nombre
+lo limpia el servidor (sin tildes ni caracteres raros, numerado si ya existe) y
+el archivo se comprueba con ffprobe antes de darlo por bueno.
+
+Es la salida cuando Suno no deja descargar la canción: la bajas desde Suno y la
+subes. Por API: `POST /api/musica/subir` (biblioteca) y
+`POST /api/proyectos/:id/musica-archivo` (la deja puesta como música del
+proyecto).
+
 ### Desde un enlace de Suno
 
 Para la música de ambiente puedes pegar el enlace de una canción de Suno
@@ -549,8 +562,8 @@ De ese nombre de archivo sale el crédito, que se añade solo a la descripción 
 a los metadatos del MP4: `Música: Suno — https://suno.com/song/<id>`. Usa
 canciones tuyas: en el plan gratuito de Suno son de uso no comercial, y en los
 de pago la licencia es tuya. Si Suno no deja descargar una canción (privada o
-borrada), la app lo dice y puedes descargarla desde Suno y subirla como
-archivo.
+borrada), la app lo dice y la subes tú con «Subir un archivo»; en ese caso el
+crédito de la canción lo pones a mano, porque el archivo ya no lleva el enlace.
 
 ## Videoclips musicales
 
@@ -560,8 +573,10 @@ voz en off, la canción suena entera y decide cuánto dura el vídeo.
 
 Pestaña **Música**:
 
-1. **La canción**: un enlace de Suno (se descarga al proyecto) o una pista de
-   la biblioteca. También puedes subir tu propio archivo desde el editor.
+1. **La canción**, de tres maneras: un enlace de Suno (se descarga al
+   proyecto), **subir un archivo** desde tu computadora, o una pista de la
+   biblioteca. La subida es la salida cuando Suno no deja descargar la canción
+   (privadas, o si cambia su descarga): la bajas desde Suno y la subes aquí.
 2. **La letra**, pegada tal cual. Si trae etiquetas al estilo de Suno
    (`[Verso 1]`, `[Coro]`, `[Puente]`), se respetan como tramos; si no, se
    agrupa por estrofas. Puedes elegir si la letra se ve en pantalla o no.

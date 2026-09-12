@@ -7,7 +7,7 @@ import cookie from "@fastify/cookie";
 import fastifyStatic from "@fastify/static";
 import multipart from "@fastify/multipart";
 import { ZodError } from "zod";
-import { env } from "./env.js";
+import { env, MAX_AUDIO_BYTES } from "./env.js";
 import { db } from "./db.js";
 import { prepararCarpetas } from "./almacen.js";
 import { registrarAuth, asegurarAdminMaestro } from "./seguridad/auth.js";
@@ -41,7 +41,7 @@ await app.register(helmet, {
 await app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
 await app.register(cookie);
 // Subidas del editor: voz y musica propias, 40 MB por archivo.
-await app.register(multipart, { limits: { fileSize: 40 * 1024 * 1024, files: 1 } });
+await app.register(multipart, { limits: { fileSize: MAX_AUDIO_BYTES, files: 1 } });
 await registrarAuth(app);
 await registrarRutas(app);
 

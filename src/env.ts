@@ -172,6 +172,12 @@ export const env = {
 
 export const MB = 1024 * 1024;
 export const MAX_CLIP_BYTES = env.MAX_CLIP_MB * MB;
+/**
+ * Tope de un audio subido (voz o cancion). Un WAV de cinco minutos ronda los
+ * 50 MB, asi que 80 deja margen sin abrir la puerta a subidas enormes.
+ */
+export const MAX_AUDIO_MB = 80;
+export const MAX_AUDIO_BYTES = MAX_AUDIO_MB * MB;
 export const MAX_VIDEO_BYTES = env.MAX_VIDEO_MB * MB;
 
 export const DIR_VIDEOS = "videos";

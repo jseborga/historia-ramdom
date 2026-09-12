@@ -338,6 +338,55 @@ export function ImportarSuno({
   );
 }
 
+/** Sube una canción propia a la biblioteca compartida (o a un proyecto). */
+export function SubirMusica({
+  alSubir,
+  proyectoId,
+  etiqueta = "O sube la canción desde tu computadora",
+}: {
+  alSubir: (archivo: string, musica?: string[]) => void;
+  /** Con id, el archivo va al proyecto y queda puesto como su música. */
+  proyectoId?: string;
+  etiqueta?: string;
+}) {
+  const [estado, setEstado] = useState("");
+  const [error, setError] = useState("");
+
+  async function subir(archivo: File) {
+    setEstado(`Subiendo ${archivo.name}...`);
+    setError("");
+    try {
+      type Respuesta = { archivo: string; duracion: number | null; musica?: string[] };
+      const r = proyectoId
+        ? await api.subir<Respuesta>(`/api/proyectos/${proyectoId}/musica-archivo`, archivo)
+        : await api.subir<Respuesta>("/api/musica/subir", archivo);
+      alSubir(r.archivo, r.musica);
+      setEstado(`Lista: ${r.archivo}${r.duracion ? ` (${Math.round(r.duracion)} s)` : ""}.`);
+    } catch (err) {
+      setEstado("");
+      setError(mensajeDe(err));
+    }
+  }
+
+  return (
+    <div>
+      <label htmlFor={`subirMusica-${proyectoId ?? "biblioteca"}`}>{etiqueta}</label>
+      <input
+        id={`subirMusica-${proyectoId ?? "biblioteca"}`}
+        type="file"
+        accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac"
+        onChange={(e) => e.target.files?.[0] && subir(e.target.files[0])}
+      />
+      {estado && <p className="suave">{estado}</p>}
+      {error && <p className="aviso error">{error}</p>}
+      <p className="suave">
+        mp3, m4a, wav, ogg o aac, hasta 80 MB. Si Suno no deja descargar la canción, bájala desde
+        Suno y súbela aquí.
+      </p>
+    </div>
+  );
+}
+
 export function SelectorMusica({
   catalogo,
   valor,
@@ -368,12 +417,20 @@ export function SelectorMusica({
         </select>
       </div>
       {alAmpliar && (
-        <ImportarSuno
-          alImportar={(archivo, musica) => {
-            if (musica) alAmpliar(musica);
-            alCambiar(archivo);
-          }}
-        />
+        <>
+          <ImportarSuno
+            alImportar={(archivo, musica) => {
+              if (musica) alAmpliar(musica);
+              alCambiar(archivo);
+            }}
+          />
+          <SubirMusica
+            alSubir={(archivo, musica) => {
+              if (musica) alAmpliar(musica);
+              alCambiar(archivo);
+            }}
+          />
+        </>
       )}
     </>
   );
