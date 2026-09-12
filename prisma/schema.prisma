@@ -150,6 +150,7 @@ model Historia {
 
 enum EstadoProyecto {
   BORRADOR
+  MONTAJE // armando las pistas (videoclip): analisis de la letra y busqueda de clips
   RENDER
   LISTO
   ERROR

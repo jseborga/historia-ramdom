@@ -621,6 +621,7 @@ export async function renderizarProyectoTrabajo(proyectoId: string) {
  */
 export async function montarVideoclipTrabajo(proyectoId: string, opciones: OpcionesVideoclip = {}) {
   const { montarVideoclip } = await import("../servicios/videoclip.js");
+  await db.proyecto.update({ where: { id: proyectoId }, data: { estado: "MONTAJE", error: null } });
   try {
     const r = await montarVideoclip(proyectoId, opciones);
     await db.proyecto.update({

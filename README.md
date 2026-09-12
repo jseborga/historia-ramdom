@@ -591,6 +591,20 @@ clips en inglés, los planos cortan más rápido en el coro y más lento en la
 intro, y la letra se coloca donde le toca. Después se edita como cualquier otro
 montaje: mover clips, cambiar textos, sustituir un vídeo que no encaje.
 
+**Todo lo que escribes se guarda en el proyecto** en cuanto lo creas, antes de
+montar nada: la letra, los lineamientos, si es instrumental y si la letra se
+quema en pantalla. Si subes la canción, el montaje arranca solo al terminar la
+subida. Mientras se monta, el editor lo dice y se actualiza solo; no hay que
+recargar.
+
+Para cambiarlo luego está la pestaña **Letra** del editor: se ve y se edita la
+letra, los lineamientos y los tramos que salieron de ellos, con dos botones,
+*Guardar* (deja el montaje como está) y *Guardar y volver a montar* (rehace
+tramos, clips y rótulos). Los cortes ya hechos no se tocan.
+
+La **vista previa reproduce la canción** junto a los vídeos, así que se edita
+oyendo lo que va a sonar, sin esperar al render.
+
 El análisis de la letra lo hace el motor de IA configurado. Si no hay ninguno,
 el reparto se hace por etiquetas y estrofas y las palabras largas de cada tramo
 hacen de criterio de búsqueda: el videoclip sale igual, solo que menos fino.

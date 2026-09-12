@@ -287,6 +287,34 @@ Desde ahí se edita como cualquier montaje. El botón «Volver a montar el
 videoclip» de la pestaña Música rehace la imagen con otros clips para los
 mismos tramos; los cortes ya hechos no se tocan.
 
+### La pestaña Letra
+
+La configuración del videoclip vive en el proyecto (campo `letra`), no en el
+formulario que lo creó: se guarda al crearlo, antes de montar nada, así que no
+se pierde aunque el montaje falle o la canción llegue después. La pestaña
+**Letra** la muestra y la deja cambiar:
+
+- la letra, con sus etiquetas `[Verso]` y `[Coro]` si las trae;
+- los lineamientos de imagen;
+- si la canción es instrumental y si la letra se quema en pantalla;
+- los tramos detectados, con su peso, sus palabras de búsqueda y cuál es el
+  momento fuerte.
+
+*Guardar* solo guarda. *Guardar y volver a montar* rehace tramos, clips y
+rótulos. Si cambia la letra o los lineamientos, los tramos se recalculan; si
+no, se reutilizan y solo cambian los clips.
+
+Mientras el servidor monta, el proyecto queda en estado `MONTAJE`: el editor lo
+avisa y se refresca solo cada pocos segundos.
+
+### Oír antes de renderizar
+
+La vista previa reproduce la música del proyecto sincronizada con el reloj de
+la línea de tiempo, junto a los vídeos de los clips y la narración si la hay.
+Es lo que permite cuadrar un corte de plano con la canción sin renderizar. El
+volumen de la previa es el mismo de la capa de música; el ducking con voz solo
+se aplica al renderizar.
+
 ## Cortes: varias salidas del mismo montaje
 
 La pestaña **Cortes** saca del mismo material tantas versiones como haga falta:
@@ -365,9 +393,11 @@ vez (mp3, m4a, wav, ogg, aac o flac, hasta 80 MB). El nombre lo pone el
 servidor y el contenido se comprueba con ffprobe: si no trae pista de audio, se
 borra y no se guarda nada.
 
-En un videoclip, después de subir la canción hay que pulsar «Volver a montar el
-videoclip» para que la imagen se rehaga con la duración de la pista nueva; el
-proyecto se guarda solo antes de montar.
+En un videoclip recién creado, subir la canción arranca el montaje solo: es lo
+último que faltaba. Si lo que quieres es cambiar la pista de un videoclip que
+ya estaba montado, pulsa después «Volver a montar el videoclip» para que la
+imagen se rehaga con la duración de la pista nueva; el proyecto se guarda solo
+antes de montar.
 
 ### Música desde Suno
 

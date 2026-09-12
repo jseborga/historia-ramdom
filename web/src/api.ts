@@ -151,6 +151,7 @@ export type Letra = {
   texto: string;
   lineamientos: string;
   estiloVisual: string;
+  mostrarLetra: boolean;
   secciones: Seccion[];
   keywords: string[];
   hashtags: string[];
@@ -166,7 +167,7 @@ export type Variante = {
   duracion: number | null;
   archivo: string | null;
   duracionSeg: number | null;
-  estado: "BORRADOR" | "RENDER" | "LISTO" | "ERROR";
+  estado: "BORRADOR" | "MONTAJE" | "RENDER" | "LISTO" | "ERROR";
   error: string | null;
   creadaEn: string;
 };
@@ -199,7 +200,7 @@ export type Proyecto = {
   archivo: string | null;
   descripcion: string | null;
   duracionSeg: number | null;
-  estado: "BORRADOR" | "RENDER" | "LISTO" | "ERROR";
+  estado: "BORRADOR" | "MONTAJE" | "RENDER" | "LISTO" | "ERROR";
   error: string | null;
   editadoEn: string;
   letra?: Letra | null;

@@ -49,6 +49,8 @@ export const LetraSchema = z.object({
   lineamientos: z.string().max(2000).default(""),
   /** Como debe verse el videoclip entero, en una frase. */
   estiloVisual: z.string().max(300).default(""),
+  /** Quemar la letra sobre el video. Se recuerda para los montajes siguientes. */
+  mostrarLetra: z.boolean().default(true),
   secciones: z.array(SeccionSchema).max(40).default([]),
   /** Criterios generales de imagen, para todo el videoclip. */
   keywords: z.array(z.string().max(40)).max(10).default([]),
@@ -143,6 +145,10 @@ export type PeticionLetra = {
   /** Indicaciones del usuario: ambiente, que buscar, que evitar. */
   lineamientos?: string;
   instrumental?: boolean;
+  /** Quemar la letra sobre el video; viaja con el analisis para no perderse. */
+  mostrarLetra?: boolean;
+  /** Titulo que ya puso el usuario; el modelo solo lo rellena si falta. */
+  titulo?: string;
   /** Duracion real de la cancion, para saber cuantos tramos pedir. */
   duracion: number;
   idioma?: string;
@@ -170,6 +176,8 @@ export async function analizarLetra(p: PeticionLetra): Promise<Letra> {
       instrumental,
       texto: letra,
       lineamientos,
+      mostrarLetra: p.mostrarLetra ?? true,
+      titulo: p.titulo ?? "",
       secciones: instrumental ? seccionesInstrumentales(p.duracion, lineamientos) : seccionesHeuristicas(letra),
       keywords: palabrasVisuales(lineamientos || letra),
     });
@@ -211,7 +219,15 @@ export async function analizarLetra(p: PeticionLetra): Promise<Letra> {
   try {
     const crudo = await textoConMotor(elegido as Motor, prompt, p.modelo, p.idioma ?? "es");
     const datos = extraerJSON(crudo) as Record<string, unknown>;
-    const letraFinal = LetraSchema.parse({ ...datos, instrumental, texto: letra, lineamientos });
+    const letraFinal = LetraSchema.parse({
+      ...datos,
+      instrumental,
+      texto: letra,
+      lineamientos,
+      mostrarLetra: p.mostrarLetra ?? true,
+      // El titulo del usuario manda sobre el que invente el modelo.
+      titulo: p.titulo?.trim() || datos.titulo || "",
+    });
     if (!letraFinal.secciones.length) return respaldo();
     // Si el modelo no marco ninguna destacada, se toma la de mas peso.
     if (!letraFinal.secciones.some((s) => s.destacada)) {
@@ -345,6 +361,42 @@ export function rotulosDeSeccion(
   });
 }
 
+/**
+ * Guarda la configuracion del videoclip (letra, lineamientos, si es
+ * instrumental y si la letra se quema) SIN montar nada. Lo que no venga se
+ * queda como estaba: es lo que permite escribir la letra, cerrar, y seguir
+ * despues sin perder nada.
+ */
+export async function guardarLetra(
+  proyectoId: string,
+  cambios: {
+    letra?: string;
+    lineamientos?: string;
+    instrumental?: boolean;
+    mostrarLetra?: boolean;
+    titulo?: string;
+  },
+): Promise<Letra> {
+  const p = await db.proyecto.findUniqueOrThrow({ where: { id: proyectoId } });
+  const guardada = esLetra(p.letra);
+  const texto = cambios.letra ?? guardada?.texto ?? "";
+  const lineamientos = cambios.lineamientos ?? guardada?.lineamientos ?? "";
+  // Si cambia el texto de partida, los tramos viejos ya no valen.
+  const cambio = texto !== (guardada?.texto ?? "") || lineamientos !== (guardada?.lineamientos ?? "");
+
+  const letra = LetraSchema.parse({
+    ...(guardada ?? {}),
+    texto,
+    lineamientos,
+    instrumental: cambios.instrumental ?? guardada?.instrumental ?? !texto.trim(),
+    mostrarLetra: cambios.mostrarLetra ?? guardada?.mostrarLetra ?? true,
+    titulo: cambios.titulo ?? guardada?.titulo ?? "",
+    secciones: cambio ? [] : (guardada?.secciones ?? []),
+  });
+  await db.proyecto.update({ where: { id: proyectoId }, data: { letra } });
+  return letra;
+}
+
 export type OpcionesVideoclip = {
   letra?: string;
   lineamientos?: string;
@@ -383,19 +435,31 @@ export async function montarVideoclip(proyectoId: string, opciones: OpcionesVide
   // El tope de la app manda: una cancion mas larga se monta hasta donde cabe.
   const total = Math.min(duracionCancion, MAX_DURACION_SEG);
 
+  // La configuracion vive en el proyecto: lo que llegue en las opciones solo
+  // la pisa campo a campo, asi el boton de "volver a montar" no necesita
+  // reenviar la letra entera.
   const guardada = esLetra(p.letra);
-  const letra =
-    !opciones.reanalizar && guardada?.secciones.length && !opciones.letra && !opciones.lineamientos
-      ? guardada
-      : await analizarLetra({
-          letra: opciones.letra ?? guardada?.texto ?? "",
-          lineamientos: opciones.lineamientos ?? guardada?.lineamientos ?? "",
-          instrumental: opciones.instrumental ?? guardada?.instrumental,
-          duracion: total,
-          idioma: opciones.idioma,
-          motor: opciones.motor,
-          modelo: opciones.modelo,
-        });
+  const texto = opciones.letra ?? guardada?.texto ?? "";
+  const lineamientos = opciones.lineamientos ?? guardada?.lineamientos ?? "";
+  const sirveLoGuardado =
+    !opciones.reanalizar &&
+    guardada?.secciones.length &&
+    texto === guardada.texto &&
+    lineamientos === guardada.lineamientos;
+
+  const letra = sirveLoGuardado
+    ? { ...guardada, mostrarLetra: opciones.mostrarLetra ?? guardada.mostrarLetra }
+    : await analizarLetra({
+        letra: texto,
+        lineamientos,
+        instrumental: opciones.instrumental ?? guardada?.instrumental,
+        mostrarLetra: opciones.mostrarLetra ?? guardada?.mostrarLetra ?? true,
+        titulo: guardada?.titulo || p.nombre,
+        duracion: total,
+        idioma: opciones.idioma,
+        motor: opciones.motor,
+        modelo: opciones.modelo,
+      });
 
   const tramos = repartirSecciones(letra.secciones, total);
 
@@ -413,7 +477,7 @@ export async function montarVideoclip(proyectoId: string, opciones: OpcionesVide
   const video: ClipPista[] = [];
   const textos: RotuloPista[] = [];
   const usados = new Set<string>();
-  const mostrarLetra = (opciones.mostrarLetra ?? true) && !letra.instrumental;
+  const mostrarLetra = letra.mostrarLetra && !letra.instrumental;
 
   for (const [i, seccion] of letra.secciones.entries()) {
     const tramo = tramos[i];

@@ -135,7 +135,7 @@ export function Montaje({ catalogo }: { catalogo: Catalogo }) {
             <div className="item" key={p.id}>
               <div className="fila">
                 <span className={`estado ${p.estado === "LISTO" ? "LISTA" : p.estado}`}>
-                  {p.estado}
+                  {p.estado === "MONTAJE" ? "MONTANDO" : p.estado}
                 </span>
                 <strong>{p.nombre}</strong>
                 <span className="suave">

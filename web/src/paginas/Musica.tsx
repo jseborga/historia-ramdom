@@ -50,6 +50,13 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
     if (!abierto) cargar();
   }, [cargar, abierto]);
 
+  // Mientras algo se monta o se renderiza, la lista se actualiza sola.
+  useEffect(() => {
+    if (abierto || !proyectos.some((p) => p.estado === "MONTAJE" || p.estado === "RENDER")) return;
+    const t = setInterval(cargar, 6000);
+    return () => clearInterval(t);
+  }, [abierto, proyectos, cargar]);
+
   if (abierto) {
     return <EditorMontaje id={abierto} catalogo={catalogo} alSalir={() => setAbierto(null)} />;
   }
@@ -75,16 +82,10 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
         mostrarLetra,
       });
 
-      // Con archivo propio, el proyecto nace sin musica: se sube la cancion y
-      // solo entonces se pide el montaje.
+      // Con archivo propio el proyecto nace sin musica, pero con la letra ya
+      // guardada: al llegar la cancion el montaje arranca solo.
       if (origen === "archivo" && archivo) {
         await api.subir(`/api/proyectos/${p.id}/musica-archivo`, archivo);
-        await api.post(`/api/proyectos/${p.id}/videoclip`, {
-          letra: instrumental ? undefined : letra,
-          lineamientos: lineamientos.trim() || undefined,
-          instrumental,
-          mostrarLetra,
-        });
       }
 
       setOk("Videoclip en montaje: la cancion manda la duracion y los clips se buscan solos.");
@@ -115,8 +116,9 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
         <h2>Nuevo videoclip</h2>
         <p className="suave">
           La cancion decide cuanto dura el video. Con letra, cada tramo (intro, verso, coro) busca
-          sus propias imagenes; si es instrumental, escribe tu que quieres ver. Despues, en el
-          editor, sacas la version completa y los cortes de 30 segundos en cada formato.
+          sus propias imagenes; si es instrumental, escribe tu que quieres ver. Todo esto queda
+          guardado en el proyecto y se puede cambiar luego en la pestaña Letra del editor, donde
+          ademas sacas la version completa y los cortes de 30 segundos en cada formato.
         </p>
 
         <div className="campos">
@@ -299,7 +301,9 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
           {proyectos.map((p) => (
             <div className="item" key={p.id}>
               <div className="fila">
-                <span className={`estado ${p.estado === "LISTO" ? "LISTA" : p.estado}`}>{p.estado}</span>
+                <span className={`estado ${p.estado === "LISTO" ? "LISTA" : p.estado}`}>
+                  {p.estado === "MONTAJE" ? "MONTANDO" : p.estado}
+                </span>
                 <strong>{p.nombre}</strong>
                 <span className="suave">
                   {p.formato}

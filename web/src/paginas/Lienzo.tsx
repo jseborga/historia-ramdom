@@ -14,6 +14,8 @@ export function Lienzo({
   duracionTotal,
   urlVoz,
   vozInicio,
+  urlMusica,
+  musicaVolumen = 0.25,
   seek,
   alTiempo,
   alternar,
@@ -24,6 +26,9 @@ export function Lienzo({
   duracionTotal: number;
   urlVoz: string | null;
   vozInicio: number;
+  /** La musica del proyecto, para editar oyendo lo que se va a oir. */
+  urlMusica?: string | null;
+  musicaVolumen?: number;
   /** Salto pedido desde fuera (bloque pulsado, regla). `n` cambia en cada salto. */
   seek: { t: number; n: number };
   alTiempo: (t: number) => void;
@@ -33,6 +38,7 @@ export function Lienzo({
   const [t, setT] = useState(0);
   const [reproduciendo, setReproduciendo] = useState(false);
   const audio = useRef<HTMLAudioElement>(null);
+  const musica = useRef<HTMLAudioElement>(null);
   const vid = useRef<HTMLVideoElement>(null);
   const ultimo = useRef(0);
 
@@ -105,6 +111,19 @@ export function Lienzo({
     }
   }, [t, reproduciendo, urlVoz, vozInicio]);
 
+  // La musica acompaña al reloj desde el segundo cero, como en el render.
+  useEffect(() => {
+    const m = musica.current;
+    if (!m || !urlMusica) return;
+    m.volume = Math.max(0, Math.min(1, musicaVolumen));
+    if (reproduciendo) {
+      if (Math.abs(m.currentTime - t) > 0.35) m.currentTime = t;
+      if (m.paused) m.play().catch(() => {});
+    } else if (!m.paused) {
+      m.pause();
+    }
+  }, [t, reproduciendo, urlMusica, musicaVolumen]);
+
   // Rotulos activos en este instante, cada uno con su trozo y su karaoke
   const activos = useMemo(
     () =>
@@ -139,6 +158,7 @@ export function Lienzo({
   return (
     <>
       {urlVoz && <audio ref={audio} src={urlVoz} preload="auto" />}
+      {urlMusica && <audio ref={musica} src={urlMusica} preload="auto" />}
       <div
         className="lienzo"
         style={{ aspectRatio: `${preset.ancho} / ${preset.alto}`, containerType: "size" }}
@@ -198,7 +218,8 @@ export function Lienzo({
         <span className="suave">
           {t.toFixed(1)}s / {duracionTotal.toFixed(1)}s
           {indice >= 0 ? ` · clip ${indice + 1}` : ""}
-          {urlVoz ? " · narracion real" : " · sin narracion generada"}
+          {urlVoz ? " · narracion real" : urlMusica ? "" : " · sin narracion generada"}
+          {urlMusica ? " · con musica" : ""}
         </span>
       </div>
     </>

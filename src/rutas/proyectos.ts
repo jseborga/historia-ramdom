@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { db } from "../db.js";
-import { rutaVideo, crearCarpetaProyecto, rutaSubidaSegura, listarMusica } from "../almacen.js";
+import { rutaVideo, crearCarpetaProyecto, rutaSubidaSegura, rutaMusicaSegura, listarMusica } from "../almacen.js";
 import { PRESETS, MAX_DURACION_SEG } from "../render/presets.js";
 import { MAX_AUDIO_BYTES, MAX_AUDIO_MB } from "../env.js";
 import { tieneAudio, duracionAudio } from "../render/ffmpeg.js";
@@ -32,11 +32,19 @@ import { generarNarracion } from "../servicios/narracion.js";
 import type { EscenaPreparada } from "../servicios/clips.js";
 import { encolarProyecto, encolarVideoclip, encolarVariante } from "../cola/cola.js";
 import { importarSunoAProyecto, creditoMusica } from "../servicios/suno.js";
-import { momentosDeProyecto, esLetra } from "../servicios/videoclip.js";
+import { momentosDeProyecto, esLetra, guardarLetra } from "../servicios/videoclip.js";
 
 const idParam = z.object({ id: z.string().uuid() });
 
 const EXTENSIONES = /\.(mp3|m4a|wav|ogg|aac|flac)$/i;
+
+const TIPOS_AUDIO: Record<string, string> = {
+  mp3: "audio/mpeg", m4a: "audio/mp4", wav: "audio/wav",
+  ogg: "audio/ogg", aac: "audio/aac", flac: "audio/flac",
+};
+
+const tipoAudio = (nombre: string) =>
+  TIPOS_AUDIO[(EXTENSIONES.exec(nombre)?.[1] ?? "").toLowerCase()] ?? "application/octet-stream";
 
 /**
  * Recibe un audio subido y lo deja en la carpeta del proyecto. El nombre lo
@@ -364,7 +372,17 @@ export async function rutasProyectos(app: FastifyInstance) {
       volumen: p.tipo === "MUSICA" ? 1 : (actual.volumen ?? 0.25),
     };
     await db.proyecto.update({ where: { id }, data: { musica } });
-    return reply.code(201).send({ ...musica, duracion: r.duracion });
+
+    // En un videoclip que ya sabe que contar, la cancion es lo ultimo que
+    // faltaba: el montaje arranca sin que haya que pedirlo aparte.
+    const letra = esLetra(p.letra);
+    const montando = p.tipo === "MUSICA" && Boolean(letra?.texto.trim() || letra?.lineamientos.trim());
+    if (montando) {
+      await db.proyecto.update({ where: { id }, data: { estado: "MONTAJE" } });
+      await encolarVideoclip(id);
+    }
+
+    return reply.code(201).send({ ...musica, duracion: r.duracion, montando });
   });
 
   /**
@@ -436,6 +454,15 @@ export async function rutasProyectos(app: FastifyInstance) {
       },
     });
     await crearCarpetaProyecto(proyecto.id);
+    // La letra y los lineamientos se guardan YA, antes de montar nada: si el
+    // montaje falla o la cancion llega despues, no se pierde lo escrito.
+    const letra = await guardarLetra(proyecto.id, {
+      letra: d.letra,
+      lineamientos: d.lineamientos,
+      instrumental: d.instrumental,
+      mostrarLetra: d.mostrarLetra,
+      titulo: d.nombre,
+    });
 
     if (d.enlaceSuno) {
       try {
@@ -450,19 +477,14 @@ export async function rutasProyectos(app: FastifyInstance) {
       }
     }
 
+    // Con la cancion ya puesta se monta enseguida; si se va a subir un
+    // archivo, el montaje arranca solo en cuanto llegue.
     const conMusica = Boolean(d.enlaceSuno || d.musica);
     if (conMusica) {
-      await encolarVideoclip(proyecto.id, {
-        letra: d.letra,
-        lineamientos: d.lineamientos,
-        instrumental: d.instrumental,
-        mostrarLetra: d.mostrarLetra,
-        idioma: d.idioma,
-        motor: d.motor,
-        modelo: d.modelo,
-      });
+      await db.proyecto.update({ where: { id: proyecto.id }, data: { estado: "MONTAJE" } });
+      await encolarVideoclip(proyecto.id, { idioma: d.idioma, motor: d.motor, modelo: d.modelo });
     }
-    return reply.code(201).send({ ...proyecto, montando: conMusica });
+    return reply.code(201).send({ ...proyecto, letra, montando: conMusica });
   });
 
   /** Vuelve a montar el videoclip (otra letra, otros lineamientos, otros clips). */
@@ -473,7 +495,7 @@ export async function rutasProyectos(app: FastifyInstance) {
         letra: z.string().max(20_000).optional(),
         lineamientos: z.string().max(2000).optional(),
         instrumental: z.boolean().optional(),
-        mostrarLetra: z.boolean().default(true),
+        mostrarLetra: z.boolean().optional(),
         idioma: z.enum(["es", "en"]).default("es"),
         motor: z.string().max(40).nullable().default(null),
         modelo: z.string().max(80).nullable().default(null),
@@ -483,11 +505,55 @@ export async function rutasProyectos(app: FastifyInstance) {
     const p = await db.proyecto.findUniqueOrThrow({ where: { id } });
     const musica = (p.musica ?? {}) as { archivo?: string | null };
     if (!musica.archivo) {
-      return reply.code(409).send({ error: "El proyecto no tiene musica todavia" });
+      return reply.code(409).send({ error: "El proyecto no tiene musica todavia: añade un enlace de Suno o sube el archivo" });
     }
     if (p.tipo !== "MUSICA") await db.proyecto.update({ where: { id }, data: { tipo: "MUSICA" } });
-    const job = await encolarVideoclip(id, o);
-    return reply.code(202).send({ encolada: true, jobId: job.id });
+
+    // Lo que llegue se guarda antes de montar, para que el proyecto conserve
+    // la configuracion aunque el montaje falle.
+    const letra = await guardarLetra(id, {
+      letra: o.letra,
+      lineamientos: o.lineamientos,
+      instrumental: o.instrumental,
+      mostrarLetra: o.mostrarLetra,
+    });
+    if (!letra.texto.trim() && !letra.lineamientos.trim()) {
+      return reply.code(409).send({
+        error: letra.instrumental
+          ? "Escribe los lineamientos: sin letra hay que decir que se debe ver"
+          : "Pega la letra de la cancion, o marcala como instrumental y escribe los lineamientos",
+      });
+    }
+
+    await db.proyecto.update({ where: { id }, data: { estado: "MONTAJE", error: null } });
+    const job = await encolarVideoclip(id, { idioma: o.idioma, motor: o.motor, modelo: o.modelo, reanalizar: o.reanalizar });
+    return reply.code(202).send({ encolada: true, jobId: job.id, letra });
+  });
+
+  /** Guarda la letra y los lineamientos sin montar nada. */
+  app.patch("/api/proyectos/:id/letra", async (req) => {
+    const { id } = idParam.parse(req.params);
+    const cambios = z
+      .object({
+        letra: z.string().max(20_000).optional(),
+        lineamientos: z.string().max(2000).optional(),
+        instrumental: z.boolean().optional(),
+        mostrarLetra: z.boolean().optional(),
+        titulo: z.string().max(120).optional(),
+      })
+      .parse(req.body ?? {});
+    await db.proyecto.findUniqueOrThrow({ where: { id } });
+    return guardarLetra(id, cambios);
+  });
+
+  /** La cancion del proyecto, para oirla en la vista previa antes de renderizar. */
+  app.get("/api/proyectos/:id/musica", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const p = await db.proyecto.findUnique({ where: { id } });
+    const musica = (p?.musica ?? {}) as { archivo?: string | null; subida?: boolean };
+    if (!musica.archivo) return reply.code(404).send({ error: "El proyecto no tiene musica" });
+    const ruta = musica.subida ? rutaSubidaSegura(id, musica.archivo) : rutaMusicaSegura(musica.archivo);
+    return servir(req, reply, ruta, tipoAudio(musica.archivo));
   });
 
   /**

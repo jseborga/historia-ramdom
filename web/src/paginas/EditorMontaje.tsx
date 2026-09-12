@@ -9,6 +9,7 @@ import {
   type EstiloTexto,
   type Fuente,
   type Lectura,
+  type Letra,
   type MusicaCapa,
   type Preset,
   type Proyecto,
@@ -22,6 +23,7 @@ import { Lienzo } from "./Lienzo";
 import { BuscadorClips } from "./BuscadorClips";
 import { LineaDeTiempo, type Sel } from "./LineaDeTiempo";
 import { Cortes } from "./Cortes";
+import { PanelLetra } from "./PanelLetra";
 
 const ANIMACIONES: [Animacion, string][] = [
   ["ninguna", "ninguna"], ["fundido", "fundido"], ["subir", "subir"], ["zoom", "zoom"],
@@ -63,7 +65,7 @@ export function EditorMontaje({
   const [musicaDisponible, setMusicaDisponible] = useState<string[]>([]);
   const [fuentes, setFuentes] = useState<Fuente[]>([]);
   const [sel, setSel] = useState<Sel>({ tipo: "clip" });
-  const [panel, setPanel] = useState<"clip" | "texto" | "voz" | "musica" | "cortes" | "formato">("clip");
+  const [panel, setPanel] = useState<"clip" | "texto" | "voz" | "letra" | "musica" | "cortes" | "formato">("clip");
   const [t, setT] = useState(0);
   const [seek, setSeek] = useState({ t: 0, n: 0 });
   const [buscando, setBuscando] = useState(false);
@@ -89,9 +91,12 @@ export function EditorMontaje({
   }, [id]);
   useEffect(() => { cargar(); }, [cargar]);
 
+  // Mientras el servidor trabaja (montando las pistas o renderizando), la
+  // pagina se refresca sola: el montaje de un videoclip tarda lo que tarden
+  // el analisis de la letra y las busquedas de clips.
   useEffect(() => {
-    if (proyecto?.estado !== "RENDER") return;
-    const i = setInterval(cargar, 8000);
+    if (proyecto?.estado !== "RENDER" && proyecto?.estado !== "MONTAJE") return;
+    const i = setInterval(cargar, 5000);
     return () => clearInterval(i);
   }, [proyecto?.estado, cargar]);
 
@@ -131,6 +136,12 @@ export function EditorMontaje({
   const iClip = clipSel ? video.indexOf(clipSel) : -1;
   const textoSel = textos.find((r) => r.id === sel.id) ?? null;
   const urlVoz = voz.modo !== "ninguna" && voz.archivo ? `/api/proyectos/${proyecto.id}/voz?h=${voz.huella ?? ""}` : null;
+  // La musica se oye en la vista previa; el nombre va en la direccion para que
+  // el navegador no se quede con la pista anterior al cambiarla.
+  const urlMusica = musica.archivo
+    ? `/api/proyectos/${proyecto.id}/musica?p=${encodeURIComponent(musica.archivo)}`
+    : null;
+  const esVideoclip = proyecto.tipo === "MUSICA";
 
   const act = (c: Partial<Proyecto>) => setProyecto({ ...proyecto, ...c });
   const actClip = (c: Partial<ClipPista>) =>
@@ -176,7 +187,7 @@ export function EditorMontaje({
     setOcupado("videoclip");
     setError("");
     try {
-      await api.post(`/api/proyectos/${proyecto!.id}/videoclip`, { mostrarLetra: true });
+      await api.post(`/api/proyectos/${proyecto!.id}/videoclip`, {});
       setOk("Videoclip en montaje. Esta pagina se actualiza sola.");
       setTimeout(cargar, 4000);
     } catch (err) { setError(mensajeDe(err)); } finally { setOcupado(""); }
@@ -293,12 +304,18 @@ export function EditorMontaje({
         <button onClick={alSalir}>Volver</button>
         <input style={{ maxWidth: 300 }} value={proyecto.nombre} onChange={(e) => act({ nombre: e.target.value })} />
         <button onClick={() => guardar()} disabled={ocupado === "guardar"}>Guardar</button>
-        <button className="primario" onClick={renderizar} disabled={proyecto.estado === "RENDER"}>
+        <button
+          className="primario"
+          onClick={renderizar}
+          disabled={proyecto.estado === "RENDER" || proyecto.estado === "MONTAJE"}
+        >
           {proyecto.estado === "RENDER" ? "Renderizando..." : "Renderizar MP4"}
         </button>
-        <button onClick={ensamblar} disabled={ocupado === "ensamblar" || !voz.texto.trim()} title="La voz manda: genera la narracion, coloca los textos donde suenan y rellena el video con clips largos al azar">
-          {ocupado === "ensamblar" ? "Ensamblando..." : "Ensamblar con la narracion"}
-        </button>
+        {!esVideoclip && (
+          <button onClick={ensamblar} disabled={ocupado === "ensamblar" || !voz.texto.trim()} title="La voz manda: genera la narracion, coloca los textos donde suenan y rellena el video con clips largos al azar">
+            {ocupado === "ensamblar" ? "Ensamblando..." : "Ensamblar con la narracion"}
+          </button>
+        )}
         <button onClick={() => completarClips(true)} disabled={ocupado === "clips"}>
           {ocupado === "clips" ? "Buscando clips..." : "Completar clips vacios"}
         </button>
@@ -310,6 +327,12 @@ export function EditorMontaje({
         )}
       </div>
 
+      {proyecto.estado === "MONTAJE" && (
+        <p className="aviso ok">
+          Montando el videoclip: se reparte la cancion en tramos y se buscan los clips. Esta pagina
+          se actualiza sola en cuanto termina.
+        </p>
+      )}
       {error && <p className="aviso error">{error}</p>}
       {ok && <p className="aviso ok">{ok}</p>}
       {proyecto.estado === "ERROR" && proyecto.error && <pre>{proyecto.error}</pre>}
@@ -318,7 +341,9 @@ export function EditorMontaje({
         <div>
           {preset && (
             <Lienzo video={video} textos={textos} preset={preset} duracionTotal={total}
-              urlVoz={urlVoz} vozInicio={voz.inicio} seek={seek} alTiempo={alTiempo} alternar={reproducir} />
+              urlVoz={urlVoz}
+            urlMusica={urlMusica}
+            musicaVolumen={musica.volumen} vozInicio={voz.inicio} seek={seek} alTiempo={alTiempo} alternar={reproducir} />
           )}
           <p className="suave">
             Video {durVideo(video).toFixed(1)}s · voz {finVoz(voz) ? `hasta ${finVoz(voz).toFixed(1)}s` : "sin generar"} ·
@@ -329,9 +354,11 @@ export function EditorMontaje({
 
         <div>
           <nav style={{ marginBottom: 8 }}>
-            {(["clip", "texto", "voz", "musica", "cortes", "formato"] as const).map((p) => (
+            {((esVideoclip
+              ? (["clip", "texto", "letra", "musica", "cortes", "formato"] as const)
+              : (["clip", "texto", "voz", "musica", "cortes", "formato"] as const)) as readonly typeof panel[]).map((p) => (
               <button key={p} className={panel === p ? "activo" : ""} onClick={() => setPanel(p)}>
-                {{ clip: "Clip", texto: "Texto", voz: "Voz", musica: "Musica", cortes: "Cortes", formato: "Formato" }[p]}
+                {{ clip: "Clip", texto: "Texto", voz: "Voz", letra: "Letra", musica: "Musica", cortes: "Cortes", formato: "Formato" }[p]}
               </button>
             ))}
           </nav>
@@ -550,22 +577,32 @@ export function EditorMontaje({
                   alSubir={(archivo) => { act({ musica: { ...musica, archivo, subida: true } }); setOk("Canción subida y puesta en el proyecto."); }}
                 />
               </div>
-              {proyecto.tipo === "MUSICA" && (
+              {esVideoclip && (
                 <div className="pie" style={{ marginTop: 12 }}>
                   <button onClick={remontarVideoclip} disabled={ocupado !== ""}>
                     {ocupado === "videoclip" ? "Montando..." : "Volver a montar el videoclip"}
                   </button>
                   <span className="suave">
-                    Busca otros clips para los mismos tramos de la cancion. Los cortes ya hechos no se tocan.
+                    Otros clips para los mismos tramos. La letra se edita en la pestaña Letra.
                   </span>
                 </div>
               )}
               <p className="suave">
                 {proyecto.tipo === "MUSICA"
                   ? "En un videoclip la cancion suena entera y manda la duracion; no hay voz en off."
-                  : "Con voz, la musica se agacha sola cuando alguien habla. La vista previa no la reproduce."}
+                  : "Con voz, la musica se agacha sola cuando alguien habla."}
+                {" La vista previa ya la reproduce con el video, para editar oyendo."}
               </p>
             </section>
+          )}
+
+          {panel === "letra" && (
+            <PanelLetra
+              proyectoId={proyecto.id}
+              letra={proyecto.letra ?? null}
+              alCambiar={(letra: Letra) => act({ letra })}
+              alMontar={() => setTimeout(cargar, 4000)}
+            />
           )}
 
           {panel === "cortes" && (
