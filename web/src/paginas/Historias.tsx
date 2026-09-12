@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { aISO, api, type Historia, type Metrica } from "../api";
+import { aISO, api, type Catalogo, type Historia, type Metrica } from "../api";
 import { mensajeDe } from "../App";
+import { nombreCategoria } from "./comunes";
 
 const EN_PROCESO = ["GUION", "CLIPS", "VOZ", "RENDER"];
 
@@ -84,7 +85,7 @@ function FormularioMetrica({
   );
 }
 
-export function Historias() {
+export function Historias({ catalogo }: { catalogo?: Catalogo | null }) {
   const [historias, setHistorias] = useState<Historia[]>([]);
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
@@ -179,6 +180,7 @@ export function Historias() {
               <div className="fila">
                 <span className={`estado ${h.estado}`}>{h.estado}</span>
                 <strong>{h.parte > 1 ? `Parte ${h.parte} · ` : ""}{h.titulo ?? "(sin titulo aun)"}</strong>
+                {h.categoria && <span className="estado">{nombreCategoria(catalogo, h.categoria, h.subcategoria)}</span>}
                 <span className="suave">{new Date(h.creadaEn).toLocaleString()}</span>
               </div>
 

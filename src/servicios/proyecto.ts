@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
+import { creditosLargos, armarDescripcion } from "./clips.js";
 import { VozSchema, VOZ_POR_DEFECTO } from "./voz.js";
 import { ESTILO_POR_DEFECTO, fragmentar, type EstiloTexto, type Lectura } from "../render/rotulos.js";
 import { PRESETS, PRESET_POR_DEFECTO } from "../render/presets.js";
@@ -267,29 +268,19 @@ export const esModeloAntiguo = (escenas: unknown[]) =>
 export const VOZ_IA_POR_DEFECTO = VOZ_POR_DEFECTO;
 
 /** Créditos de los clips de la pista de vídeo, sin repetir. */
-export function creditosDeProyecto(video: ClipPista[]): string {
-  const clips = [...new Map(video.filter((c) => c.clip).map((c) => [c.clip!.id, c.clip!])).values()];
-  return clips.map((c) => `${c.autor} (${c.fuente}, ${c.licencia}) - ${c.pagina}`).join("\n");
+export function creditosDeProyecto(video: ClipPista[], musica?: string | null): string {
+  const clips = video.filter((c) => c.clip).map((c) => c.clip!);
+  return [creditosLargos(clips), musica ?? ""].filter(Boolean).join("\n");
 }
 
-/** Descripción lista para pegar al publicar: título, hashtags y créditos. */
+/** Descripción corta lista para pegar al publicar: gancho, hashtags y créditos en una línea. */
 export function descripcionDeProyecto(
   nombre: string,
   video: ClipPista[],
   hashtags: string[] = [],
   gancho?: string | null,
+  musica?: string | null,
 ): string {
-  const etiquetas = hashtags.map((h) => `#${h.replace(/^#/, "")}`).join(" ");
-  const creditos = creditosDeProyecto(video);
-  return [
-    gancho?.trim() || nombre,
-    etiquetas,
-    "",
-    "Voz e imágenes generadas o editadas con herramientas de IA.",
-    creditos ? "Clips:" : "",
-    creditos,
-  ]
-    .filter((l, i, a) => l !== "" || (i > 0 && a[i - 1] !== ""))
-    .join("\n")
-    .trim();
+  const clips = video.filter((c) => c.clip).map((c) => c.clip!);
+  return armarDescripcion(gancho?.trim() || nombre, hashtags, clips, musica);
 }

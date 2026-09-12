@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "../db.js";
 import { VozSchema } from "../servicios/voz.js";
 import { MOTORES } from "../servicios/guion.js";
+import { esCategoriaValida } from "../servicios/categorias.js";
 import { programarSerie, quitarSerie, generarAhora } from "../cola/cola.js";
 
 /** Cinco campos separados por espacios: minuto hora dia mes dia-semana. */
@@ -21,6 +22,10 @@ const SerieSchema = z.object({
   modismos: z.boolean().default(true),
   /** Historias por partes: cada ejecución produce N partes seguidas. */
   partes: z.number().int().min(1).max(6).default(1),
+  /** Categoría fija, "aleatoria" (una distinta cada vez) o vacía (tema libre). */
+  categoria: z.string().max(40).nullable().default(null).refine((v) => !v || esCategoriaValida(v), "Categoría desconocida"),
+  /** Subcategoría fija; vacía = al azar dentro de la categoría. */
+  subcategoria: z.string().max(40).nullable().default(null),
   cron,
   zonaHoraria: z.string().min(1).max(60).default("America/Lima"),
   motor: z.enum(MOTORES).default("groq"),

@@ -290,29 +290,72 @@ export async function elegirYDescargarClips(
  * Es lo que hay que pegar en TikTok junto a la descripcion.
  */
 export function creditosDe(escenas: Pick<EscenaPreparada, "clip">[]): string {
-  return [...new Map(escenas.filter((e) => e?.clip).map((e) => [e.clip.id, e.clip])).values()]
-    .map((c) => `${c.autor} (${c.fuente}, ${c.licencia}) - ${c.pagina}`)
+  return creditosLargos(escenas.filter((e) => e?.clip).map((e) => e.clip));
+}
+
+type ClipAcreditable = Pick<ClipInfo, "id" | "fuente" | "autor" | "pagina" | "licencia">;
+
+const NOMBRE_FUENTE: Record<ClipInfo["fuente"], string> = { pexels: "Pexels", pixabay: "Pixabay" };
+
+const unicos = (clips: ClipAcreditable[]) => [...new Map(clips.map((c) => [c.id, c])).values()];
+
+/** Lista completa, un clip por línea con su enlace: para el .txt y los comentarios. */
+export function creditosLargos(clips: ClipAcreditable[]): string {
+  return unicos(clips)
+    .map((c) => `${c.autor} (${NOMBRE_FUENTE[c.fuente]}, ${c.licencia}) - ${c.pagina}`)
     .join("\n");
 }
 
-/** Descripcion lista para pegar en TikTok, con los creditos de cada clip. */
+/**
+ * Créditos en una sola línea, agrupados por fuente: "Clips: Pexels (Ana, Luis) · Pixabay (Pedro)".
+ * Es lo que va en la descripción para publicar, donde cada carácter cuenta.
+ */
+export function creditosCortos(clips: ClipAcreditable[]): string {
+  const porFuente = new Map<ClipInfo["fuente"], Set<string>>();
+  for (const c of unicos(clips)) {
+    const autores = porFuente.get(c.fuente) ?? new Set<string>();
+    autores.add(c.autor.trim());
+    porFuente.set(c.fuente, autores);
+  }
+  if (!porFuente.size) return "";
+  const partes = [...porFuente.entries()].map(([fuente, autores]) => {
+    const lista = [...autores];
+    const visibles = lista.slice(0, 4).join(", ");
+    const resto = lista.length > 4 ? ` y ${lista.length - 4} más` : "";
+    return `${NOMBRE_FUENTE[fuente]} (${visibles}${resto})`;
+  });
+  return `Clips: ${partes.join(" · ")}`;
+}
+
+/** Une gancho, hashtags y créditos cortos en la descripción para publicar. */
+export function armarDescripcion(
+  cabecera: string,
+  hashtags: string[],
+  clips: ClipAcreditable[],
+  musica?: string | null,
+): string {
+  const etiquetas = [...new Set(hashtags.map((h) => h.replace(/^#/, "").trim()).filter(Boolean))]
+    .slice(0, 6)
+    .map((h) => `#${h}`)
+    .join(" ");
+  return [cabecera.trim(), etiquetas, creditosCortos(clips), musica ?? "", "Contenido creado con IA."]
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
+
+/** Descripcion lista para pegar en TikTok, con los creditos cortos de los clips. */
 export function crearDescripcion(
   guion: { titulo: string; gancho?: string; hashtags?: string[] },
   escenas: EscenaPreparada[],
+  musica?: string | null,
 ): string {
-  const creditos = creditosDe(escenas);
-  const hashtags = (guion.hashtags ?? []).map((h) => `#${h.replace(/^#/, "")}`).join(" ");
-
-  return [
+  return armarDescripcion(
     guion.gancho ?? guion.titulo,
-    hashtags,
-    "",
-    "Voz e imagenes generadas o editadas con herramientas de IA.",
-    "Clips:",
-    creditos,
-  ]
-    .join("\n")
-    .trim();
+    guion.hashtags ?? [],
+    escenas.filter((e) => e?.clip).map((e) => e.clip),
+    musica,
+  );
 }
 
 export async function cerrarRedisClips() {

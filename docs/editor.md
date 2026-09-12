@@ -316,6 +316,17 @@ antes de aceptarlo:
 
 Los archivos viven en `DATA_DIR/proyectos/<id>/`.
 
+### Música desde Suno
+
+En la pestaña **Música** del editor hay un campo *Música desde Suno*: pega el
+enlace de la canción (`https://suno.com/song/<id>`) y la app la descarga desde
+el CDN de Suno a la carpeta del proyecto, la comprueba con ffprobe y la deja
+seleccionada. El crédito `Música: Suno — enlace` se añade solo a la descripción
+y al `.txt` de créditos al renderizar. Si prefieres tenerla en la biblioteca
+para todos los proyectos y las series, añádela desde el selector de música de
+Crear o Series.
+
+
 ## Lo que este editor todavía NO hace
 
 Para que quede claro qué esperar:

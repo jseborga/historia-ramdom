@@ -7,6 +7,7 @@ import {
   type Idioma,
   type ModoAudio,
   type ModoPublicacion,
+  type Premisa,
   type Region,
   type Voz,
 } from "../api";
@@ -15,11 +16,13 @@ import {
   CampoFecha,
   CampoSegundos,
   SelectorAudio,
+  SelectorCategoria,
   SelectorModo,
   SelectorMotor,
   SelectorMusica,
   SelectorRegion,
   SelectorVoz,
+  nombreCategoria,
 } from "./comunes";
 import { SelectorClips } from "./SelectorClips";
 import { GuionTexto } from "./GuionTexto";
@@ -35,6 +38,11 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
   const [idioma, setIdioma] = useState<Idioma>("es");
   const [region, setRegion] = useState<Region>("bolivia");
   const [modismos, setModismos] = useState(true);
+  const [categoria, setCategoria] = useState<string | null>(catalogo.categoriaAleatoria ?? "aleatoria");
+  const [subcategoria, setSubcategoria] = useState<string | null>(null);
+  /** Planteamiento previo (título y lineamientos), editable antes de escribir. */
+  const [premisa, setPremisa] = useState<Premisa | null>(null);
+  const [musicaLista, setMusicaLista] = useState<string[]>(catalogo.musica);
   const [voz, setVoz] = useState<Voz>(catalogo.vozPorDefecto);
   const [musica, setMusica] = useState<string | null>(null);
   const [modoAudio, setModoAudio] = useState<ModoAudio>("VOZ");
@@ -52,6 +60,33 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
   const tiktokListo = catalogo.tiktok.configurado && catalogo.tiktok.cuentasConectadas > 0;
   const sinClips = !catalogo.clips.pexels && !catalogo.clips.pixabay;
 
+  async function plantear() {
+    setCargando("premisa");
+    setError("");
+    setOk("");
+    try {
+      setPremisa(
+        await api.post<Premisa>("/api/premisa", {
+          motor,
+          modelo,
+          tema: tema || undefined,
+          categoria,
+          subcategoria,
+          duracion,
+          idioma,
+          region,
+          modismos,
+        }),
+      );
+      setGuion(null);
+      setClipsElegidos({});
+    } catch (err) {
+      setError(mensajeDe(err));
+    } finally {
+      setCargando("");
+    }
+  }
+
   async function escribirGuion() {
     setCargando("guion");
     setError("");
@@ -64,6 +99,9 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
           modelo,
           tipo,
           tema: tema || undefined,
+          categoria,
+          subcategoria,
+          premisa,
           duracion,
           idioma,
           region,
@@ -92,6 +130,9 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
         idioma,
         region,
         modismos,
+        categoria,
+        subcategoria,
+        premisa: guion?.premisa ?? premisa,
         voz,
         modoAudio,
         segundosEscena,
@@ -149,6 +190,16 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
             <label htmlFor="tema">Tema (vacio = libre)</label>
             <input id="tema" value={tema} onChange={(e) => setTema(e.target.value)} />
           </div>
+          <SelectorCategoria
+            catalogo={catalogo}
+            categoria={categoria}
+            subcategoria={subcategoria}
+            alCambiar={(c, sc) => {
+              setCategoria(c);
+              setSubcategoria(sc);
+              setPremisa(null);
+            }}
+          />
           <div>
             <label htmlFor="idioma">Idioma</label>
             <select
@@ -184,15 +235,77 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
           />
         </div>
         <div className="pie">
-          <button onClick={escribirGuion} disabled={cargando !== ""}>
-            {cargando === "guion" ? "Escribiendo..." : "Escribir guion"}
+          <button onClick={plantear} disabled={cargando !== ""}>
+            {cargando === "premisa" ? "Planteando..." : "Plantear al azar (título y lineamientos)"}
           </button>
+          <button onClick={escribirGuion} disabled={cargando !== ""}>
+            {cargando === "guion" ? "Escribiendo..." : premisa ? "Escribir guion con este planteamiento" : "Escribir guion"}
+          </button>
+          <span className="suave">
+            {categoria
+              ? "Con categoría, primero se decide título y lineamientos y después se escribe."
+              : "Sin categoría se escribe directo, con tema libre."}
+          </span>
         </div>
       </section>
+
+      {premisa && (
+        <section className="tarjeta">
+          <div className="fila" style={{ marginBottom: 8 }}>
+            <h2 style={{ margin: 0 }}>Planteamiento</h2>
+            <span className="estado">{nombreCategoria(catalogo, premisa.categoria, premisa.subcategoria)}</span>
+            <button onClick={plantear} disabled={cargando !== ""}>Otro al azar</button>
+            <button onClick={() => setPremisa(null)}>Descartar</button>
+          </div>
+          <div>
+            <label htmlFor="premisaTitulo">Título</label>
+            <input
+              id="premisaTitulo"
+              value={premisa.titulo}
+              onChange={(e) => setPremisa({ ...premisa, titulo: e.target.value })}
+            />
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <label htmlFor="lineamientos">Lineamientos (uno por línea)</label>
+            <textarea
+              id="lineamientos"
+              value={premisa.lineamientos.join("\n")}
+              onChange={(e) =>
+                setPremisa({ ...premisa, lineamientos: e.target.value.split("\n").map((l) => l.trim()).filter(Boolean) })
+              }
+            />
+          </div>
+          <div className="campos" style={{ marginTop: 12 }}>
+            <div>
+              <label htmlFor="giro">Giro o remate final</label>
+              <input id="giro" value={premisa.giro} onChange={(e) => setPremisa({ ...premisa, giro: e.target.value })} />
+            </div>
+            <div>
+              <label htmlFor="criterios">Criterios de búsqueda de clips (inglés, separados por coma)</label>
+              <input
+                id="criterios"
+                value={premisa.keywords.join(", ")}
+                onChange={(e) =>
+                  setPremisa({ ...premisa, keywords: e.target.value.split(",").map((k) => k.trim()).filter(Boolean) })
+                }
+              />
+            </div>
+          </div>
+          {premisa.personajes.length > 0 && (
+            <p className="suave" style={{ marginTop: 8 }}>Personajes: {premisa.personajes.join(" · ")}</p>
+          )}
+        </section>
+      )}
 
       {guion && (
         <section className="tarjeta">
           <h2>2. Escenas</h2>
+          {guion.categoria && (
+            <p className="suave">
+              {nombreCategoria(catalogo, guion.categoria, guion.subcategoria ?? null)}
+              {guion.keywords?.length ? ` · clips: ${guion.keywords.join(", ")}` : ""}
+            </p>
+          )}
           <div>
             <label htmlFor="titulo">Titulo</label>
             <input
@@ -268,7 +381,12 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
             <CampoSegundos valor={segundosEscena} alCambiar={setSegundosEscena} />
           )}
           {modoAudio !== "MUDO" && (
-            <SelectorMusica catalogo={catalogo} valor={musica} alCambiar={setMusica} />
+            <SelectorMusica
+              catalogo={{ ...catalogo, musica: musicaLista }}
+              valor={musica}
+              alCambiar={setMusica}
+              alAmpliar={setMusicaLista}
+            />
           )}
           <SelectorModo valor={modo} alCambiar={setModo} tiktokListo={tiktokListo} />
           {modo !== "DESCARGA" && (

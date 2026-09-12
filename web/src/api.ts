@@ -66,6 +66,8 @@ export type Catalogo = {
   idiomas: Idioma[];
   regiones: { id: Region; nombre: string }[];
   generosIA: Record<string, Genero>;
+  categorias: Categoria[];
+  categoriaAleatoria: string;
   limites: { clipMB: number; videoMB: number };
   retencionDias: number;
 };
@@ -192,11 +194,36 @@ export type Prueba = {
   ms: number;
 };
 
+export type Categoria = {
+  id: string;
+  nombre: string;
+  tono: string;
+  subcategorias: { id: string; nombre: string }[];
+};
+
+/** Planteamiento previo: título y lineamientos antes de escribir la historia. */
+export type Premisa = {
+  categoria: string;
+  subcategoria: string;
+  titulo: string;
+  lineamientos: string[];
+  personajes: string[];
+  giro: string;
+  keywords: string[];
+  hashtags: string[];
+  categoriaNombre?: string;
+  subcategoriaNombre?: string;
+};
+
 export type Guion = {
   titulo: string;
   gancho: string;
   escenas: { texto: string; keywords: string[] }[];
   hashtags: string[];
+  categoria?: string | null;
+  subcategoria?: string | null;
+  premisa?: Premisa | null;
+  keywords?: string[];
 };
 
 export type ModoPublicacion = "DESCARGA" | "BORRADOR_TIKTOK" | "DIRECTO_TIKTOK";
@@ -211,6 +238,8 @@ export type Serie = {
   region: Region;
   modismos: boolean;
   partes: number;
+  categoria: string | null;
+  subcategoria: string | null;
   cron: string;
   zonaHoraria: string;
   motor: string;
@@ -272,6 +301,8 @@ export type Historia = {
   serieId: string | null;
   estado: "GUION" | "CLIPS" | "VOZ" | "RENDER" | "LISTA" | "SUBIDA" | "MONTAJE" | "ERROR";
   titulo: string | null;
+  categoria: string | null;
+  subcategoria: string | null;
   parte: number;
   continuaDeId: string | null;
   ganchoTexto: string | null;

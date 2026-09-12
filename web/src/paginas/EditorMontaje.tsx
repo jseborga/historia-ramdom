@@ -17,7 +17,7 @@ import {
   type VozPista,
 } from "../api";
 import { mensajeDe } from "../App";
-import { SelectorRegion, SelectorVoz } from "./comunes";
+import { SelectorRegion, SelectorVoz, ImportarSuno } from "./comunes";
 import { Lienzo } from "./Lienzo";
 import { BuscadorClips } from "./BuscadorClips";
 import { LineaDeTiempo, type Sel } from "./LineaDeTiempo";
@@ -524,6 +524,12 @@ export function EditorMontaje({
                 <label htmlFor="subirMus">O sube tu propia pista</label>
                 <input id="subirMus" type="file" accept="audio/*" onChange={(e) => e.target.files?.[0] && subir(e.target.files[0], "musica")} />
                 {musica.subida && musica.archivo && <p className="suave">Subida: {musica.archivo}</p>}
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <ImportarSuno
+                  proyectoId={proyecto.id}
+                  alImportar={(archivo) => { act({ musica: { ...musica, archivo, subida: true } }); setOk("Canción de Suno añadida al proyecto."); }}
+                />
               </div>
               <p className="suave">Con voz, la musica se agacha sola cuando alguien habla. La vista previa no la reproduce.</p>
             </section>

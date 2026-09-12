@@ -4,7 +4,9 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { db } from "../db.js";
 import { rutaVideo } from "../almacen.js";
-import { generarGuion, GuionSchema, MOTORES } from "../servicios/guion.js";
+import { generarGuion, generarPremisa, GuionSchema, PremisaSchema, MOTORES } from "../servicios/guion.js";
+import { esCategoriaValida, buscarCategoria } from "../servicios/categorias.js";
+import { creditoMusica } from "../servicios/suno.js";
 import { VozSchema } from "../servicios/voz.js";
 import { buscarClips, creditosDe, type EscenaPreparada } from "../servicios/clips.js";
 import {
@@ -23,11 +25,25 @@ const fechaFutura = z
   .datetime({ offset: true })
   .refine((v) => new Date(v).getTime() > Date.now() - 60_000, "La fecha ya paso");
 
+/** Id de categoría, "aleatoria" o vacío (tema libre, como siempre). */
+export const CategoriaCampo = z
+  .string()
+  .max(40)
+  .nullable()
+  .default(null)
+  .refine((v) => !v || esCategoriaValida(v), "Categoría desconocida");
+
+export const SubcategoriaCampo = z.string().max(40).nullable().default(null);
+
 const PeticionGuionSchema = z.object({
   motor: z.enum(MOTORES).default("groq"),
   modelo: z.string().max(80).nullable().default(null),
   tipo: z.enum(["Reflexion", "Historia"]),
   tema: z.string().max(200).optional(),
+  categoria: CategoriaCampo,
+  subcategoria: SubcategoriaCampo,
+  /** Planteamiento ya generado y revisado; si falta y hay categoría, se genera al vuelo. */
+  premisa: PremisaSchema.nullable().default(null),
   idioma: z.enum(["es", "en"]).default("es"),
   region: z.enum(["bolivia", "latam", "eeuu"]).default("bolivia"),
   modismos: z.boolean().default(true),
@@ -58,6 +74,22 @@ export async function rutasHistorias(app: FastifyInstance) {
   app.post("/api/guion", async (req) => {
     const p = PeticionGuionSchema.parse(req.body);
     return generarGuion(p);
+  });
+
+  /**
+   * Planteamiento previo: elige categoría y subcategoría (al azar si no se
+   * fijan) y genera título, lineamientos, giro y criterios de búsqueda de
+   * clips, sin escribir la historia. Se revisa y luego se pasa a /api/guion.
+   */
+  app.post("/api/premisa", async (req) => {
+    const p = PeticionGuionSchema.omit({ premisa: true, tipo: true }).extend({ tipo: z.string().max(40).optional() }).parse(req.body);
+    const premisa = await generarPremisa({ ...p, categoria: p.categoria ?? "aleatoria" });
+    const cat = buscarCategoria(premisa.categoria);
+    return {
+      ...premisa,
+      categoriaNombre: cat?.nombre ?? premisa.categoria,
+      subcategoriaNombre: cat?.subcategorias.find((s) => s.id === premisa.subcategoria)?.nombre ?? premisa.subcategoria,
+    };
   });
 
   /**
@@ -108,6 +140,8 @@ export async function rutasHistorias(app: FastifyInstance) {
         serieId: true,
         estado: true,
         titulo: true,
+        categoria: true,
+        subcategoria: true,
         parte: true,
         continuaDeId: true,
         ganchoTexto: true,
@@ -142,10 +176,10 @@ export async function rutasHistorias(app: FastifyInstance) {
   /** Creditos de los clips, para pegarlos aparte en TikTok. */
   app.get("/api/historias/:id/creditos", async (req, reply) => {
     const { id } = idParam.parse(req.params);
-    const h = await db.historia.findUnique({ where: { id }, select: { escenas: true } });
+    const h = await db.historia.findUnique({ where: { id }, select: { escenas: true, musica: true } });
     if (!h) return reply.code(404).send({ error: "No encontrada" });
     const escenas = (h.escenas as EscenaPreparada[] | null) ?? [];
-    return { creditos: creditosDe(escenas) };
+    return { creditos: [creditosDe(escenas), creditoMusica(h.musica) ?? ""].filter(Boolean).join("\n") };
   });
 
   /** Encola una historia suelta (editor manual, sin serie). */
@@ -158,6 +192,9 @@ export async function rutasHistorias(app: FastifyInstance) {
       idioma: p.idioma,
       region: p.region,
       modismos: p.modismos,
+      categoria: p.categoria,
+      subcategoria: p.subcategoria,
+      premisa: p.premisa,
       motor: p.motor,
       modelo: p.modelo,
       voz: p.voz,

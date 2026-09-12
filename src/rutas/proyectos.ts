@@ -30,6 +30,7 @@ import {
 import { generarNarracion } from "../servicios/narracion.js";
 import type { EscenaPreparada } from "../servicios/clips.js";
 import { encolarProyecto } from "../cola/cola.js";
+import { importarSunoAProyecto, creditoMusica } from "../servicios/suno.js";
 
 const idParam = z.object({ id: z.string().uuid() });
 
@@ -319,6 +320,22 @@ export async function rutasProyectos(app: FastifyInstance) {
     return reply.code(201).send({ archivo: nombre, duracion });
   });
 
+  /**
+   * Música de ambiente desde un enlace de Suno: el id se saca del enlace y se
+   * descarga solo desde el CDN de Suno a la carpeta del proyecto.
+   */
+  app.post("/api/proyectos/:id/musica-enlace", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const { url } = z.object({ url: z.string().min(10).max(400) }).parse(req.body);
+    await db.proyecto.findUniqueOrThrow({ where: { id } });
+    try {
+      const r = await importarSunoAProyecto(id, url);
+      return reply.code(201).send({ ...r, creditos: creditoMusica(r.archivo) });
+    } catch (err) {
+      return reply.code(422).send({ error: err instanceof Error ? err.message : "No se pudo importar" });
+    }
+  });
+
   app.post("/api/proyectos/:id/render", async (req, reply) => {
     const { id } = idParam.parse(req.params);
     const p = await db.proyecto.findUniqueOrThrow({ where: { id } });
@@ -337,10 +354,11 @@ export async function rutasProyectos(app: FastifyInstance) {
     if (!p) return reply.code(404).send({ error: "No encontrado" });
     const { video } = pistasDe(p);
     const guion = p.historia ? GuionSchema.safeParse(p.historia.guion) : null;
+    const musica = creditoMusica((p.musica as { archivo?: string | null } | null)?.archivo);
     const descripcion =
       p.descripcion ??
-      descripcionDeProyecto(p.nombre, video, guion?.success ? guion.data.hashtags : [], guion?.success ? guion.data.gancho : null);
-    return { descripcion, creditos: creditosDeProyecto(video) };
+      descripcionDeProyecto(p.nombre, video, guion?.success ? guion.data.hashtags : [], guion?.success ? guion.data.gancho : null, musica);
+    return { descripcion, creditos: creditosDeProyecto(video, musica) };
   });
 
   app.get("/api/proyectos/:id/creditos.txt", async (req, reply) => {
@@ -349,9 +367,12 @@ export async function rutasProyectos(app: FastifyInstance) {
     if (!p) return reply.code(404).send({ error: "No encontrado" });
     const { video } = pistasDe(p);
     const guion = p.historia ? GuionSchema.safeParse(p.historia.guion) : null;
-    const texto =
+    const musica = creditoMusica((p.musica as { archivo?: string | null } | null)?.archivo);
+    const descripcion =
       p.descripcion ??
-      descripcionDeProyecto(p.nombre, video, guion?.success ? guion.data.hashtags : [], guion?.success ? guion.data.gancho : null);
+      descripcionDeProyecto(p.nombre, video, guion?.success ? guion.data.hashtags : [], guion?.success ? guion.data.gancho : null, musica);
+    // El .txt lleva la descripción corta para pegar y, debajo, la lista completa con enlaces.
+    const texto = [descripcion, "", "Créditos completos:", creditosDeProyecto(video, musica)].join("\n");
     reply
       .header("Content-Type", "text/plain; charset=utf-8")
       .header("Content-Disposition", `attachment; filename="proyecto-${p.id.slice(0, 8)}-creditos.txt"`);

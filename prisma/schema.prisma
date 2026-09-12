@@ -93,6 +93,10 @@ model Serie {
   modismos        Boolean         @default(true)
   /// Historias por partes: cuántas partes seguidas produce cada ejecución.
   partes          Int             @default(1)
+  /// Categoría de historia: id fijo, "aleatoria" (una distinta cada vez) o vacío (tema libre).
+  categoria       String?
+  /// Subcategoría fija; vacía = una al azar dentro de la categoría.
+  subcategoria    String?
   motor           String          @default("groq")
   modelo          String? // modelo concreto del motor; vacio = el del entorno
   voz             Json // { proveedor, modelo, nombre }
@@ -123,6 +127,9 @@ model Historia {
   continuaDeId String?
   estado      EstadoHistoria @default(GUION)
   titulo      String?
+  /// Con qué categoría y subcategoría se planteó (el planteamiento va dentro de `guion`).
+  categoria   String?
+  subcategoria String?
   guion       Json?
   escenas     Json? // texto, keywords, clip (id, fuente, autor, pagina, licencia), duracion
   descripcion String? // texto final para TikTok con creditos

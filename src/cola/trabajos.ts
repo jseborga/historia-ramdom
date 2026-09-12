@@ -1,6 +1,7 @@
 import type { ModoPublicacion } from "@prisma/client";
 import { db } from "../db.js";
-import { generarGuion, GuionSchema, contextoParaContinuar, type Guion } from "../servicios/guion.js";
+import { generarGuion, GuionSchema, contextoParaContinuar, criteriosVisuales, type Guion, type Premisa } from "../servicios/guion.js";
+import { creditoMusica } from "../servicios/suno.js";
 import { generarVoz } from "../servicios/voz.js";
 import {
   elegirClips,
@@ -41,6 +42,10 @@ export type OpcionesHistoria = {
   modismos?: boolean;
   /** Continuación: historia anterior y número de parte. */
   continuaDeId?: string | null;
+  /** Categoría ("aleatoria" = una al azar), subcategoría y planteamiento previo. */
+  categoria?: string | null;
+  subcategoria?: string | null;
+  premisa?: Premisa | null;
   motor: string;
   /** Modelo concreto del motor; vacio = el configurado en el entorno. */
   modelo?: string | null;
@@ -83,6 +88,7 @@ async function contextoDe(continuaDeId?: string | null) {
 /** Ajustes de produccion que comparten una historia y sus continuaciones. */
 type AjustesSerie = {
   tipo: string; duracion: number; idioma: string; region: string; modismos: boolean;
+  categoria: string | null; subcategoria: string | null;
   motor: string; modelo: string | null; voz: unknown; modoAudio: "VOZ" | "MUSICA" | "MUDO";
   segundosEscena: number | null; musica: string | null; musicaModo: "FIJA" | "ROTAR";
   modoPublicacion: ModoPublicacion; salida: "VIDEO" | "MONTAJE"; partes: number;
@@ -131,6 +137,9 @@ async function producir(historiaId: string, o: OpcionesHistoria) {
         ganchoFijo: o.ganchoFijo,
         continuaDe: await contextoDe(o.continuaDeId),
         evitar: o.evitarTitulos ?? [],
+        categoria: o.categoria,
+        subcategoria: o.subcategoria,
+        premisa: o.premisa,
       }));
 
     const gancho = await registrarGancho(guion.gancho, idioma);
@@ -139,6 +148,8 @@ async function producir(historiaId: string, o: OpcionesHistoria) {
       data: {
         guion,
         titulo: guion.titulo,
+        categoria: guion.categoria ?? null,
+        subcategoria: guion.subcategoria ?? null,
         ganchoTexto: guion.gancho,
         ganchoId: gancho.id,
         estado: "CLIPS",
@@ -191,7 +202,7 @@ async function producir(historiaId: string, o: OpcionesHistoria) {
         archivo: final,
         musica: o.musica ?? null,
         modoAudio,
-        descripcion: crearDescripcion(guion, escenas),
+        descripcion: crearDescripcion(guion, escenas, creditoMusica(o.musica)),
         estado: "LISTA",
       },
     });
@@ -243,7 +254,7 @@ async function crearMontaje(
   historiaId: string,
   serie: AjustesSerie,
   o: { tema?: string; ganchoFijo?: string | null; ideaId?: string | null; continuaDeId?: string | null;
-       evitarTitulos: (string | null)[]; clipsUsados: string[] },
+       musica?: string | null; evitarTitulos: (string | null)[]; clipsUsados: string[] },
 ) {
   try {
     const guion = await generarGuion({
@@ -259,6 +270,8 @@ async function crearMontaje(
       ganchoFijo: o.ganchoFijo,
       continuaDe: await contextoDe(o.continuaDeId),
       evitar: o.evitarTitulos,
+      categoria: serie.categoria,
+      subcategoria: serie.subcategoria,
     });
     const gancho = await registrarGancho(guion.gancho, serie.idioma);
 
@@ -289,7 +302,8 @@ async function crearMontaje(
           config: VOZ_POR_DEFECTO,
           archivo: null, duracion: null, inicio: 0, huella: null,
         },
-        musica: { archivo: null, subida: false, volumen: 0.25 },
+        // La musica de la serie (fija o rotativa) entra en el montaje desde el principio.
+        musica: { archivo: o.musica ?? null, subida: false, volumen: 0.25 },
       },
     });
 
@@ -298,10 +312,13 @@ async function crearMontaje(
       data: {
         guion,
         titulo: guion.titulo,
+        categoria: guion.categoria ?? null,
+        subcategoria: guion.subcategoria ?? null,
         ganchoTexto: guion.gancho,
         ganchoId: gancho.id,
         escenas,
-        descripcion: crearDescripcion(guion, escenas),
+        musica: o.musica ?? null,
+        descripcion: crearDescripcion(guion, escenas, creditoMusica(o.musica)),
         estado: "MONTAJE",
       },
     });
@@ -309,7 +326,7 @@ async function crearMontaje(
 
     if (serie.modoAudio === "VOZ") {
       const { ensamblarProyecto } = await import("../servicios/ensamblar.js");
-      await ensamblarProyecto(proyecto.id).catch((err) =>
+      await ensamblarProyecto(proyecto.id, { criterios: criteriosVisuales(guion) }).catch((err) =>
         db.historia.update({ where: { id: historiaId }, data: { error: `Ensamblado parcial: ${String(err).slice(0, 300)}` } }),
       );
     }
@@ -382,6 +399,8 @@ async function producirParte(
     idioma: base.idioma,
     region: base.region,
     modismos: base.modismos,
+    categoria: base.categoria,
+    subcategoria: base.subcategoria,
     continuaDeId: o.continuaDeId,
     motor: base.motor,
     modelo: base.modelo,
@@ -404,10 +423,18 @@ export async function continuarHistoria(historiaId: string): Promise<string> {
   const h = await db.historia.create({
     data: { serieId: previa.serieId, ideaId: previa.ideaId, parte, continuaDeId: previa.id, estado: "GUION" },
   });
-  const base: AjustesSerie = previa.serie ?? {
+  const ajustes: AjustesSerie = previa.serie ?? {
     tipo: "Historia", duracion: 90, idioma: "es", region: "bolivia", modismos: true, motor: "groq", modelo: null,
+    categoria: null, subcategoria: null,
     voz: VOZ_POR_DEFECTO, modoAudio: "VOZ", segundosEscena: null, musica: null, musicaModo: "FIJA",
     modoPublicacion: "DESCARGA", salida: "MONTAJE", partes: 1,
+  };
+  // La continuacion hereda la categoria concreta de la parte anterior: nunca
+  // vuelve a sortear una ("aleatoria" es para historias nuevas).
+  const base: AjustesSerie = {
+    ...ajustes,
+    categoria: previa.categoria ?? (ajustes.categoria === "aleatoria" ? null : ajustes.categoria),
+    subcategoria: previa.subcategoria ?? ajustes.subcategoria,
   };
   const recientes = previa.serieId ? await recientesDeLaSerie(previa.serieId) : [];
   const musica = base.musicaModo === "ROTAR" ? await elegirMusicaRotativa(recientes.map((r) => r.musica)) : base.musica;
@@ -531,11 +558,13 @@ export async function renderizarProyectoTrabajo(proyectoId: string) {
 
     // Descripción para publicar: título, hashtags de la historia si la hay, y créditos.
     const guion = p.historia ? GuionSchema.safeParse(p.historia.guion) : null;
+    const musicaCredito = creditoMusica(datos.musica.archivo);
     const descripcion = descripcionDeProyecto(
       p.nombre,
       datos.video,
       guion?.success ? guion.data.hashtags : [],
       guion?.success ? guion.data.gancho : null,
+      musicaCredito,
     );
 
     const { archivo, duracion } = await renderizarProyecto(dir, {
@@ -547,7 +576,7 @@ export async function renderizarProyectoTrabajo(proyectoId: string) {
       rutaVoz,
       rutaMusica,
       titulo: p.nombre,
-      creditos: creditosDeProyecto(datos.video),
+      creditos: creditosDeProyecto(datos.video, musicaCredito),
     });
 
     const final = await moverAVideos(archivo, proyectoId);

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { db } from "../db.js";
-import { generarKeywords } from "./guion.js";
+import { generarKeywords, GuionSchema, criteriosVisuales } from "./guion.js";
 import { buscarClips, CLIP_LARGO, type ClipInfo } from "./clips.js";
 import { generarNarracion } from "./narracion.js";
 import { mejorVozLocal } from "./voz.js";
@@ -23,6 +23,8 @@ export type OpcionesEnsamblado = {
   /** Rotulos con la frase entera o por bloques. */
   lectura?: "frases" | "bloques";
   animacion?: "fundido" | "resaltar" | "ninguna";
+  /** Criterios de búsqueda EN INGLÉS del ambiente general (categoría, planteamiento). */
+  criterios?: string[];
 };
 
 const barajar = <T>(xs: T[]) => [...xs].sort(() => Math.random() - 0.5);
@@ -82,7 +84,10 @@ export function rellenarVideo(
  *   3. rellena el video hasta esa duracion con clips largos al azar, gancho corto primero.
  */
 export async function ensamblarProyecto(proyectoId: string, opciones: OpcionesEnsamblado = {}) {
-  const p = await db.proyecto.findUniqueOrThrow({ where: { id: proyectoId } });
+  const p = await db.proyecto.findUniqueOrThrow({
+    where: { id: proyectoId },
+    include: { historia: { select: { guion: true } } },
+  });
   const vozGuardada = (p.voz ?? {}) as Partial<VozPista>;
   const texto = (vozGuardada.texto ?? "").trim();
   if (!texto) throw new Error("La pista de voz no tiene texto: escribe o genera la narracion primero");
@@ -109,9 +114,19 @@ export async function ensamblarProyecto(proyectoId: string, opciones: OpcionesEn
   const frases = voz.tramos.map((t) => t.texto);
   const keywords = await generarKeywords([frases[0] ?? texto, ...frases.slice(1, 8)], "es");
   const largos = opciones.preferirLargos ?? true;
+  // Ademas de lo que dice cada frase, el ambiente del genero: los criterios
+  // vienen de la categoria y del planteamiento de la historia, si los hay.
+  const guionHistoria = p.historia ? GuionSchema.safeParse(p.historia.guion) : null;
+  const criterios = (opciones.criterios?.length
+    ? opciones.criterios
+    : guionHistoria?.success
+      ? criteriosVisuales(guionHistoria.data)
+      : []
+  ).slice(0, 6);
   const [gancho, ...resto] = await Promise.all([
     buscarClips([...keywords[0], "cinematic"].slice(0, 2).join(" "), false),
     ...keywords.slice(1).flatMap((ks) => ks.slice(0, 1).map((k) => buscarClips(k, largos))),
+    ...criterios.map((k) => buscarClips(k, largos)),
   ]);
   const conjunto = [...new Map(resto.flat().map((c) => [c.id, c])).values()];
   const video = rellenarVideo(gancho.length ? gancho : conjunto, conjunto.length ? conjunto : gancho, total, opciones.ganchoSeg ?? GANCHO_SEG);

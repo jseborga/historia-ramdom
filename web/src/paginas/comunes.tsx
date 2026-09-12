@@ -1,5 +1,6 @@
 import { useState } from "react";
-import type { Catalogo, Genero, ModoAudio, ModoPublicacion, Region, Voz } from "../api";
+import { api, type Catalogo, type Genero, type ModoAudio, type ModoPublicacion, type Region, type Voz } from "../api";
+import { mensajeDe } from "../App";
 
 export function SelectorMotor({
   catalogo,
@@ -219,31 +220,162 @@ export function CampoSegundos({
   );
 }
 
+/**
+ * Categoría y subcategoría de la historia. "Al azar" sortea una distinta cada
+ * vez; vacío deja el tema libre como siempre.
+ */
+export function SelectorCategoria({
+  catalogo,
+  categoria,
+  subcategoria,
+  alCambiar,
+}: {
+  catalogo: Catalogo;
+  categoria: string | null;
+  subcategoria: string | null;
+  alCambiar: (categoria: string | null, subcategoria: string | null) => void;
+}) {
+  const aleatoria = catalogo.categoriaAleatoria ?? "aleatoria";
+  const elegida = (catalogo.categorias ?? []).find((c) => c.id === categoria) ?? null;
+  return (
+    <>
+      <div>
+        <label htmlFor="categoria">Categoría</label>
+        <select
+          id="categoria"
+          value={categoria ?? ""}
+          onChange={(e) => alCambiar(e.target.value || null, null)}
+        >
+          <option value="">Sin categoría (tema libre)</option>
+          <option value={aleatoria}>Al azar, una distinta cada vez</option>
+          {(catalogo.categorias ?? []).map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.nombre}
+            </option>
+          ))}
+        </select>
+      </div>
+      {elegida && (
+        <div>
+          <label htmlFor="subcategoria">Subcategoría</label>
+          <select
+            id="subcategoria"
+            value={subcategoria ?? ""}
+            onChange={(e) => alCambiar(categoria, e.target.value || null)}
+          >
+            <option value="">Al azar dentro de {elegida.nombre}</option>
+            {elegida.subcategorias.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Nombre legible de una categoría y su subcategoría, para listas y etiquetas. */
+export function nombreCategoria(catalogo: Catalogo | null | undefined, categoria: string | null, subcategoria: string | null) {
+  const c = catalogo?.categorias?.find((x) => x.id === categoria);
+  if (!c) return categoria ?? "";
+  const s = c.subcategorias.find((x) => x.id === subcategoria);
+  return s ? `${c.nombre} › ${s.nombre}` : c.nombre;
+}
+
+/** Pega un enlace de Suno y la canción entra en la biblioteca de música. */
+export function ImportarSuno({
+  alImportar,
+  proyectoId,
+}: {
+  /** Recibe el nombre del archivo y, si es la biblioteca, la lista nueva. */
+  alImportar: (archivo: string, musica?: string[]) => void;
+  /** Con id, la canción se guarda en ese proyecto en vez de en la biblioteca. */
+  proyectoId?: string;
+}) {
+  const [url, setUrl] = useState("");
+  const [estado, setEstado] = useState("");
+  const [error, setError] = useState("");
+
+  async function importar() {
+    setEstado("Descargando de Suno...");
+    setError("");
+    try {
+      type Respuesta = { archivo: string; duracion: number | null; musica?: string[] };
+      const r = proyectoId
+        ? await api.post<Respuesta>(`/api/proyectos/${proyectoId}/musica-enlace`, { url })
+        : await api.post<Respuesta>("/api/musica/enlace", { url });
+      alImportar(r.archivo, r.musica);
+      setEstado(`Lista: ${r.archivo}${r.duracion ? ` (${Math.round(r.duracion)} s)` : ""}.`);
+      setUrl("");
+    } catch (err) {
+      setEstado("");
+      setError(mensajeDe(err));
+    }
+  }
+
+  return (
+    <div>
+      <label htmlFor="suno">Música desde Suno (pega el enlace de la canción)</label>
+      <div className="fila">
+        <input
+          id="suno"
+          placeholder="https://suno.com/song/..."
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+        />
+        <button onClick={importar} disabled={!/suno\.(com|ai)\//.test(url)}>
+          Añadir
+        </button>
+      </div>
+      {estado && <p className="suave">{estado}</p>}
+      {error && <p className="aviso error">{error}</p>}
+      <p className="suave">
+        Usa canciones tuyas de Suno: el crédito «Música: Suno — enlace» se añade solo a la descripción.
+      </p>
+    </div>
+  );
+}
+
 export function SelectorMusica({
   catalogo,
   valor,
   alCambiar,
+  alAmpliar,
 }: {
   catalogo: Catalogo;
   valor: string | null;
   alCambiar: (v: string | null) => void;
+  /** Si se pasa, aparece el campo para añadir una canción de Suno. */
+  alAmpliar?: (musica: string[]) => void;
 }) {
   return (
-    <div>
-      <label htmlFor="musica">Musica de fondo</label>
-      <select
-        id="musica"
-        value={valor ?? ""}
-        onChange={(e) => alCambiar(e.target.value || null)}
-      >
-        <option value="">Sin musica</option>
-        {catalogo.musica.map((m) => (
-          <option key={m} value={m}>
-            {m}
-          </option>
-        ))}
-      </select>
-    </div>
+    <>
+      <div>
+        <label htmlFor="musica">Musica de fondo</label>
+        <select
+          id="musica"
+          value={valor ?? ""}
+          onChange={(e) => alCambiar(e.target.value || null)}
+        >
+          <option value="">Sin musica</option>
+          {catalogo.musica.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+      </div>
+      {alAmpliar && (
+        <ImportarSuno
+          alImportar={(archivo, musica) => {
+            if (musica) alAmpliar(musica);
+            alCambiar(archivo);
+          }}
+        />
+      )}
+    </>
   );
 }
 

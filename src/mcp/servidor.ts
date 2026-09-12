@@ -96,16 +96,75 @@ servidor.registerTool(
   },
 );
 
+const categoriaSchema = z
+  .string()
+  .max(40)
+  .describe('Id de categoría (ver listar_categorias), "aleatoria" para sortear una, o vacío para tema libre')
+  .optional();
+const subcategoriaSchema = z.string().max(40).describe("Id de subcategoría; vacío = al azar dentro de la categoría").optional();
+
+const premisaSchema = z
+  .object({
+    categoria: z.string().max(40),
+    subcategoria: z.string().max(40),
+    titulo: z.string().max(120),
+    lineamientos: z.array(z.string().max(200)).min(1).max(8),
+    personajes: z.array(z.string().max(120)).max(5).optional(),
+    giro: z.string().max(300).optional(),
+    keywords: z.array(z.string().max(40)).min(1).max(8),
+    hashtags: z.array(z.string().max(40)).max(8).optional(),
+  })
+  .describe("Planteamiento devuelto por plantear_historia, revisado o tal cual");
+
+servidor.registerTool(
+  "listar_categorias",
+  {
+    description:
+      "Categorías y subcategorías de historia (comedia, drama, terror, real, triunfo, engaño...) con su tono.",
+    inputSchema: {},
+  },
+  async () => {
+    const c = (await llamar("/api/catalogo")) as { categorias: unknown; categoriaAleatoria: string };
+    return texto({ categorias: c.categorias, aleatoria: c.categoriaAleatoria });
+  },
+);
+
+servidor.registerTool(
+  "plantear_historia",
+  {
+    description:
+      "Antes de escribir: elige categoría y subcategoría (al azar si no se fijan) y genera título, lineamientos, giro y criterios de búsqueda de clips. El resultado se revisa y se pasa como `premisa` a escribir_guion o crear_historia.",
+    inputSchema: {
+      categoria: categoriaSchema,
+      subcategoria: subcategoriaSchema,
+      tema: z.string().max(200).optional(),
+      duracion: z.number().int().min(15).max(350).optional(),
+      idioma: z.enum(["es", "en"]).optional(),
+      region: z.enum(["bolivia", "latam", "eeuu"]).optional(),
+      modismos: z.boolean().optional(),
+      motor: z.enum(["groq", "openai", "gemini", "claude"]).optional(),
+      modelo: z.string().max(80).optional(),
+    },
+  },
+  async (args) =>
+    texto(await llamar("/api/premisa", { method: "POST", body: JSON.stringify(args) })),
+);
+
 servidor.registerTool(
   "escribir_guion",
   {
     description:
-      "Escribe un guion con gancho sin producir el video. Sirve para revisarlo antes de gastar voz y render.",
+      "Escribe un guion con gancho sin producir el video. Sirve para revisarlo antes de gastar voz y render. Con categoría (o 'aleatoria') plantea primero título y lineamientos.",
     inputSchema: {
       tipo: z.enum(["Reflexion", "Historia"]),
       tema: z.string().max(200).optional(),
+      categoria: categoriaSchema,
+      subcategoria: subcategoriaSchema,
+      premisa: premisaSchema.optional(),
       duracion: z.number().int().min(15).max(350).optional(),
       idioma: z.enum(["es", "en"]).optional(),
+      region: z.enum(["bolivia", "latam", "eeuu"]).optional(),
+      modismos: z.boolean().optional(),
       motor: z.enum(["groq", "openai", "gemini", "claude"]).optional(),
       modelo: z.string().max(80).optional(),
     },
@@ -122,8 +181,13 @@ servidor.registerTool(
     inputSchema: {
       tipo: z.enum(["Reflexion", "Historia"]),
       tema: z.string().max(200).optional(),
+      categoria: categoriaSchema,
+      subcategoria: subcategoriaSchema,
+      premisa: premisaSchema.optional(),
       duracion: z.number().int().min(15).max(350).optional(),
       idioma: z.enum(["es", "en"]).optional(),
+      region: z.enum(["bolivia", "latam", "eeuu"]).optional(),
+      modismos: z.boolean().optional(),
       motor: z.enum(["groq", "openai", "gemini", "claude"]).optional(),
       modelo: z.string().max(80).optional(),
       voz: vozSchema,
@@ -194,6 +258,17 @@ servidor.registerTool(
   },
   async ({ ideas }) =>
     texto(await llamar("/api/ideas", { method: "POST", body: JSON.stringify(ideas) })),
+);
+
+servidor.registerTool(
+  "importar_musica_suno",
+  {
+    description:
+      "Añade a la biblioteca de música una canción de Suno a partir de su enlace (https://suno.com/song/...). Queda disponible para series, historias y el editor, y sus créditos se añaden solos.",
+    inputSchema: { url: z.string().url() },
+  },
+  async ({ url }) =>
+    texto(await llamar("/api/musica/enlace", { method: "POST", body: JSON.stringify({ url }) })),
 );
 
 servidor.registerTool(

@@ -10,6 +10,7 @@ import {
   GENERO_VOZ_IA,
 } from "../servicios/voz.js";
 import { listarMusica } from "../almacen.js";
+import { catalogoCategorias, CATEGORIA_ALEATORIA } from "../servicios/categorias.js";
 import { tiktokConfigurado } from "../servicios/tiktok.js";
 import { redditConfigurado } from "../servicios/reddit.js";
 import { env } from "../env.js";
@@ -58,6 +59,9 @@ export async function rutasCatalogo(app: FastifyInstance) {
         { id: "eeuu", nombre: "EE. UU. (inglés)" },
       ],
       generosIA: GENERO_VOZ_IA,
+      /** Categorías y subcategorías de historia; `aleatoria` sortea una cada vez. */
+      categorias: catalogoCategorias(),
+      categoriaAleatoria: CATEGORIA_ALEATORIA,
       limites: { clipMB: env.MAX_CLIP_MB, videoMB: env.MAX_VIDEO_MB },
       retencionDias: env.RETENCION_DIAS,
     };

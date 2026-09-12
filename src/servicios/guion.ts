@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { env } from "../env.js";
 import { leerJSON } from "../util/http.js";
+import { resolverCategoria, buscarCategoria, type Categoria, type Subcategoria } from "./categorias.js";
 
 /**
  * Nombres de modelo por defecto. Los proveedores los renuevan a menudo, asi
@@ -230,6 +231,25 @@ export async function generarKeywords(textos: string[], idioma = "es", motor?: s
   }
 }
 
+/** Llama al motor elegido con el mismo sistema y devuelve el texto crudo. */
+async function textoConMotor(
+  motor: Motor,
+  prompt: string,
+  modelo?: string | null,
+  idioma = "es",
+  region = "bolivia",
+  modismos = true,
+) {
+  const m = modelo?.trim() || MODELOS[motor];
+  return motor === "claude"
+    ? textoConClaude(prompt, m, idioma, region, modismos)
+    : motor === "openai"
+      ? textoConOpenAI(prompt, m, idioma, region, modismos)
+      : motor === "gemini"
+        ? textoConGemini(prompt, m, idioma, region, modismos)
+        : textoConGroq(prompt, m, idioma, region, modismos);
+}
+
 export type EstiloNarracion = "plano" | "expresivo";
 
 /**
@@ -298,9 +318,105 @@ export const GuionSchema = z.object({
     .min(3)
     .max(60),
   hashtags: z.array(z.string().max(40)).max(8).default([]),
+  /** Categoría y subcategoría con las que se planteó; vacías = tema libre. */
+  categoria: z.string().max(40).nullable().default(null),
+  subcategoria: z.string().max(40).nullable().default(null),
+  /** Título y lineamientos generados antes de escribir, si se pasó por ese paso. */
+  premisa: z.lazy(() => PremisaSchema).nullable().default(null),
+  /** Criterios visuales generales EN INGLÉS para buscar clips de toda la historia. */
+  keywords: z.array(z.string().max(40)).max(8).default([]),
 });
 
 export type Guion = z.infer<typeof GuionSchema>;
+
+/**
+ * El planteamiento previo: antes de escribir la historia se decide el título,
+ * los lineamientos y el giro, y de ahí salen los criterios de búsqueda de
+ * clips. Así el guion no improvisa y los vídeos pegan con el género.
+ */
+export const PremisaSchema = z.object({
+  categoria: z.string().max(40),
+  subcategoria: z.string().max(40),
+  titulo: z.string().min(1).max(120),
+  /** Reglas que la historia debe cumplir: 3 a 6 frases cortas. */
+  lineamientos: z.array(z.string().min(1).max(200)).min(1).max(8),
+  personajes: z.array(z.string().min(1).max(120)).max(5).default([]),
+  /** El giro o remate que se guarda para el final. */
+  giro: z.string().max(300).default(""),
+  /** Criterios EN INGLÉS para buscar clips del ambiente general. */
+  keywords: z.array(z.string().min(1).max(40)).min(1).max(8),
+  hashtags: z.array(z.string().max(40)).max(8).default([]),
+});
+
+export type Premisa = z.infer<typeof PremisaSchema>;
+
+export type PeticionPremisa = {
+  motor: string;
+  modelo?: string | null;
+  /** Id de categoría, "aleatoria" o vacío (entonces también se elige al azar). */
+  categoria?: string | null;
+  subcategoria?: string | null;
+  tema?: string;
+  duracion?: number;
+  idioma?: string;
+  region?: string;
+  modismos?: boolean;
+  evitar?: (string | null)[];
+};
+
+/**
+ * Genera al azar (o dentro de la categoría pedida) el título y los
+ * lineamientos de una historia, sin escribirla todavía.
+ */
+export async function generarPremisa(p: PeticionPremisa): Promise<Premisa> {
+  if (!esMotor(p.motor)) throw new Error(`Motor desconocido: ${p.motor}`);
+  const elegida = resolverCategoria(p.categoria || "aleatoria", p.subcategoria);
+  if (!elegida) throw new Error("No se pudo elegir una categoría");
+  const { categoria, subcategoria } = elegida;
+  const idioma = p.idioma ?? "es";
+  const titulosPrevios = (p.evitar ?? []).filter(Boolean).slice(0, 20) as string[];
+
+  const prompt = [
+    "Antes de escribir un guion de vídeo vertical, PLANTEA la historia. No la escribas todavía.",
+    `Categoría: ${categoria.nombre}. Subcategoría: ${subcategoria.nombre} (${subcategoria.pista}).`,
+    `Tono del género: ${categoria.tono}`,
+    p.tema ? `Tema o punto de partida que hay que respetar: ${p.tema}.` : "Inventa una historia original y concreta, con un giro que no se vea venir.",
+    p.duracion ? `El vídeo durará unos ${p.duracion} segundos: la historia debe caber en ese tiempo.` : "",
+    "Nada de personas reales identificables ni de marcas; los personajes son inventados.",
+    titulosPrevios.length ? `Evita parecerse a estas historias ya hechas: ${titulosPrevios.join(" | ")}.` : "",
+    ORTOGRAFIA,
+    "",
+    "Devuelve exactamente este JSON:",
+    "{",
+    '  "titulo": "título corto y concreto, de 8 palabras como máximo",',
+    '  "lineamientos": ["regla 1 que la historia debe cumplir", "regla 2", "regla 3", "regla 4"],',
+    '  "personajes": ["nombre y un rasgo", "otro"],',
+    '  "giro": "el remate o giro que se guarda para el final, en una frase",',
+    '  "keywords": ["visual keyword in english", "another", "another"],',
+    '  "hashtags": ["sinAlmohadilla", "otro"]',
+    "}",
+    "Los lineamientos son de 3 a 6, cada uno una frase corta (dónde pasa, quién, qué está en juego, qué NO debe pasar).",
+    `Las keywords son de 3 a 6, EN INGLÉS, concretas y visuales, que describan el ambiente de toda la historia (por ejemplo: ${categoria.visual.slice(0, 3).map((v) => `'${v}'`).join(", ")}).`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const crudo = await textoConMotor(p.motor, prompt, p.modelo, idioma, p.region ?? "bolivia", p.modismos ?? true);
+  if (!crudo) throw new Error(`El motor ${p.motor} no devolvió contenido`);
+  const datos = extraerJSON(crudo) as Record<string, unknown>;
+  return PremisaSchema.parse({
+    ...datos,
+    categoria: categoria.id,
+    subcategoria: subcategoria.id,
+    hashtags: [...new Set([...(Array.isArray(datos.hashtags) ? datos.hashtags : []), ...categoria.hashtags])].slice(0, 8),
+  });
+}
+
+/** Criterios de búsqueda de clips de una historia: los suyos y los de su categoría. */
+export function criteriosVisuales(guion: Pick<Guion, "keywords" | "categoria" | "premisa">): string[] {
+  const cat = buscarCategoria(guion.categoria);
+  return [...new Set([...(guion.keywords ?? []), ...(guion.premisa?.keywords ?? []), ...(cat?.visual ?? [])])].slice(0, 10);
+}
 
 export type PeticionGuion = {
   motor: string;
@@ -321,17 +437,17 @@ export type PeticionGuion = {
   /** Gancho ya probado que hay que reutilizar tal cual. */
   ganchoFijo?: string | null;
   evitar?: (string | null)[];
+  /** Categoría ("aleatoria" = una al azar) y subcategoría; vacías = tema libre. */
+  categoria?: string | null;
+  subcategoria?: string | null;
+  /** Planteamiento ya hecho (título, lineamientos, giro); si falta y hay categoría, se genera. */
+  premisa?: Premisa | null;
 };
 
-function construirPrompt({
-  tipo,
-  tema,
-  duracion,
-  ganchoFijo,
-  narrado = true,
-  continuaDe,
-  evitar = [],
-}: PeticionGuion) {
+function construirPrompt(
+  { tipo, tema, duracion, ganchoFijo, narrado = true, continuaDe, evitar = [] }: PeticionGuion,
+  plan?: { categoria: Categoria; subcategoria: Subcategoria; premisa: Premisa | null } | null,
+) {
   // ~2,6 palabras por segundo de narración pausada; escenas de unos 8 s.
   const palabras = Math.round(duracion * 2.6);
   const escenas = Math.max(4, Math.min(45, Math.round(duracion / 8)));
@@ -345,7 +461,19 @@ function construirPrompt({
       ? `Lo que pasó hasta ahora: ${continuaDe.resumen}\nÚltima frase de la parte anterior: "${continuaDe.ultimaFrase}".\n` +
         "Continúa EXACTAMENTE desde ahí, sin repetir lo contado, y termina con un cierre que deje ganas de la siguiente parte."
       : "",
-    tema ? `Tema: ${tema}.` : continuaDe ? "" : "Tema: elige uno libremente, que sea universal y emotivo.",
+    plan
+      ? `Categoría: ${plan.categoria.nombre} › ${plan.subcategoria.nombre} (${plan.subcategoria.pista}). Tono: ${plan.categoria.tono}`
+      : "",
+    plan?.premisa
+      ? [
+          `Título ya decidido: "${plan.premisa.titulo}". Úsalo tal cual.`,
+          "Lineamientos que la historia DEBE cumplir:",
+          ...plan.premisa.lineamientos.map((l, i) => `  ${i + 1}. ${l}`),
+          plan.premisa.personajes.length ? `Personajes: ${plan.premisa.personajes.join("; ")}.` : "",
+          plan.premisa.giro ? `Giro o remate para el final (no lo adelantes): ${plan.premisa.giro}` : "",
+        ].filter(Boolean).join("\n")
+      : "",
+    tema ? `Tema: ${tema}.` : continuaDe || plan ? "" : "Tema: elige uno libremente, que sea universal y emotivo.",
     `Duración objetivo: ${duracion} segundos (unas ${palabras} palabras en total).`,
     `Divide el guion en ${escenas} escenas de una a tres frases cada una.`,
     ganchoFijo
@@ -376,6 +504,9 @@ function construirPrompt({
     '  "hashtags": ["sinAlmohadilla", "otro"]',
     "}",
     "Las keywords deben estar en inglés, ser concretas y visuales (por ejemplo: 'rainy window', 'sunrise mountains').",
+    plan
+      ? `Las keywords de cada escena deben ir con el ambiente del género: ${[...new Set([...(plan.premisa?.keywords ?? []), ...plan.categoria.visual])].slice(0, 6).join(", ")}.`
+      : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -385,29 +516,48 @@ export async function generarGuion(peticion: PeticionGuion): Promise<Guion> {
   if (!esMotor(peticion.motor)) throw new Error(`Motor desconocido: ${peticion.motor}`);
   const motor = peticion.motor;
   const modelo = peticion.modelo?.trim() || MODELOS[motor];
-  const prompt = construirPrompt(peticion);
-
   const idioma = peticion.idioma ?? "es";
   const region = peticion.region ?? "bolivia";
   const modismos = peticion.modismos ?? true;
-  const crudo = await (motor === "claude"
-    ? textoConClaude(prompt, modelo, idioma, region, modismos)
-    : motor === "openai"
-      ? textoConOpenAI(prompt, modelo, idioma, region, modismos)
-      : motor === "gemini"
-        ? textoConGemini(prompt, modelo, idioma, region, modismos)
-        : textoConGroq(prompt, modelo, idioma, region, modismos));
 
+  // Planteamiento previo: con categoría (o al azar) primero se decide título,
+  // lineamientos y giro, y solo después se escribe. Una continuación hereda
+  // el planteamiento de la parte anterior y no vuelve a plantear.
+  let premisa = peticion.premisa ?? null;
+  if (!premisa && peticion.categoria && !peticion.continuaDe) {
+    premisa = await generarPremisa({
+      motor, modelo, categoria: peticion.categoria, subcategoria: peticion.subcategoria,
+      tema: peticion.tema, duracion: peticion.duracion, idioma, region, modismos, evitar: peticion.evitar,
+    });
+  }
+  const elegida = resolverCategoria(premisa?.categoria ?? peticion.categoria, premisa?.subcategoria ?? peticion.subcategoria);
+  const plan = elegida ? { ...elegida, premisa } : null;
+
+  const prompt = construirPrompt(peticion, plan);
+  const crudo = await textoConMotor(motor, prompt, modelo, idioma, region, modismos);
   if (!crudo) throw new Error(`El motor ${motor} (${modelo}) no devolvio contenido`);
-  return GuionSchema.parse(extraerJSON(crudo));
+
+  const guion = GuionSchema.parse(extraerJSON(crudo));
+  if (premisa) guion.titulo = premisa.titulo;
+  return {
+    ...guion,
+    categoria: plan?.categoria.id ?? null,
+    subcategoria: plan?.subcategoria.id ?? null,
+    premisa,
+    keywords: [...new Set([...(premisa?.keywords ?? []), ...(plan?.categoria.visual ?? [])])].slice(0, 8),
+    hashtags: [...new Set([...guion.hashtags, ...(premisa?.hashtags ?? []), ...(plan?.categoria.hashtags ?? [])])].slice(0, 8),
+  };
 }
 
 /** Resumen breve y última frase de un guion, para pedir la parte siguiente. */
 export function contextoParaContinuar(guion: Guion, parte: number) {
   const frases = guion.escenas.map((e) => e.texto);
+  const lineamientos = guion.premisa?.lineamientos.length
+    ? ` Lineamientos de la historia: ${guion.premisa.lineamientos.join(" ")}`
+    : "";
   return {
     parte,
-    resumen: [guion.titulo, guion.gancho, ...frases].join(" ").slice(0, 1500),
+    resumen: ([guion.titulo, guion.gancho, ...frases].join(" ").slice(0, 1500) + lineamientos).slice(0, 1800),
     ultimaFrase: frases.at(-1) ?? guion.gancho,
   };
 }

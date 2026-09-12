@@ -79,7 +79,7 @@ export function App() {
         ) : pestana.ruta === "/series" ? (
           <Series catalogo={catalogo} />
         ) : pestana.ruta === "/historias" ? (
-          <Historias />
+          <Historias catalogo={catalogo} />
         ) : pestana.ruta === "/montaje" ? (
           <Montaje catalogo={catalogo} />
         ) : pestana.ruta === "/banco" ? (

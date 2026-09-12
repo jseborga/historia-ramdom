@@ -13,11 +13,13 @@ import { mensajeDe } from "../App";
 import {
   CampoSegundos,
   SelectorAudio,
+  SelectorCategoria,
   SelectorModo,
   SelectorMotor,
   SelectorMusica,
   SelectorRegion,
   SelectorVoz,
+  nombreCategoria,
 } from "./comunes";
 
 const EJEMPLOS_CRON: [string, string][] = [
@@ -46,6 +48,9 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
   const [region, setRegion] = useState<Region>("bolivia");
   const [modismos, setModismos] = useState(true);
   const [partes, setPartes] = useState(1);
+  const [categoria, setCategoria] = useState<string | null>(catalogo.categoriaAleatoria ?? "aleatoria");
+  const [subcategoria, setSubcategoria] = useState<string | null>(null);
+  const [musicaLista, setMusicaLista] = useState<string[]>(catalogo.musica);
   const [musicaModo, setMusicaModo] = useState<"FIJA" | "ROTAR">("FIJA");
   const [modoAudio, setModoAudio] = useState<ModoAudio>("VOZ");
   const [segundosEscena, setSegundosEscena] = useState<number | null>(null);
@@ -95,6 +100,8 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
           region,
           modismos,
           partes,
+          categoria,
+          subcategoria,
           cron,
           zonaHoraria,
           motor,
@@ -192,6 +199,12 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
             </select>
           </div>
           <SelectorRegion catalogo={catalogo} region={region} modismos={modismos} alCambiar={(r, m) => { setRegion(r); setModismos(m); }} />
+          <SelectorCategoria
+            catalogo={catalogo}
+            categoria={categoria}
+            subcategoria={subcategoria}
+            alCambiar={(c, sc) => { setCategoria(c); setSubcategoria(sc); }}
+          />
           <div>
             <label htmlFor="partes">Historia por partes</label>
             <select id="partes" value={partes} onChange={(e) => setPartes(Number(e.target.value))}>
@@ -212,7 +225,12 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
             </select>
           </div>
           {musicaModo === "FIJA" && (
-            <SelectorMusica catalogo={catalogo} valor={musica} alCambiar={setMusica} />
+            <SelectorMusica
+              catalogo={{ ...catalogo, musica: musicaLista }}
+              valor={musica}
+              alCambiar={setMusica}
+              alAmpliar={setMusicaLista}
+            />
           )}
           <SelectorModo valor={modo} alCambiar={setModo} tiktokListo={tiktokListo} />
         </div>
@@ -240,7 +258,7 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
                 <strong>{s.nombre}</strong>
                 <span className="estado">{s.activa ? "activa" : "en pausa"}</span>
                 <span className="suave">
-                  {s.tipo} · {s.idioma}/{s.region}{s.modismos ? "" : " neutro"}{s.partes > 1 ? ` · ${s.partes} partes` : ""} · {s.salida === "MONTAJE" ? "montaje" : "video"} · {s.modoAudio} · {s.cron} ({s.zonaHoraria}) · {s.motor}
+                  {s.tipo}{s.categoria ? ` · ${s.categoria === (catalogo.categoriaAleatoria ?? "aleatoria") ? "categoría al azar" : nombreCategoria(catalogo, s.categoria, s.subcategoria)}` : ""} · {s.idioma}/{s.region}{s.modismos ? "" : " neutro"}{s.partes > 1 ? ` · ${s.partes} partes` : ""} · {s.salida === "MONTAJE" ? "montaje" : "video"} · {s.modoAudio} · {s.cron} ({s.zonaHoraria}) · {s.motor}
                   {s.modelo ? ` (${s.modelo})` : ""} · {s.duracion}s ·{" "}
                   {s._count?.historias ?? 0} historias
                 </span>

@@ -224,11 +224,61 @@ y voz con OpenAI. Si dejas el campo vacío se usa el valor del entorno.
 
 ## Créditos para TikTok
 
-Cada escena guarda el clip que usó (id, fuente, autor, página y licencia). En la
-pestaña **Historias** hay dos botones: *Copiar descripción* (título, hashtags,
-aviso de contenido generado con IA y créditos) y *Copiar créditos* (solo la
-lista, por si prefieres pegarla en un comentario). La misma lista está en
-`GET /api/historias/:id/creditos`.
+Cada escena guarda el clip que usó (id, fuente, autor, página y licencia). La
+**descripción para publicar** es corta a propósito, porque en TikTok cada
+carácter cuenta: el gancho, hasta seis hashtags, los créditos agrupados por
+fuente en una sola línea (`Clips: Pexels (Ana, Luis) · Pixabay (Pedro)`), la
+música si es de Suno y el aviso de contenido creado con IA.
+
+```
+Nadie te contó lo de la casa del fondo.
+#terror #casaembrujada #miedo
+Clips: Pexels (Ana, Luis) · Pixabay (Pedro)
+Música: Suno — https://suno.com/song/1f6a0b0e-…
+Contenido creado con IA.
+```
+
+La **lista completa** (un clip por línea con su enlace) sigue disponible para
+pegarla en un comentario o guardarla: *Copiar créditos* en Historias,
+`GET /api/historias/:id/creditos`, y en Montaje el `.txt` de créditos, que lleva
+la descripción corta arriba y la lista completa debajo.
+
+## Categorías y planteamiento previo
+
+Antes de escribir, la historia se puede **plantear**: se elige una categoría y
+una subcategoría (o se sortean al azar), y el modelo decide título,
+lineamientos, personajes, giro final y los criterios de búsqueda de clips.
+Solo después escribe el guion, obligado a respetar ese planteamiento. Así las
+historias no improvisan y los vídeos de fondo pegan con el género aunque la
+frase concreta no lo diga.
+
+Categorías: comedia, drama, terror, historia real, triunfo y superación, engaño
+y traición, misterio, romance, aventura, reflexión, ciencia y curiosidades y
+crimen; cada una con sus subcategorías (por ejemplo terror › casa embrujada,
+carretera de noche, leyenda urbana, tecnología, bosque, ritual). Están en
+`src/servicios/categorias.ts`, con el tono de cada género, palabras visuales en
+inglés para buscar clips y hashtags cortos. La lista llega al frontend en
+`GET /api/catalogo` (`categorias`).
+
+Dónde se usa:
+
+- **Editor** (pestaña Crear): selector de categoría y subcategoría, botón
+  *Plantear al azar (título y lineamientos)* que muestra el planteamiento para
+  revisarlo o cambiarlo (título, lineamientos, giro, criterios de clips), y
+  después *Escribir guion con este planteamiento*. Sin categoría se escribe
+  directo, como antes.
+- **Series**: categoría fija, *al azar una distinta cada vez* o sin categoría.
+  Cada ejecución plantea y escribe; las partes siguientes de una historia
+  heredan la categoría concreta de la primera y no vuelven a plantear.
+- **API**: `POST /api/premisa` devuelve el planteamiento; `POST /api/guion` y
+  `POST /api/historias` aceptan `categoria`, `subcategoria` y `premisa`.
+- **MCP**: `listar_categorias`, `plantear_historia`, y `categoria`,
+  `subcategoria` y `premisa` en `escribir_guion` y `crear_historia`.
+
+El guion guarda `categoria`, `subcategoria`, `premisa` y `keywords` (criterios
+generales de clips). El ensamblador del editor busca clips con esos criterios
+además de con lo que dice cada frase, así que un montaje de terror sale con
+pasillos oscuros aunque la narración hable de una llamada.
 
 ## Editor de montaje
 
@@ -417,8 +467,9 @@ API desplegada usando `API_TOKEN`. No abre ningún puerto nuevo en el servidor.
 ```
 
 Herramientas disponibles: `catalogo`, `diagnostico`, `listar_series`,
-`listar_historias`, `escribir_guion`, `crear_historia`, `programar_subida`,
-`listar_ideas`, `agregar_ideas`, `rendimiento` y `sincronizar_metricas`. Con ellas puedes pedir
+`listar_historias`, `listar_categorias`, `plantear_historia`, `escribir_guion`,
+`crear_historia`, `programar_subida`, `listar_ideas`, `agregar_ideas`,
+`importar_musica_suno`, `rendimiento` y `sincronizar_metricas`. Con ellas puedes pedir
 cosas como *"mira qué ganchos rindieron mejor este mes y prepárame tres
 historias en inglés para el viernes"*.
 
@@ -479,6 +530,26 @@ en la app móvil.
 
 Copia archivos con licencia libre en `/data/musica`. Aparecen en el selector de
 música del editor y de las series.
+
+### Desde un enlace de Suno
+
+Para la música de ambiente puedes pegar el enlace de una canción de Suno
+(`https://suno.com/song/<id>`): en el selector de música de Crear y Series hay
+un campo *Música desde Suno*, y en el editor de montaje otro en la pestaña
+Música. La app saca el id del enlace, descarga el audio **solo desde el CDN de
+Suno** (nunca sigue una URL arbitraria), comprueba con ffprobe que es audio y
+lo guarda como `suno-<id>.mp3`: en `/data/musica` (biblioteca compartida, sirve
+para rotar en las series) o dentro del proyecto si se añade desde el editor.
+También por API: `POST /api/musica/enlace { url }` y
+`POST /api/proyectos/:id/musica-enlace { url }`, o la herramienta MCP
+`importar_musica_suno`.
+
+De ese nombre de archivo sale el crédito, que se añade solo a la descripción y
+a los metadatos del MP4: `Música: Suno — https://suno.com/song/<id>`. Usa
+canciones tuyas: en el plan gratuito de Suno son de uso no comercial, y en los
+de pago la licencia es tuya. Si Suno no deja descargar una canción (privada o
+borrada), la app lo dice y puedes descargarla desde Suno y subirla como
+archivo.
 
 ## Licencia de los clips
 
