@@ -14,6 +14,8 @@ export function Montaje({ catalogo }: { catalogo: Catalogo }) {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [abierto, setAbierto] = useState<string | null>(null);
   const [desde, setDesde] = useState("");
+  /** Proyecto que se esta viendo de corrido en la lista. */
+  const [viendo, setViendo] = useState<string | null>(null);
   const [formato, setFormato] = useState("tiktok");
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
@@ -125,8 +127,16 @@ export function Montaje({ catalogo }: { catalogo: Catalogo }) {
                 </span>
               </div>
               {p.error && <pre>{p.error}</pre>}
+              {viendo === p.id && p.archivo && (
+                <video className="reproductor" src={`/api/proyectos/${p.id}/ver`} controls autoPlay />
+              )}
               <div className="pie">
                 <button onClick={() => setAbierto(p.id)}>Abrir editor</button>
+                {p.archivo && (
+                  <button onClick={() => setViendo(viendo === p.id ? null : p.id)}>
+                    {viendo === p.id ? "Cerrar" : "Ver de corrido"}
+                  </button>
+                )}
                 {p.archivo && (
                   <a className="boton" href={`/api/proyectos/${p.id}/descargar`}>
                     Descargar MP4

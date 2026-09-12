@@ -8,7 +8,8 @@ import { rutaVideo, crearCarpetaProyecto, rutaSubidaSegura, listarMusica } from 
 import { PRESETS } from "../render/presets.js";
 import { tieneAudio } from "../render/ffmpeg.js";
 import { fuentesDisponibles, archivoDeFuente } from "../render/fuentes.js";
-import { GuionSchema } from "../servicios/guion.js";
+import { GuionSchema, generarKeywords } from "../servicios/guion.js";
+import { elegirClips } from "../servicios/clips.js";
 import {
   ProyectoSchema,
   lineaDeTiempoDesdeGuion,
@@ -173,6 +174,35 @@ export async function rutasProyectos(app: FastifyInstance) {
     }
 
     return reply.code(201).send({ archivo: nombre });
+  });
+
+  /**
+   * Busca automaticamente un clip parecido a cada escena: saca palabras clave
+   * visuales del texto (con el LLM si hay, si no por heuristica) y elige un
+   * clip por escena sin descargar nada. Por defecto solo rellena las vacias.
+   */
+  app.post("/api/proyectos/:id/clips-automaticos", async (req) => {
+    const { id } = idParam.parse(req.params);
+    const { escenas, soloVacias, idioma } = z
+      .object({
+        escenas: z.array(z.object({ id: z.string(), texto: z.string(), tieneClip: z.boolean() })).max(60),
+        soloVacias: z.boolean().default(true),
+        idioma: z.enum(["es", "en"]).default("es"),
+      })
+      .parse(req.body);
+    await db.proyecto.findUniqueOrThrow({ where: { id } });
+
+    const objetivo = escenas.filter((e) => e.texto.trim() && (!soloVacias || !e.tieneClip));
+    if (!objetivo.length) return { clips: {}, keywords: {} };
+
+    const keywords = await generarKeywords(objetivo.map((e) => e.texto), idioma);
+    const usados = new Set<string>();
+    const elegidos = await elegirClips(keywords.map((k) => ({ keywords: k })), usados);
+
+    return {
+      clips: Object.fromEntries(objetivo.map((e, i) => [e.id, elegidos[i]])),
+      keywords: Object.fromEntries(objetivo.map((e, i) => [e.id, keywords[i]])),
+    };
   });
 
   app.post("/api/proyectos/:id/render", async (req, reply) => {

@@ -77,6 +77,33 @@ la vista previa usa la letra que después quemará ffmpeg.
 Cada escena tiene además *Otro clip al azar*, que busca con su propio texto y
 cambia el clip por otro distinto al actual.
 
+## Clips automáticos, parecidos a la escena
+
+*Completar clips automáticos* (barra superior) rellena las escenas que no tienen
+clip; *Buscar clip parecido* (en la escena) lo hace solo con la actual, aunque
+ya tuviera uno. En los dos casos el servidor saca de cada texto una a tres
+**palabras clave visuales en inglés** con el primer motor de IA que tenga clave
+—una sola llamada para todas las escenas— y elige un clip parecido sin
+descargarlo. Sin ningún motor configurado cae en una heurística con las
+palabras largas del propio texto: peor, pero no se queda vacío.
+
+## Párrafos largos que se van leyendo
+
+Una escena admite hasta **2 000 caracteres y 180 segundos**: un párrafo entero
+leído despacio. *Cómo se va leyendo* decide cómo se muestra:
+
+| Lectura | Qué hace |
+|---|---|
+| todo | El texto entero desde el principio |
+| frase a frase | Corta en `. ! ? …` y pega las frases de menos de tres palabras a la anterior |
+| por bloques | Grupos de ocho palabras, prefiriendo cortar en comas |
+
+El tiempo de la escena se reparte entre los trozos en proporción a sus palabras,
+con un mínimo de 1,1 s por trozo cuando cabe. La vista previa usa **la misma
+función de corte** que el servidor, así que enseña los mismos trozos en los
+mismos instantes. Con voz de IA, la escena se estira a lo que dure el audio y
+los trozos se reparten sobre esa duración real.
+
 ## Animaciones
 
 Cuatro, elegidas porque ffmpeg las reproduce **exactamente** igual que la vista
@@ -88,6 +115,28 @@ previa, vía etiquetas ASS:
 | `fundido` | Entra y sale fundido | `\fad(300,300)` |
 | `subir` | Sube 70 px al entrar | `\move(...)` + fundido |
 | `zoom` | Entra al 82 % y crece | `\t(\fscx\fscy)` + fundido |
+| `resaltar` | Ilumina palabra a palabra al ritmo del trozo | Karaoke ASS `\kf` por palabra, con color secundario apagado |
+
+## Efectos de imagen
+
+Sobre el clip o el fondo de cada escena, ya encajado en el lienzo:
+
+| Efecto | En el render | En la vista previa |
+|---|---|---|
+| zoom lento | `crop` que se encoge un 12 % con el tiempo y vuelve a escalar (Ken Burns) | `transform: scale` animado |
+| fundido a negro | `fade` de entrada y salida de hasta 0,5 s | opacidad animada |
+| blanco y negro | `hue=s=0` | `filter: grayscale` |
+| viñeta | `vignette` | degradado radial superpuesto |
+
+Uno por escena. El panel **Formato** tiene además un **estilo global** —letra,
+tamaño, color, contorno, animación, lectura y efecto— que se aplica a todas las
+escenas de golpe, respetando la posición de cada una.
+
+## Ver el resultado
+
+El editor no muestra el vídeo terminado: cuando el render acaba aparece solo un
+enlace *MP4 listo: descargar* en la barra. Para verlo de corrido, en la lista de
+**Montaje** cada proyecto tiene *Ver de corrido* y *Descargar MP4*.
 
 ## Formatos
 
@@ -125,7 +174,11 @@ Para que quede claro qué esperar:
   de vídeo.
 - **No hay fotogramas clave** ni curvas de animación: las cuatro animaciones son
   de entrada, no programables.
-- **No hay transiciones entre escenas**, solo cortes.
+- **No hay transiciones entre escenas**, solo cortes (el fundido a negro por
+  escena es lo más parecido).
+- **El karaoke reparte el tiempo por longitud de palabra**, no por el audio
+  real: con voz de IA va aproximadamente a la par, no sincronizado al
+  milisegundo.
 - **La vista previa es orientativa.** Posición, tamaño, color y animación se
   corresponden con el render, pero el salto de línea puede caer distinto unos
   píxeles, porque el navegador y libass no miden el texto igual.

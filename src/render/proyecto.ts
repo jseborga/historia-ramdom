@@ -2,7 +2,7 @@ import { stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { env, MAX_VIDEO_BYTES, MB } from "../env.js";
 import { ffmpeg, duracion } from "./ffmpeg.js";
-import { buscarPreset, filtroLienzo, type Preset } from "./presets.js";
+import { buscarPreset, filtroEscena, type Preset } from "./presets.js";
 import { crearASSProyecto, type Rotulo } from "./rotulos.js";
 import { descargarClip } from "../servicios/clips.js";
 import { generarVoz } from "../servicios/voz.js";
@@ -33,7 +33,6 @@ export type EntradaRender = {
  */
 export async function renderizarProyecto(dir: string, entrada: EntradaRender) {
   const preset = buscarPreset(entrada.formato);
-  const vf = filtroLienzo(preset);
   const conVozIA = entrada.voz.modo === "ia";
   const conVozArchivo = entrada.voz.modo === "archivo" && Boolean(entrada.rutaVoz);
 
@@ -60,8 +59,9 @@ export async function renderizarProyecto(dir: string, entrada: EntradaRender) {
       d = Math.max(d, dAudio);
     }
 
-    // 2. Imagen de la escena: el clip elegido o un fondo de color liso.
+    // 2. Imagen de la escena: el clip elegido o un fondo de color liso, con su efecto.
     const v = `v${i}.mp4`;
+    const vf = filtroEscena(preset, escena.efecto, d);
     if (escena.clip) {
       const clip = `c${i}.mp4`;
       await descargarClip(escena.clip.url, join(dir, clip));
@@ -75,7 +75,7 @@ export async function renderizarProyecto(dir: string, entrada: EntradaRender) {
       await ffmpeg(
         ["-f", "lavfi",
          "-i", `color=c=${color}:s=${preset.ancho}x${preset.alto}:r=${preset.fps}:d=${d.toFixed(3)}`,
-         "-vf", "format=yuv420p", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", v],
+         "-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", v],
         dir,
       );
     }
@@ -107,6 +107,7 @@ export async function renderizarProyecto(dir: string, entrada: EntradaRender) {
       texto: escena.texto,
       estilo: escena.estilo,
       animacion: escena.animacion,
+      lectura: escena.lectura,
     });
     t += d;
   }

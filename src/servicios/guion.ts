@@ -143,6 +143,67 @@ export async function textoConClaude(prompt: string, modelo = MODELOS.claude, id
     .join("");
 }
 
+/** El primer motor con clave configurada, para tareas pequenas sin elegir. */
+export function motorDisponible(): Motor | null {
+  const orden: [Motor, string | undefined][] = [
+    ["groq", env.GROQ_API_KEY],
+    ["gemini", env.GEMINI_API_KEY],
+    ["openai", env.OPENAI_API_KEY],
+    ["claude", env.ANTHROPIC_API_KEY],
+  ];
+  return orden.find(([, clave]) => clave)?.[0] ?? null;
+}
+
+const STOP = new Set(
+  ("de la el los las un una y o que en a por para con sin es son se su sus al del lo le " +
+   "the a an of to in on and or is are was were for with at by from this that it as be").split(" "),
+);
+
+/** Sin motor a mano: palabras largas del propio texto, mejor que nada. */
+function keywordsHeuristicas(texto: string): string[] {
+  const ws = texto.toLowerCase().replace(/[^\p{L}\s]/gu, " ").split(/\s+/)
+    .filter((w) => w.length >= 5 && !STOP.has(w));
+  return [...new Set(ws)].slice(0, 2).length ? [...new Set(ws)].slice(0, 2) : ["cinematic"];
+}
+
+const KeywordsSchema = z.object({
+  keywords: z.array(z.array(z.string().min(1).max(40)).min(1).max(3)),
+});
+
+/**
+ * Palabras clave visuales en ingles para buscar un clip parecido a cada texto.
+ * Una sola llamada para todas las escenas; sin motor cae en la heuristica.
+ */
+export async function generarKeywords(textos: string[], idioma = "es", motor?: string | null) {
+  const elegido = (motor && esMotor(motor) ? motor : null) ?? motorDisponible();
+  if (!elegido || !textos.length) return textos.map(keywordsHeuristicas);
+
+  const prompt = [
+    "Para cada uno de estos textos de un video vertical, da de 1 a 3 palabras clave EN INGLES,",
+    "concretas y visuales, para buscar un video de archivo que se parezca a lo que describe",
+    "(ejemplos: 'rainy window', 'sunrise mountains', 'person walking city night').",
+    "Devuelve exactamente este JSON, con un array por texto y en el mismo orden:",
+    '{ "keywords": [["palabra", "otra"], ["palabra"]] }',
+    "",
+    ...textos.map((t, i) => `${i + 1}. ${t.replace(/\s+/g, " ").slice(0, 300)}`),
+  ].join("\n");
+
+  try {
+    const crudo = await (elegido === "claude"
+      ? textoConClaude(prompt, MODELOS.claude, idioma)
+      : elegido === "openai"
+        ? textoConOpenAI(prompt, MODELOS.openai, idioma)
+        : elegido === "gemini"
+          ? textoConGemini(prompt, MODELOS.gemini, idioma)
+          : textoConGroq(prompt, MODELOS.groq, idioma));
+    const { keywords } = KeywordsSchema.parse(extraerJSON(crudo));
+    // Si el modelo devolvio menos filas, el resto va por heuristica.
+    return textos.map((t, i) => keywords[i] ?? keywordsHeuristicas(t));
+  } catch {
+    return textos.map(keywordsHeuristicas);
+  }
+}
+
 export const GuionSchema = z.object({
   titulo: z.string().min(1).max(120),
   /** Primera frase del video: abre un bucle y decide si se quedan o no. */

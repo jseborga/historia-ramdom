@@ -35,10 +35,15 @@ export const EscenaSchema = z.object({
   /** null = fondo de color liso, util mientras se decide el clip. */
   clip: ClipSchema.nullable().default(null),
   color: hex.default("#111318"),
-  duracion: z.number().min(0.5).max(60).default(DURACION_ESCENA),
-  texto: z.string().max(400).default(""),
+  /** Hasta tres minutos: una escena puede ser un parrafo entero leido despacio. */
+  duracion: z.number().min(0.5).max(180).default(DURACION_ESCENA),
+  texto: z.string().max(2000).default(""),
   estilo: EstiloSchema.default({}),
-  animacion: z.enum(["ninguna", "fundido", "subir", "zoom"]).default("fundido"),
+  animacion: z.enum(["ninguna", "fundido", "subir", "zoom", "resaltar"]).default("fundido"),
+  /** Como se va mostrando el texto: entero, frase a frase o por bloques. */
+  lectura: z.enum(["todo", "frases", "bloques"]).default("frases"),
+  /** Efecto de imagen sobre el clip o el fondo. */
+  efecto: z.enum(["ninguno", "zoomLento", "fundido", "blancoYNegro", "vineta"]).default("ninguno"),
   esGancho: z.boolean().default(false),
 });
 
@@ -104,6 +109,8 @@ export function lineaDeTiempoDesdeGuion(
     texto,
     estilo: i === 0 ? estiloGancho : ESTILO_POR_DEFECTO,
     animacion: i === 0 ? "zoom" : "fundido",
+    lectura: "frases" as const,
+    efecto: i === 0 ? ("zoomLento" as const) : ("ninguno" as const),
     esGancho: i === 0,
   }));
 }

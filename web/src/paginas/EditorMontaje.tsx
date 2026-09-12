@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   api,
+  type Animacion,
   type Catalogo,
   type ClipCandidato,
+  type Efecto,
   type EscenaMontaje,
+  type EstiloTexto,
   type Fuente,
   type MusicaCapa,
   type Preset,
@@ -15,7 +18,25 @@ import { SelectorVoz } from "./comunes";
 import { Lienzo } from "./Lienzo";
 import { BuscadorClips } from "./BuscadorClips";
 
-const ANIMACIONES = ["ninguna", "fundido", "subir", "zoom"] as const;
+const ANIMACIONES: [Animacion, string][] = [
+  ["ninguna", "ninguna"],
+  ["fundido", "fundido"],
+  ["subir", "subir"],
+  ["zoom", "zoom"],
+  ["resaltar", "resaltar palabra a palabra"],
+];
+const EFECTOS: [Efecto, string][] = [
+  ["ninguno", "ninguno"],
+  ["zoomLento", "zoom lento"],
+  ["fundido", "fundido a negro"],
+  ["blancoYNegro", "blanco y negro"],
+  ["vineta", "vineta"],
+];
+const LECTURAS: [EscenaMontaje["lectura"], string][] = [
+  ["todo", "todo el texto a la vez"],
+  ["frases", "frase a frase"],
+  ["bloques", "por bloques de 8 palabras"],
+];
 const POSICIONES = ["arriba", "centro", "abajo"] as const;
 
 const nuevaEscena = (): EscenaMontaje => ({
@@ -33,6 +54,8 @@ const nuevaEscena = (): EscenaMontaje => ({
     negrita: false,
   },
   animacion: "fundido",
+  lectura: "frases",
+  efecto: "ninguno",
   esGancho: false,
 });
 
@@ -52,6 +75,9 @@ export function EditorMontaje({
   const [indice, setIndice] = useState(0);
   const [panel, setPanel] = useState<"escena" | "capas" | "salida">("escena");
   const [buscando, setBuscando] = useState(false);
+  const [completando, setCompletando] = useState(false);
+  /** Estilo global del panel Formato: se aplica a todas y a las escenas nuevas. */
+  const [global, setGlobal] = useState<EstiloTexto & { animacion: Animacion; lectura: EscenaMontaje["lectura"]; efecto: Efecto } | null>(null);
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -122,6 +148,49 @@ export function EditorMontaje({
       })),
     });
     setOk("Estilo aplicado a todas las escenas.");
+  }
+
+  /**
+   * Clips automaticos: saca palabras clave visuales de cada texto (LLM si hay,
+   * heuristica si no) y elige un clip parecido. Por defecto solo las vacias.
+   */
+  async function completarClips(soloVacias: boolean, soloEsta = false) {
+    setCompletando(true);
+    setError("");
+    try {
+      const objetivo = soloEsta && escena ? [escena] : escenas;
+      const r = await api.post<{ clips: Record<string, ClipCandidato | null> }>(
+        `/api/proyectos/${proyecto!.id}/clips-automaticos`,
+        {
+          escenas: objetivo.map((e) => ({ id: e.id, texto: e.texto, tieneClip: Boolean(e.clip) })),
+          soloVacias,
+        },
+      );
+      const cuantos = Object.values(r.clips).filter(Boolean).length;
+      actualizar({
+        escenas: escenas.map((e) => (r.clips[e.id] ? { ...e, clip: r.clips[e.id] } : e)),
+      });
+      setOk(cuantos ? `${cuantos} clip(s) encontrados.` : "No habia escenas que rellenar.");
+    } catch (err) {
+      setError(mensajeDe(err));
+    } finally {
+      setCompletando(false);
+    }
+  }
+
+  function aplicarGlobal(valor = global) {
+    if (!valor) return;
+    const { animacion, lectura, efecto, ...estilo } = valor;
+    actualizar({
+      escenas: escenas.map((e) => ({
+        ...e,
+        estilo: { ...estilo, posicion: e.estilo.posicion },
+        animacion,
+        lectura,
+        efecto,
+      })),
+    });
+    setOk("Estilo global aplicado a todas las escenas.");
   }
 
   /** Otro clip al azar para la escena, buscando con su propio texto. */
@@ -216,27 +285,20 @@ export function EditorMontaje({
         <button className="primario" onClick={renderizar} disabled={proyecto.estado === "RENDER"}>
           {proyecto.estado === "RENDER" ? "Renderizando..." : "Renderizar MP4"}
         </button>
+        <button onClick={() => completarClips(true)} disabled={completando}>
+          {completando ? "Buscando clips..." : "Completar clips automaticos"}
+        </button>
+        {proyecto.estado === "LISTO" && proyecto.archivo && (
+          <a className="boton" href={`/api/proyectos/${proyecto.id}/descargar`}>
+            MP4 listo: descargar
+          </a>
+        )}
       </div>
 
       {error && <p className="aviso error">{error}</p>}
       {ok && <p className="aviso ok">{ok}</p>}
       {proyecto.estado === "ERROR" && proyecto.error && (
         <pre>{proyecto.error}</pre>
-      )}
-
-      {proyecto.estado === "LISTO" && proyecto.archivo && (
-        <section className="tarjeta">
-          <h2>Video listo</h2>
-          <video className="reproductor" src={`/api/proyectos/${proyecto.id}/ver`} controls />
-          <div className="pie">
-            <a className="boton" href={`/api/proyectos/${proyecto.id}/descargar`}>
-              Descargar MP4
-            </a>
-            <span className="suave">
-              {proyecto.duracionSeg?.toFixed(1)} s · {preset?.nombre}
-            </span>
-          </div>
-        </section>
       )}
 
       <div className="montaje">
@@ -302,17 +364,45 @@ export function EditorMontaje({
                   />
                 </div>
                 <div>
-                  <label htmlFor="anim">Animacion</label>
+                  <label htmlFor="anim">Animacion del texto</label>
                   <select
                     id="anim"
                     value={escena.animacion}
+                    onChange={(e) => cambiarEscena({ animacion: e.target.value as Animacion })}
+                  >
+                    {ANIMACIONES.map(([v, n]) => (
+                      <option key={v} value={v}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="lectura">Como se va leyendo</label>
+                  <select
+                    id="lectura"
+                    value={escena.lectura}
                     onChange={(e) =>
-                      cambiarEscena({ animacion: e.target.value as EscenaMontaje["animacion"] })
+                      cambiarEscena({ lectura: e.target.value as EscenaMontaje["lectura"] })
                     }
                   >
-                    {ANIMACIONES.map((a) => (
-                      <option key={a} value={a}>
-                        {a}
+                    {LECTURAS.map(([v, n]) => (
+                      <option key={v} value={v}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="efecto">Efecto de imagen</label>
+                  <select
+                    id="efecto"
+                    value={escena.efecto}
+                    onChange={(e) => cambiarEscena({ efecto: e.target.value as Efecto })}
+                  >
+                    {EFECTOS.map(([v, n]) => (
+                      <option key={v} value={v}>
+                        {n}
                       </option>
                     ))}
                   </select>
@@ -392,6 +482,9 @@ export function EditorMontaje({
                 <button onClick={aplicarEstiloATodas}>Aplicar estilo a todas</button>
                 <button onClick={() => setBuscando(!buscando)}>
                   {buscando ? "Cerrar clips" : escena.clip ? "Cambiar clip" : "Elegir clip"}
+                </button>
+                <button onClick={() => completarClips(false, true)} disabled={completando}>
+                  Buscar clip parecido
                 </button>
                 <button onClick={clipAlAzar}>Otro clip al azar</button>
                 {!escena.clip && (
@@ -541,6 +634,76 @@ export function EditorMontaje({
                   </p>
                 </>
               )}
+
+              <h3 style={{ marginTop: 20 }}>Estilo para todas las escenas</h3>
+              <p className="suave">
+                Letra, colores, animacion, lectura y efecto iguales en todo el video. La posicion de
+                cada escena se respeta.
+              </p>
+              {(() => {
+                const g = global ?? {
+                  ...(escena?.estilo ?? nuevaEscena().estilo),
+                  animacion: escena?.animacion ?? "fundido",
+                  lectura: escena?.lectura ?? "frases",
+                  efecto: escena?.efecto ?? "ninguno",
+                };
+                const set = (c: Partial<typeof g>) => setGlobal({ ...g, ...c });
+                return (
+                  <>
+                    <div className="campos">
+                      <div>
+                        <label htmlFor="gFuente">Tipo de letra</label>
+                        <select id="gFuente" value={g.fuente} onChange={(e) => set({ fuente: e.target.value })}>
+                          {(fuentes.length ? fuentes : [{ id: "x", nombre: g.fuente, estilo: "serif" as const }]).map((f) => (
+                            <option key={f.id} value={f.nombre}>{f.nombre}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label htmlFor="gTam">Tamano</label>
+                        <input id="gTam" type="number" min={20} max={200} value={g.tamano}
+                          onChange={(e) => set({ tamano: Number(e.target.value) || 66 })} />
+                      </div>
+                      <div>
+                        <label htmlFor="gCol">Color de letra</label>
+                        <input id="gCol" type="color" value={g.color} onChange={(e) => set({ color: e.target.value })} />
+                      </div>
+                      <div>
+                        <label htmlFor="gCont">Contorno</label>
+                        <input id="gCont" type="color" value={g.contorno} onChange={(e) => set({ contorno: e.target.value })} />
+                      </div>
+                      <div>
+                        <label htmlFor="gAnim">Animacion del texto</label>
+                        <select id="gAnim" value={g.animacion} onChange={(e) => set({ animacion: e.target.value as Animacion })}>
+                          {ANIMACIONES.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label htmlFor="gLect">Como se va leyendo</label>
+                        <select id="gLect" value={g.lectura} onChange={(e) => set({ lectura: e.target.value as EscenaMontaje["lectura"] })}>
+                          {LECTURAS.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label htmlFor="gEf">Efecto de imagen</label>
+                        <select id="gEf" value={g.efecto} onChange={(e) => set({ efecto: e.target.value as Efecto })}>
+                          {EFECTOS.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="pie">
+                      <label className="suave">
+                        <input type="checkbox" style={{ width: "auto", marginRight: 6 }} checked={g.negrita}
+                          onChange={(e) => set({ negrita: e.target.checked })} />
+                        Negrita
+                      </label>
+                      <button className="primario" onClick={() => { setGlobal(g); aplicarGlobal(g); }}>
+                        Aplicar a todas las escenas
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
             </section>
           )}
         </div>

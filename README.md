@@ -28,6 +28,9 @@ Implementa la guía de `docs/guia-original.md`.
   con estilo y animaciones, capas de voz y música, y presets de formato por red
   ([`docs/editor.md`](docs/editor.md)). Las series pueden dejar cada ejecución
   como montaje precargado para revisar antes de renderizar.
+- **Párrafos largos y karaoke.** Escenas de hasta tres minutos que se van
+  leyendo frase a frase o por bloques, con resaltado palabra a palabra, clips
+  encontrados automáticamente por parecido con el texto y efectos de imagen.
 - **Voz local por defecto.** `espeak-ng` en el servidor: robótica, pero gratis,
   sin clave y siempre disponible. Gemini y OpenAI cuando se quiera más.
 - **Vista previa.** El MP4 se reproduce en la propia app antes de descargarlo, y

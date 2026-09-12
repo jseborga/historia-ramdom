@@ -82,7 +82,8 @@ export type Preset = {
 };
 
 export type Posicion = "arriba" | "centro" | "abajo";
-export type Animacion = "ninguna" | "fundido" | "subir" | "zoom";
+export type Animacion = "ninguna" | "fundido" | "subir" | "zoom" | "resaltar";
+export type Efecto = "ninguno" | "zoomLento" | "fundido" | "blancoYNegro" | "vineta";
 
 export type EstiloTexto = {
   fuente: string;
@@ -101,6 +102,8 @@ export type EscenaMontaje = {
   texto: string;
   estilo: EstiloTexto;
   animacion: Animacion;
+  lectura: "todo" | "frases" | "bloques";
+  efecto: Efecto;
   esGancho: boolean;
 };
 

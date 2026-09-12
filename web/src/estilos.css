@@ -169,6 +169,19 @@ form.login { max-width: 340px; margin: 15vh auto 0; display: grid; gap: 12px; }
 
 .lienzo video, .lienzo .fondo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 
+/* Efectos de imagen, aproximados en CSS a lo que hace ffmpeg */
+@keyframes zoomLento { from { transform: scale(1); } to { transform: scale(1.12); } }
+@keyframes fundidoEscena { 0% { opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { opacity: 0; } }
+.efecto-zoomLento .capa { animation: zoomLento var(--dur, 4s) linear both; transform-origin: center; }
+.efecto-fundido .capa { animation: fundidoEscena var(--dur, 4s) linear both; }
+.efecto-blancoYNegro .capa { filter: grayscale(1); }
+.vineta { position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.75) 100%); }
+
+/* Karaoke: cada palabra pasa de apagada a encendida en su momento */
+@keyframes iluminar { from { opacity: 0.45; filter: saturate(0.3); } to { opacity: 1; filter: none; } }
+.anim-resaltar .palabra { display: inline; animation: iluminar 0.18s ease both; }
+
 .rotulo {
   position: absolute;
   left: 6%;

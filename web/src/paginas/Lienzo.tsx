@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { EscenaMontaje, Preset } from "../api";
+import { fragmentar, repartirTiempo, retardosKaraoke } from "../lectura";
 
 /**
  * Vista previa del montaje. Reproduce las escenas en secuencia con sus
- * duraciones reales y rotula el texto en la misma posicion, tamano y animacion
- * que despues quemara ffmpeg.
+ * duraciones reales, va mostrando el texto por fragmentos como hara el render,
+ * y aproxima con CSS los efectos de imagen y el karaoke de palabras.
  */
 export function Lienzo({
   escenas,
@@ -19,50 +20,71 @@ export function Lienzo({
 }) {
   const [reproduciendo, setReproduciendo] = useState(false);
   const [leer, setLeer] = useState(true);
+  const [fragmento, setFragmento] = useState(0);
   const escena = escenas[indice];
   const hayVozNavegador = typeof window !== "undefined" && "speechSynthesis" in window;
 
-  // Voz del navegador para probar el ritmo sin renderizar: lee cada escena al
-  // entrar en ella mientras se reproduce. No es la voz del MP4, es una maqueta.
+  const fragmentos = useMemo(
+    () => (escena ? fragmentar(escena.texto, escena.lectura) : []),
+    [escena],
+  );
+  const tiempos = useMemo(
+    () => (escena ? repartirTiempo(fragmentos, escena.duracion) : []),
+    [fragmentos, escena],
+  );
+
+  // Al cambiar de escena se empieza por su primer fragmento.
+  useEffect(() => setFragmento(0), [indice, escena?.id]);
+
+  // Reproduccion: una cadena de temporizadores por fragmento; al acabar la
+  // escena salta a la siguiente.
+  useEffect(() => {
+    if (!reproduciendo || !escena) return;
+    const dura = fragmentos.length ? tiempos[fragmento] ?? escena.duracion : escena.duracion;
+    const t = setTimeout(() => {
+      if (fragmento + 1 < fragmentos.length) setFragmento(fragmento + 1);
+      else if (indice + 1 < escenas.length) alCambiarIndice(indice + 1);
+      else setReproduciendo(false);
+    }, dura * 1000);
+    return () => clearTimeout(t);
+  }, [reproduciendo, indice, fragmento, fragmentos, tiempos, escena, escenas.length, alCambiarIndice]);
+
+  // Voz del navegador: lee cada fragmento al entrar en el. Es una maqueta del
+  // ritmo, no la voz del MP4.
   useEffect(() => {
     if (!hayVozNavegador) return;
     window.speechSynthesis.cancel();
-    if (!reproduciendo || !leer || !escena?.texto.trim()) return;
-    const frase = new SpeechSynthesisUtterance(escena.texto);
-    frase.lang = /[a-z]/i.test(escena.texto) && !/[áéíóúñ¿¡]/i.test(escena.texto) ? "en-US" : "es-419";
-    frase.rate = 1;
+    const texto = fragmentos[fragmento];
+    if (!reproduciendo || !leer || !texto) return;
+    const frase = new SpeechSynthesisUtterance(texto);
+    frase.lang = /[áéíóúñ¿¡]/i.test(texto) || !/[a-z]/i.test(texto) ? "es-419" : "en-US";
     window.speechSynthesis.speak(frase);
     return () => window.speechSynthesis.cancel();
-  }, [reproduciendo, leer, indice, escena, hayVozNavegador]);
-
-  // La reproduccion es una cadena de temporizadores: cada escena dura lo suyo.
-  useEffect(() => {
-    if (!reproduciendo || !escena) return;
-    const t = setTimeout(() => {
-      if (indice + 1 < escenas.length) alCambiarIndice(indice + 1);
-      else setReproduciendo(false);
-    }, escena.duracion * 1000);
-    return () => clearTimeout(t);
-  }, [reproduciendo, indice, escena, escenas.length, alCambiarIndice]);
+  }, [reproduciendo, leer, fragmento, fragmentos, hayVozNavegador]);
 
   if (!escena) return <p className="suave">Anade una escena para empezar.</p>;
 
   const total = escenas.reduce((s, e) => s + e.duracion, 0);
   const transcurrido = escenas.slice(0, indice).reduce((s, e) => s + e.duracion, 0);
-
-  // El tamano del rotulo es relativo al lienzo, no a pixeles de pantalla, para
-  // que la vista previa se parezca al render sea cual sea el tamano del navegador.
   const tamanoRelativo = `${(escena.estilo.tamano / preset.alto) * 100}cqh`;
+  const textoActual = fragmentos[fragmento] ?? "";
+  const duraFragmento = tiempos[fragmento] ?? escena.duracion;
+  const retardos = escena.animacion === "resaltar" ? retardosKaraoke(textoActual, duraFragmento) : [];
 
   return (
     <>
       <div
-        className="lienzo"
-        style={{ aspectRatio: `${preset.ancho} / ${preset.alto}`, containerType: "size" }}
+        className={`lienzo efecto-${escena.efecto}`}
+        style={{
+          aspectRatio: `${preset.ancho} / ${preset.alto}`,
+          containerType: "size",
+          ["--dur" as string]: `${escena.duracion}s`,
+        }}
       >
         {escena.clip ? (
           <video
             key={escena.clip.id + escena.id}
+            className="capa"
             src={escena.clip.url}
             muted
             loop
@@ -70,11 +92,12 @@ export function Lienzo({
             playsInline
           />
         ) : (
-          <div className="fondo" style={{ background: escena.color }} />
+          <div className="fondo capa" style={{ background: escena.color }} />
         )}
+        {escena.efecto === "vineta" && <div className="vineta" />}
 
         <div
-          key={`t-${escena.id}-${escena.animacion}-${indice}`}
+          key={`t-${escena.id}-${escena.animacion}-${fragmento}`}
           className={`rotulo ${escena.estilo.posicion} anim-${escena.animacion}`}
           style={{
             fontSize: tamanoRelativo,
@@ -85,7 +108,17 @@ export function Lienzo({
             WebkitTextStroke: `1px ${escena.estilo.contorno}`,
           }}
         >
-          {escena.texto}
+          {escena.animacion === "resaltar"
+            ? textoActual.split(/\s+/).map((w, i) => (
+                <span
+                  key={i}
+                  className="palabra"
+                  style={{ animationDelay: `${retardos[i] ?? 0}s` }}
+                >
+                  {w}{" "}
+                </span>
+              ))
+            : textoActual}
         </div>
       </div>
 
@@ -103,8 +136,9 @@ export function Lienzo({
           Siguiente
         </button>
         <span className="suave">
-          Escena {indice + 1} de {escenas.length} · {transcurrido.toFixed(1)}s de{" "}
-          {total.toFixed(1)}s
+          Escena {indice + 1} de {escenas.length}
+          {fragmentos.length > 1 ? ` · trozo ${fragmento + 1} de ${fragmentos.length}` : ""} ·{" "}
+          {transcurrido.toFixed(1)}s de {total.toFixed(1)}s
         </span>
         {hayVozNavegador && (
           <label className="suave">
@@ -119,8 +153,8 @@ export function Lienzo({
         )}
       </div>
       <p className="suave">
-        La vista previa es orientativa: el render final quema el texto con ffmpeg y puede variar
-        unos pixeles en el salto de linea.
+        Vista orientativa: posicion, letra, trozos y efectos se corresponden con el render, pero el
+        salto de linea puede variar unos pixeles.
       </p>
     </>
   );
