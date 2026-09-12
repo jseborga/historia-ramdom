@@ -360,6 +360,13 @@ no se amplían solos. Detalles del flujo y de los tipos de cuenta en
 }
 ```
 
+**Secretos en los registros de build.** Easypanel pasa todas las variables de
+entorno como `--build-arg` y las imprime en el registro del build, incluidas
+las claves. Si compartes un registro de build con alguien —o lo pegas en un
+chat— rota después todo lo que apareciera: claves de IA y de clips,
+`API_TOKEN`, contraseñas de Postgres y Redis y, si aún no hay nada cifrado con
+ella, `ENCRYPTION_KEY`.
+
 **Copias de seguridad.** En **Storage**, programa copias del volumen `datos`
 hacia un proveedor externo, y copias de Postgres. Haz **una restauración de
 prueba**: una copia que nunca se ha restaurado no es una copia.
@@ -370,6 +377,7 @@ prueba**: una copia que nunca se ha restaurado no es una copia.
 
 | Síntoma | Causa habitual |
 |---|---|
+| `apt-get install ... exit code: 100` en el build | Un paquete no existe en Debian *main*. Los que usa el Dockerfile sí están; MBROLA es *non-free* y por eso va opcional (`--build-arg CON_MBROLA=true` activa las secciones necesarias). |
 | `Configuracion invalida. Revisa las variables de entorno` | Falta una de las cuatro obligatorias. El propio mensaje las lista. |
 | `ENCRYPTION_KEY debe ser base64 de 32 bytes` | Se generó con otro comando. Usa `openssl rand -base64 32`. |
 | `ADMIN_PASSWORD_HASH: must start with "$argon2"` | El valor no es un hash. Genéralo con `node dist/scripts/cifrar-secreto.js --password` y pega la línea entera, o deja la variable en blanco. |

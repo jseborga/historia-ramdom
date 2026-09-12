@@ -33,8 +33,9 @@ Implementa la guía de `docs/guia-original.md`.
 - **Párrafos largos y karaoke.** Escenas de hasta tres minutos que se van
   leyendo frase a frase o por bloques, con resaltado palabra a palabra, clips
   encontrados automáticamente por parecido con el texto y efectos de imagen.
-- **Voces locales sin coste.** espeak-ng (robótica), MBROLA (natural) y Piper
-  (neural, la mejor sin pagar); por defecto la mejor disponible. La narración
+- **Voces locales sin coste.** espeak-ng (robótica) y Piper (neural, la mejor
+  sin pagar, con licencia apta para uso comercial); MBROLA opcional. Por
+  defecto la mejor disponible. La narración
   se genera frase a frase y se mide, así que los textos caen donde se leen.
   Gemini y OpenAI cuando se quiera más.
 - **Ensamblado con la narración al mando.** Voz medida → textos donde suenan →

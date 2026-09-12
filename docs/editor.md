@@ -61,8 +61,8 @@ natural, todas sin coste ni clave:
 | Motor | Voces | Cómo suena |
 |---|---|---|
 | espeak-ng | `es-419`, `es`, `en-us` | Robótica, instantánea |
-| MBROLA | `mb-mx1`, `mb-mx2`, `mb-vz1`, `mb-es1`, `mb-es2` | Difonos: claramente más natural que espeak, igual de rápida |
-| Piper | `piper:es_MX-claude-high`, `piper:es_ES-davefx-medium` | Neural: la mejor sin pagar, ~0,7 s por frase |
+| Piper | `piper:es_MX-claude-high`, `piper:es_ES-davefx-medium` | Neural: la mejor sin pagar, ~0,7 s por frase. **Licencias Apache-2.0 y CC0: apta para uso comercial.** |
+| MBROLA *(opcional, apagada)* | `mb-mx1`, `mb-mx2`, `mb-vz1`, `mb-es1`, `mb-es2` | Difonos: más natural que espeak, igual de rápida. **Non-free en Debian**: su licencia prohíbe venderla o incorporarla a un producto que se venda sin permiso. Se activa con `--build-arg CON_MBROLA=true`. |
 
 El selector marca la calidad con estrellas y solo lista las que funcionan en
 esa máquina; por defecto se usa la mejor disponible. Gemini y OpenAI siguen
