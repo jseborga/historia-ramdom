@@ -9,9 +9,12 @@ import {
   sincronizarMetricas,
   buscarIdeasEnReddit,
   renderizarProyectoTrabajo,
+  montarVideoclipTrabajo,
+  renderizarVarianteTrabajo,
   continuarHistoria,
   type OpcionesHistoria,
 } from "./trabajos.js";
+import type { OpcionesVideoclip } from "../servicios/videoclip.js";
 
 export { cola, opcionesTrabajo };
 
@@ -62,6 +65,16 @@ export async function encolarProyecto(proyectoId: string) {
   return cola.add("render-proyecto", { proyectoId }, { ...opcionesTrabajo, attempts: 1 });
 }
 
+/** Encola el montaje de un videoclip (analisis de la letra y busqueda de clips). */
+export async function encolarVideoclip(proyectoId: string, opciones: OpcionesVideoclip = {}) {
+  return cola.add("montar-videoclip", { proyectoId, opciones }, { ...opcionesTrabajo, attempts: 1 });
+}
+
+/** Encola el render de un corte del montaje. */
+export async function encolarVariante(varianteId: string) {
+  return cola.add("render-variante", { varianteId }, { ...opcionesTrabajo, attempts: 1 });
+}
+
 /** Encola una sincronizacion de metricas fuera de horario. */
 export async function sincronizarAhora() {
   return cola.add("metricas", {}, opcionesTrabajo);
@@ -90,6 +103,8 @@ export async function iniciarWorker() {
       if (job.name === "publicar") return publicarHistoria(job.data.historiaId);
       if (job.name === "limpiar") return limpiarArchivos();
       if (job.name === "render-proyecto") return renderizarProyectoTrabajo(job.data.proyectoId);
+      if (job.name === "montar-videoclip") return montarVideoclipTrabajo(job.data.proyectoId, job.data.opciones);
+      if (job.name === "render-variante") return renderizarVarianteTrabajo(job.data.varianteId);
       if (job.name === "continuar") return continuarHistoria(job.data.historiaId);
       if (job.name === "metricas") return sincronizarMetricas();
       if (job.name === "ideas") return buscarIdeasEnReddit();

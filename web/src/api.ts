@@ -135,6 +135,50 @@ export type VozPista = {
   tramos: { texto: string; inicio: number; duracion: number }[];
 };
 
+/** Un tramo de la cancion: intro, verso, coro... con lo que debe verse en el. */
+export type Seccion = {
+  etiqueta: string;
+  texto: string;
+  peso: number;
+  destacada: boolean;
+  keywords: string[];
+};
+
+/** El analisis de la letra (o de los lineamientos) de un videoclip. */
+export type Letra = {
+  instrumental: boolean;
+  titulo: string;
+  texto: string;
+  lineamientos: string;
+  estiloVisual: string;
+  secciones: Seccion[];
+  keywords: string[];
+  hashtags: string[];
+};
+
+/** Un corte o formato alternativo del mismo montaje. */
+export type Variante = {
+  id: string;
+  proyectoId: string;
+  nombre: string;
+  formato: string;
+  inicio: number;
+  duracion: number | null;
+  archivo: string | null;
+  duracionSeg: number | null;
+  estado: "BORRADOR" | "RENDER" | "LISTO" | "ERROR";
+  error: string | null;
+  creadaEn: string;
+};
+
+/** Tramo sugerido para cortar, sacado del nivel de la musica y del coro. */
+export type Momento = {
+  inicio: number;
+  duracion: number;
+  puntuacion: number;
+  motivo: string;
+};
+
 export type MusicaCapa = {
   archivo: string | null;
   subida: boolean;
@@ -145,6 +189,8 @@ export type Proyecto = {
   id: string;
   historiaId: string | null;
   nombre: string;
+  /** NARRACION: historia con voz. MUSICA: videoclip gobernado por la cancion. */
+  tipo: "NARRACION" | "MUSICA";
   formato: string;
   video: ClipPista[];
   textos: RotuloPista[];
@@ -156,6 +202,8 @@ export type Proyecto = {
   estado: "BORRADOR" | "RENDER" | "LISTO" | "ERROR";
   error: string | null;
   editadoEn: string;
+  letra?: Letra | null;
+  variantes?: Variante[];
   musicaDisponible?: string[];
   fuentes?: Fuente[];
 };

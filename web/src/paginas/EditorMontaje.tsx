@@ -21,6 +21,7 @@ import { SelectorRegion, SelectorVoz, ImportarSuno } from "./comunes";
 import { Lienzo } from "./Lienzo";
 import { BuscadorClips } from "./BuscadorClips";
 import { LineaDeTiempo, type Sel } from "./LineaDeTiempo";
+import { Cortes } from "./Cortes";
 
 const ANIMACIONES: [Animacion, string][] = [
   ["ninguna", "ninguna"], ["fundido", "fundido"], ["subir", "subir"], ["zoom", "zoom"],
@@ -62,7 +63,7 @@ export function EditorMontaje({
   const [musicaDisponible, setMusicaDisponible] = useState<string[]>([]);
   const [fuentes, setFuentes] = useState<Fuente[]>([]);
   const [sel, setSel] = useState<Sel>({ tipo: "clip" });
-  const [panel, setPanel] = useState<"clip" | "texto" | "voz" | "musica" | "formato">("clip");
+  const [panel, setPanel] = useState<"clip" | "texto" | "voz" | "musica" | "cortes" | "formato">("clip");
   const [t, setT] = useState(0);
   const [seek, setSeek] = useState({ t: 0, n: 0 });
   const [buscando, setBuscando] = useState(false);
@@ -165,6 +166,16 @@ export function EditorMontaje({
       const nueva = await api.post<VozPista>(`/api/proyectos/${proyecto!.id}/voz`, { voz });
       actVoz(nueva);
       setOk(`Narracion generada: ${nueva.duracion?.toFixed(1)} s con una sola voz.`);
+    } catch (err) { setError(mensajeDe(err)); } finally { setOcupado(""); }
+  }
+  /** Rehace el videoclip entero: mismos tramos de la cancion, otros clips. */
+  async function remontarVideoclip() {
+    setOcupado("videoclip");
+    setError("");
+    try {
+      await api.post(`/api/proyectos/${proyecto!.id}/videoclip`, { mostrarLetra: true });
+      setOk("Videoclip en montaje. Esta pagina se actualiza sola.");
+      setTimeout(cargar, 4000);
     } catch (err) { setError(mensajeDe(err)); } finally { setOcupado(""); }
   }
   async function subir(archivo: File, destino: "voz" | "musica") {
@@ -315,9 +326,9 @@ export function EditorMontaje({
 
         <div>
           <nav style={{ marginBottom: 8 }}>
-            {(["clip", "texto", "voz", "musica", "formato"] as const).map((p) => (
+            {(["clip", "texto", "voz", "musica", "cortes", "formato"] as const).map((p) => (
               <button key={p} className={panel === p ? "activo" : ""} onClick={() => setPanel(p)}>
-                {{ clip: "Clip", texto: "Texto", voz: "Voz", musica: "Musica", formato: "Formato" }[p]}
+                {{ clip: "Clip", texto: "Texto", voz: "Voz", musica: "Musica", cortes: "Cortes", formato: "Formato" }[p]}
               </button>
             ))}
           </nav>
@@ -531,8 +542,32 @@ export function EditorMontaje({
                   alImportar={(archivo) => { act({ musica: { ...musica, archivo, subida: true } }); setOk("Canción de Suno añadida al proyecto."); }}
                 />
               </div>
-              <p className="suave">Con voz, la musica se agacha sola cuando alguien habla. La vista previa no la reproduce.</p>
+              {proyecto.tipo === "MUSICA" && (
+                <div className="pie" style={{ marginTop: 12 }}>
+                  <button onClick={remontarVideoclip} disabled={ocupado !== ""}>
+                    {ocupado === "videoclip" ? "Montando..." : "Volver a montar el videoclip"}
+                  </button>
+                  <span className="suave">
+                    Busca otros clips para los mismos tramos de la cancion. Los cortes ya hechos no se tocan.
+                  </span>
+                </div>
+              )}
+              <p className="suave">
+                {proyecto.tipo === "MUSICA"
+                  ? "En un videoclip la cancion suena entera y manda la duracion; no hay voz en off."
+                  : "Con voz, la musica se agacha sola cuando alguien habla. La vista previa no la reproduce."}
+              </p>
             </section>
+          )}
+
+          {panel === "cortes" && (
+            <Cortes
+              proyectoId={proyecto.id}
+              presets={presets}
+              formato={proyecto.formato}
+              total={total}
+              esVideoclip={proyecto.tipo === "MUSICA"}
+            />
           )}
 
           {panel === "formato" && (

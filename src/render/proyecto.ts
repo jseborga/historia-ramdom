@@ -30,6 +30,10 @@ export type EntradaRender = {
   /** Título y créditos que viajan dentro del MP4 como metadatos. */
   titulo?: string;
   creditos?: string;
+  /** Segundo del archivo de voz por el que empieza (cortes del montaje). */
+  vozDesde?: number;
+  /** Segundo de la pista de música por el que empieza (cortes del montaje). */
+  musicaDesde?: number;
 };
 
 /**
@@ -102,6 +106,9 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
   let vozIdx: number | null = null;
 
   if (conVoz) {
+    // -ss antes de -i abre el archivo mas adelante: es lo que hace que un
+    // corte del montaje siga oyendo la parte que le toca, no el principio.
+    if (e.vozDesde && e.vozDesde > 0.01) args.push("-ss", e.vozDesde.toFixed(3));
     args.push("-i", e.rutaVoz!);
     vozIdx = idx++;
     const ms = Math.round(e.voz.inicio * 1000);
@@ -109,7 +116,9 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
   }
 
   if (e.rutaMusica) {
-    args.push("-stream_loop", "-1", "-i", e.rutaMusica);
+    args.push("-stream_loop", "-1");
+    if (e.musicaDesde && e.musicaDesde > 0.01) args.push("-ss", e.musicaDesde.toFixed(3));
+    args.push("-i", e.rutaMusica);
     const m = idx++;
     if (vozIdx !== null) {
       filtro +=

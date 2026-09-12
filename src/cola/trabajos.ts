@@ -2,6 +2,7 @@ import type { ModoPublicacion } from "@prisma/client";
 import { db } from "../db.js";
 import { generarGuion, GuionSchema, contextoParaContinuar, criteriosVisuales, type Guion, type Premisa } from "../servicios/guion.js";
 import { creditoMusica } from "../servicios/suno.js";
+import { esLetra, type OpcionesVideoclip } from "../servicios/videoclip.js";
 import { generarVoz } from "../servicios/voz.js";
 import {
   elegirClips,
@@ -499,19 +500,27 @@ export { sincronizarMetricas, buscarIdeasEnReddit };
 export async function limpiarArchivos() {
   const borrados = await limpiarDisco();
   if (borrados.length) {
+    // El nombre del MP4 es el id de quien lo produjo: historia, proyecto o corte.
     await db.historia.updateMany({ where: { id: { in: borrados } }, data: { archivo: null } });
+    await db.proyecto.updateMany({ where: { id: { in: borrados } }, data: { archivo: null } });
+    await db.variante.updateMany({ where: { id: { in: borrados } }, data: { archivo: null } });
   }
   await borrarSesionesCaducadas();
   return borrados.length;
 }
 
-/** Trabajo del editor: renderiza las tres pistas de un proyecto. */
-export async function renderizarProyectoTrabajo(proyectoId: string) {
-  const { renderizarProyecto } = await import("../render/proyecto.js");
+/**
+ * Deja el proyecto listo para renderizar: pistas validadas, narracion generada
+ * si hacia falta, rutas reales de voz y musica, y el texto de creditos. Lo
+ * comparten el render completo y el de cada corte, para que un corte suene y
+ * se acredite exactamente igual que el montaje del que sale.
+ */
+async function prepararProyecto(proyectoId: string) {
   const { ProyectoSchema, desdeEscenasAntiguas, esModeloAntiguo, huellaVoz, creditosDeProyecto, descripcionDeProyecto } =
     await import("../servicios/proyecto.js");
   const { generarNarracion, narracionExiste } = await import("../servicios/narracion.js");
   const { rutaSubidaSegura } = await import("../almacen.js");
+  const { creditoMusica } = await import("../servicios/suno.js");
 
   const p = await db.proyecto.findUniqueOrThrow({ where: { id: proyectoId }, include: { historia: true } });
   const escenas = Array.isArray(p.escenas) ? p.escenas : [];
@@ -527,46 +536,56 @@ export async function renderizarProyectoTrabajo(proyectoId: string) {
     musica: p.musica ?? {},
   });
 
-  await db.proyecto.update({
-    where: { id: proyectoId },
-    data: { estado: "RENDER", error: null },
-  });
+  // La narracion del servidor se genera aqui si falta o si cambio el texto.
+  if (datos.voz.modo === "servidor" && datos.voz.texto.trim()) {
+    const vigente =
+      datos.voz.archivo &&
+      datos.voz.huella === huellaVoz(datos.voz) &&
+      (await narracionExiste(proyectoId, datos.voz.archivo));
+    if (!vigente) {
+      const r = await generarNarracion(proyectoId, datos.voz);
+      Object.assign(datos.voz, r);
+      await db.proyecto.update({ where: { id: proyectoId }, data: { voz: datos.voz } });
+    }
+  }
+
+  const rutaVoz =
+    datos.voz.modo !== "ninguna" && datos.voz.archivo
+      ? rutaSubidaSegura(proyectoId, datos.voz.archivo)
+      : undefined;
+  const rutaMusica = datos.musica.archivo
+    ? datos.musica.subida
+      ? rutaSubidaSegura(proyectoId, datos.musica.archivo)
+      : rutaMusicaSegura(datos.musica.archivo)
+    : undefined;
+
+  // Descripcion para publicar: titulo, hashtags de la historia si la hay, y creditos.
+  const guion = p.historia ? GuionSchema.safeParse(p.historia.guion) : null;
+  const musicaCredito = creditoMusica(datos.musica.archivo);
+  const letra = p.tipo === "MUSICA" ? esLetra(p.letra) : null;
+  const hashtags = letra?.hashtags.length ? letra.hashtags : guion?.success ? guion.data.hashtags : [];
+  const cabecera = letra?.titulo || (guion?.success ? guion.data.gancho : null);
+  const descripcion = descripcionDeProyecto(p.nombre, datos.video, hashtags, cabecera, musicaCredito);
+
+  return {
+    p,
+    datos,
+    rutaVoz,
+    rutaMusica,
+    descripcion,
+    creditos: creditosDeProyecto(datos.video, musicaCredito),
+  };
+}
+
+/** Trabajo del editor: renderiza las tres pistas de un proyecto. */
+export async function renderizarProyectoTrabajo(proyectoId: string) {
+  const { renderizarProyecto } = await import("../render/proyecto.js");
+
+  await db.proyecto.update({ where: { id: proyectoId }, data: { estado: "RENDER", error: null } });
   const dir = await crearCarpetaTrabajo(`proy-${proyectoId}`);
 
   try {
-    // La narracion del servidor se genera aqui si falta o si cambio el texto.
-    if (datos.voz.modo === "servidor" && datos.voz.texto.trim()) {
-      const vigente =
-        datos.voz.archivo &&
-        datos.voz.huella === huellaVoz(datos.voz) &&
-        (await narracionExiste(proyectoId, datos.voz.archivo));
-      if (!vigente) {
-        const r = await generarNarracion(proyectoId, datos.voz);
-        Object.assign(datos.voz, r);
-        await db.proyecto.update({ where: { id: proyectoId }, data: { voz: datos.voz } });
-      }
-    }
-    const rutaVoz =
-      datos.voz.modo !== "ninguna" && datos.voz.archivo
-        ? rutaSubidaSegura(proyectoId, datos.voz.archivo)
-        : undefined;
-    const rutaMusica = datos.musica.archivo
-      ? datos.musica.subida
-        ? rutaSubidaSegura(proyectoId, datos.musica.archivo)
-        : rutaMusicaSegura(datos.musica.archivo)
-      : undefined;
-
-    // Descripción para publicar: título, hashtags de la historia si la hay, y créditos.
-    const guion = p.historia ? GuionSchema.safeParse(p.historia.guion) : null;
-    const musicaCredito = creditoMusica(datos.musica.archivo);
-    const descripcion = descripcionDeProyecto(
-      p.nombre,
-      datos.video,
-      guion?.success ? guion.data.hashtags : [],
-      guion?.success ? guion.data.gancho : null,
-      musicaCredito,
-    );
-
+    const { p, datos, rutaVoz, rutaMusica, descripcion, creditos } = await prepararProyecto(proyectoId);
     const { archivo, duracion } = await renderizarProyecto(dir, {
       formato: datos.formato,
       video: datos.video,
@@ -576,7 +595,7 @@ export async function renderizarProyectoTrabajo(proyectoId: string) {
       rutaVoz,
       rutaMusica,
       titulo: p.nombre,
-      creditos: creditosDeProyecto(datos.video, musicaCredito),
+      creditos,
     });
 
     const final = await moverAVideos(archivo, proyectoId);
@@ -588,6 +607,80 @@ export async function renderizarProyectoTrabajo(proyectoId: string) {
   } catch (err) {
     await db.proyecto.update({
       where: { id: proyectoId },
+      data: { estado: "ERROR", error: String(err).slice(0, 800) },
+    });
+    throw err;
+  } finally {
+    await borrarCarpetaTemporal(dir);
+  }
+}
+
+/**
+ * Monta un videoclip: la cancion decide la duracion, la letra (o los
+ * lineamientos) decide que se ve en cada tramo.
+ */
+export async function montarVideoclipTrabajo(proyectoId: string, opciones: OpcionesVideoclip = {}) {
+  const { montarVideoclip } = await import("../servicios/videoclip.js");
+  try {
+    const r = await montarVideoclip(proyectoId, opciones);
+    await db.proyecto.update({
+      where: { id: proyectoId },
+      data: { estado: "BORRADOR", error: null, duracionSeg: r.duracion },
+    });
+    return proyectoId;
+  } catch (err) {
+    await db.proyecto.update({
+      where: { id: proyectoId },
+      data: { estado: "ERROR", error: String(err).slice(0, 800) },
+    });
+    throw err;
+  }
+}
+
+/**
+ * Renderiza un corte del montaje en su propio formato: el mismo material,
+ * recortado a su ventana de tiempo y encajado en otro lienzo. No toca el
+ * proyecto ni su MP4.
+ */
+export async function renderizarVarianteTrabajo(varianteId: string) {
+  const { renderizarProyecto } = await import("../render/proyecto.js");
+  const { recortarPistas, duracionProyecto } = await import("../servicios/proyecto.js");
+
+  const v = await db.variante.findUniqueOrThrow({ where: { id: varianteId } });
+  await db.variante.update({ where: { id: varianteId }, data: { estado: "RENDER", error: null } });
+  const dir = await crearCarpetaTrabajo(`var-${varianteId}`);
+
+  try {
+    const { p, datos, rutaVoz, rutaMusica, creditos } = await prepararProyecto(v.proyectoId);
+    const total = duracionProyecto(datos);
+    const inicio = Math.min(Math.max(v.inicio, 0), Math.max(total - 0.5, 0));
+    const pedida = v.duracion && v.duracion > 0 ? v.duracion : total - inicio;
+    const largo = Math.max(0.5, Math.min(pedida, total - inicio));
+    const corte = recortarPistas(datos, inicio, largo);
+
+    const { archivo, duracion } = await renderizarProyecto(dir, {
+      formato: v.formato,
+      video: corte.video,
+      textos: corte.textos,
+      voz: corte.voz,
+      musica: datos.musica,
+      rutaVoz,
+      rutaMusica,
+      vozDesde: corte.vozDesde,
+      musicaDesde: corte.musicaDesde,
+      titulo: `${p.nombre} - ${v.nombre}`,
+      creditos,
+    });
+
+    const final = await moverAVideos(archivo, varianteId);
+    await db.variante.update({
+      where: { id: varianteId },
+      data: { archivo: final, duracionSeg: duracion, estado: "LISTO" },
+    });
+    return varianteId;
+  } catch (err) {
+    await db.variante.update({
+      where: { id: varianteId },
       data: { estado: "ERROR", error: String(err).slice(0, 800) },
     });
     throw err;

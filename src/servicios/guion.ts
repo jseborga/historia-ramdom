@@ -45,7 +45,7 @@ export function descripcionRegion(region: string, modismos: boolean, idioma: str
  * Regla de ortografía explícita. Un prompt escrito sin tildes hace que el
  * modelo escriba sin tildes; por eso este texto lleva todas las suyas.
  */
-const ORTOGRAFIA =
+export const ORTOGRAFIA =
   "Escribe con ortografía impecable: todas las tildes (á, é, í, ó, ú), la ñ, la diéresis cuando toque, " +
   "los signos de apertura ¿ y ¡ además de los de cierre, comas, puntos y mayúsculas correctas. " +
   "Nunca omitas tildes ni escribas 'n' por 'ñ'.";
@@ -65,7 +65,7 @@ async function pedirJSON(url: string, init: RequestInit, servicio: string) {
 }
 
 /** Los modelos a veces envuelven el JSON en ```json ... ```; esto lo desenvuelve. */
-function extraerJSON(texto: string): unknown {
+export function extraerJSON(texto: string): unknown {
   const limpio = texto.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim();
   const inicio = limpio.indexOf("{");
   const fin = limpio.lastIndexOf("}");
@@ -232,7 +232,7 @@ export async function generarKeywords(textos: string[], idioma = "es", motor?: s
 }
 
 /** Llama al motor elegido con el mismo sistema y devuelve el texto crudo. */
-async function textoConMotor(
+export async function textoConMotor(
   motor: Motor,
   prompt: string,
   modelo?: string | null,

@@ -266,6 +266,47 @@ Uno por escena. El panel **Formato** tiene además un **estilo global** —letra
 tamaño, color, contorno, animación, lectura y efecto— que se aplica a todas las
 escenas de golpe, respetando la posición de cada una.
 
+## Videoclips musicales
+
+Un proyecto de tipo música es el mismo montaje de tres pistas, pero la canción
+manda: la pista de voz nace apagada, la música suena al 100 % (no se agacha,
+porque no hay nada que dejar pasar) y la duración del vídeo es la de la
+canción, con el tope de 350 segundos.
+
+El montaje automático (pestaña Música de la app) hace esto:
+
+1. Mide la canción con ffprobe.
+2. Reparte sus tramos —intro, versos, coros— según la letra o los lineamientos,
+   dando más tiempo a los que pesan más.
+3. Busca clips con los criterios de cada tramo y llena la imagen: planos de
+   hasta 6 segundos en el coro y de hasta 12 en el resto, sin repetir mientras
+   haya material.
+4. Si se pide, coloca la letra de cada tramo en rótulos de dos líneas.
+
+Desde ahí se edita como cualquier montaje. El botón «Volver a montar el
+videoclip» de la pestaña Música rehace la imagen con otros clips para los
+mismos tramos; los cortes ya hechos no se tocan.
+
+## Cortes: varias salidas del mismo montaje
+
+La pestaña **Cortes** saca del mismo material tantas versiones como haga falta:
+la completa en 16:9, la completa en vertical, 30 segundos del coro en 9:16, un
+cuadrado para el feed. Cada corte guarda su tramo (`inicio` y `duracion`) y su
+formato, y se renderiza por separado.
+
+No se recorta el MP4 ya hecho: se vuelve a renderizar desde los clips, de modo
+que cada formato se encuadra bien y no hereda el recorte del anterior. Las
+pistas se ajustan al tramo elegido:
+
+- los clips se parten por donde toca, moviendo su recorte de entrada;
+- los rótulos se desplazan y los que caen fuera desaparecen;
+- la voz y la música se abren en el segundo que corresponde, así que un corte
+  del minuto dos suena por el minuto dos y no desde el principio.
+
+En videoclips, «Buscar los mejores momentos» mide el nivel de la canción
+segundo a segundo y propone las ventanas con más energía, con un empujón para
+el tramo marcado como coro en la letra.
+
 ## Descargar el resultado y sus créditos
 
 Al acabar el render hay tres cosas, todas en la lista de **Montaje** (y las dos

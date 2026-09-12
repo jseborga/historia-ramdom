@@ -5,8 +5,8 @@ import { EditorMontaje } from "./EditorMontaje";
 
 type Resumen = Pick<
   Proyecto,
-  "id" | "nombre" | "formato" | "estado" | "archivo" | "descripcion" | "duracionSeg" | "error" | "editadoEn"
->;
+  "id" | "nombre" | "tipo" | "formato" | "estado" | "archivo" | "descripcion" | "duracionSeg" | "error" | "editadoEn"
+> & { _count?: { variantes: number } };
 
 export function Montaje({ catalogo }: { catalogo: Catalogo }) {
   const [proyectos, setProyectos] = useState<Resumen[]>([]);
@@ -139,8 +139,10 @@ export function Montaje({ catalogo }: { catalogo: Catalogo }) {
                 </span>
                 <strong>{p.nombre}</strong>
                 <span className="suave">
+                  {p.tipo === "MUSICA" ? "videoclip · " : ""}
                   {p.formato}
-                  {p.duracionSeg ? ` · ${p.duracionSeg.toFixed(1)}s` : ""} ·{" "}
+                  {p.duracionSeg ? ` · ${p.duracionSeg.toFixed(1)}s` : ""}
+                  {p._count?.variantes ? ` · ${p._count.variantes} cortes` : ""} ·{" "}
                   {new Date(p.editadoEn).toLocaleString()}
                 </span>
               </div>

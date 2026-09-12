@@ -5,7 +5,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { db } from "../db.js";
 import { rutaVideo, crearCarpetaProyecto, rutaSubidaSegura, listarMusica } from "../almacen.js";
-import { PRESETS } from "../render/presets.js";
+import { PRESETS, MAX_DURACION_SEG } from "../render/presets.js";
 import { tieneAudio, duracionAudio } from "../render/ffmpeg.js";
 import { fuentesDisponibles, archivoDeFuente } from "../render/fuentes.js";
 import { GuionSchema, generarKeywords, escribirNarracion, guionComoNarracion } from "../servicios/guion.js";
@@ -29,8 +29,9 @@ import {
 } from "../servicios/proyecto.js";
 import { generarNarracion } from "../servicios/narracion.js";
 import type { EscenaPreparada } from "../servicios/clips.js";
-import { encolarProyecto } from "../cola/cola.js";
+import { encolarProyecto, encolarVideoclip, encolarVariante } from "../cola/cola.js";
 import { importarSunoAProyecto, creditoMusica } from "../servicios/suno.js";
+import { momentosDeProyecto, esLetra } from "../servicios/videoclip.js";
 
 const idParam = z.object({ id: z.string().uuid() });
 
@@ -102,15 +103,19 @@ export async function rutasProyectos(app: FastifyInstance) {
       orderBy: { editadoEn: "desc" },
       take: 100,
       select: {
-        id: true, nombre: true, formato: true, estado: true, archivo: true,
+        id: true, nombre: true, tipo: true, formato: true, estado: true, archivo: true,
         descripcion: true, duracionSeg: true, error: true, historiaId: true, editadoEn: true,
+        _count: { select: { variantes: true } },
       },
     }),
   );
 
   app.get("/api/proyectos/:id", async (req, reply) => {
     const { id } = idParam.parse(req.params);
-    const p = await db.proyecto.findUnique({ where: { id } });
+    const p = await db.proyecto.findUnique({
+      where: { id },
+      include: { variantes: { orderBy: { creadaEn: "asc" } } },
+    });
     if (!p) return reply.code(404).send({ error: "No encontrado" });
     const { video, textos } = pistasDe(p);
     const voz = (p.voz ?? {}) as Partial<VozPista>;
@@ -121,6 +126,8 @@ export async function rutasProyectos(app: FastifyInstance) {
       textos,
       voz: { modo: "servidor", texto: "", config: VOZ_IA_POR_DEFECTO, archivo: null,
              duracion: null, inicio: 0, huella: null, ...voz },
+      // El analisis de la letra se devuelve ya validado, o null si no lo hay.
+      letra: esLetra(p.letra),
       musicaDisponible: await listarMusica(),
       fuentes: await fuentesDisponibles(),
     };
@@ -334,6 +341,197 @@ export async function rutasProyectos(app: FastifyInstance) {
     } catch (err) {
       return reply.code(422).send({ error: err instanceof Error ? err.message : "No se pudo importar" });
     }
+  });
+
+  /**
+   * Videoclip musical: el mismo editor, pero manda la cancion. Se crea el
+   * proyecto con su musica (enlace de Suno o pista de la biblioteca) y el
+   * montaje se hace en segundo plano, que implica analizar la letra y buscar
+   * clips. Sin musica se crea igual y se sube el archivo despues.
+   */
+  app.post("/api/proyectos/musical", async (req, reply) => {
+    const d = z
+      .object({
+        nombre: z.string().min(1).max(120).optional(),
+        formato: z.string().max(40).optional(),
+        /** Enlace de la cancion en Suno; se descarga a la carpeta del proyecto. */
+        enlaceSuno: z.string().max(400).optional(),
+        /** Pista ya presente en la biblioteca (DATA_DIR/musica). */
+        musica: z.string().max(200).optional(),
+        letra: z.string().max(20_000).optional(),
+        lineamientos: z.string().max(2000).optional(),
+        instrumental: z.boolean().default(false),
+        mostrarLetra: z.boolean().default(true),
+        idioma: z.enum(["es", "en"]).default("es"),
+        motor: z.string().max(40).nullable().default(null),
+        modelo: z.string().max(80).nullable().default(null),
+      })
+      .parse(req.body ?? {});
+
+    if (!d.instrumental && !d.letra?.trim() && !d.lineamientos?.trim()) {
+      return reply.code(400).send({ error: "Pega la letra, o marca instrumental y escribe los lineamientos" });
+    }
+    if (d.musica && !(await listarMusica()).includes(d.musica)) {
+      return reply.code(404).send({ error: "Esa pista no esta en la biblioteca" });
+    }
+
+    const datos = ProyectoSchema.parse({
+      nombre: d.nombre ?? "Videoclip sin titulo",
+      formato: d.formato ?? "tiktok",
+      video: [clipVacio()],
+      textos: [],
+      // Un videoclip no lleva narracion: la pista de voz nace apagada.
+      voz: { modo: "ninguna", texto: "", config: null },
+      musica: { archivo: d.musica ?? null, subida: false, volumen: 1 },
+    });
+    const proyecto = await db.proyecto.create({
+      data: {
+        nombre: datos.nombre,
+        tipo: "MUSICA",
+        formato: datos.formato,
+        escenas: datos.video,
+        textos: datos.textos,
+        voz: datos.voz,
+        musica: datos.musica,
+      },
+    });
+    await crearCarpetaProyecto(proyecto.id);
+
+    if (d.enlaceSuno) {
+      try {
+        const r = await importarSunoAProyecto(proyecto.id, d.enlaceSuno);
+        await db.proyecto.update({
+          where: { id: proyecto.id },
+          data: { musica: { archivo: r.archivo, subida: true, volumen: 1 } },
+        });
+      } catch (err) {
+        await db.proyecto.delete({ where: { id: proyecto.id } }).catch(() => {});
+        return reply.code(422).send({ error: err instanceof Error ? err.message : "No se pudo importar la cancion" });
+      }
+    }
+
+    const conMusica = Boolean(d.enlaceSuno || d.musica);
+    if (conMusica) {
+      await encolarVideoclip(proyecto.id, {
+        letra: d.letra,
+        lineamientos: d.lineamientos,
+        instrumental: d.instrumental,
+        mostrarLetra: d.mostrarLetra,
+        idioma: d.idioma,
+        motor: d.motor,
+        modelo: d.modelo,
+      });
+    }
+    return reply.code(201).send({ ...proyecto, montando: conMusica });
+  });
+
+  /** Vuelve a montar el videoclip (otra letra, otros lineamientos, otros clips). */
+  app.post("/api/proyectos/:id/videoclip", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const o = z
+      .object({
+        letra: z.string().max(20_000).optional(),
+        lineamientos: z.string().max(2000).optional(),
+        instrumental: z.boolean().optional(),
+        mostrarLetra: z.boolean().default(true),
+        idioma: z.enum(["es", "en"]).default("es"),
+        motor: z.string().max(40).nullable().default(null),
+        modelo: z.string().max(80).nullable().default(null),
+        reanalizar: z.boolean().default(false),
+      })
+      .parse(req.body ?? {});
+    const p = await db.proyecto.findUniqueOrThrow({ where: { id } });
+    const musica = (p.musica ?? {}) as { archivo?: string | null };
+    if (!musica.archivo) {
+      return reply.code(409).send({ error: "El proyecto no tiene musica todavia" });
+    }
+    if (p.tipo !== "MUSICA") await db.proyecto.update({ where: { id }, data: { tipo: "MUSICA" } });
+    const job = await encolarVideoclip(id, o);
+    return reply.code(202).send({ encolada: true, jobId: job.id });
+  });
+
+  /**
+   * Los tramos con mas fuerza de la cancion, para cortar los 30 segundos que
+   * van a redes. Sale del nivel de la propia musica y, si hay letra, del coro.
+   */
+  app.get("/api/proyectos/:id/momentos", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const { ventana, cuantos } = z
+      .object({
+        ventana: z.coerce.number().min(5).max(120).default(30),
+        cuantos: z.coerce.number().int().min(1).max(5).default(3),
+      })
+      .parse(req.query ?? {});
+    await db.proyecto.findUniqueOrThrow({ where: { id } });
+    try {
+      return await momentosDeProyecto(id, ventana, cuantos);
+    } catch (err) {
+      return reply.code(409).send({ error: err instanceof Error ? err.message : "No se pudo analizar la musica" });
+    }
+  });
+
+  /** Cortes y formatos del montaje: la version completa, los 30 s del coro... */
+  app.get("/api/proyectos/:id/variantes", async (req) => {
+    const { id } = idParam.parse(req.params);
+    return db.variante.findMany({ where: { proyectoId: id }, orderBy: { creadaEn: "asc" } });
+  });
+
+  app.post("/api/proyectos/:id/variantes", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const { variantes, renderizar } = z
+      .object({
+        variantes: z
+          .array(
+            z.object({
+              nombre: z.string().min(1).max(80),
+              formato: z.string().refine((v) => PRESETS.some((p) => p.id === v), "Formato desconocido"),
+              inicio: z.number().min(0).max(MAX_DURACION_SEG).default(0),
+              /** Vacio = hasta el final del montaje. */
+              duracion: z.number().min(1).max(MAX_DURACION_SEG).nullable().default(null),
+            }),
+          )
+          .min(1)
+          .max(8),
+        renderizar: z.boolean().default(true),
+      })
+      .parse(req.body);
+    await db.proyecto.findUniqueOrThrow({ where: { id } });
+
+    const creadas = [];
+    for (const v of variantes) {
+      const fila = await db.variante.create({ data: { ...v, proyectoId: id } });
+      if (renderizar) await encolarVariante(fila.id);
+      creadas.push(fila);
+    }
+    return reply.code(201).send(creadas);
+  });
+
+  app.post("/api/proyectos/:id/variantes/:varianteId/render", async (req, reply) => {
+    const { varianteId } = z.object({ varianteId: z.string().uuid() }).parse(req.params);
+    await db.variante.findUniqueOrThrow({ where: { id: varianteId } });
+    const job = await encolarVariante(varianteId);
+    return reply.code(202).send({ encolada: true, jobId: job.id });
+  });
+
+  app.delete("/api/proyectos/:id/variantes/:varianteId", async (req) => {
+    const { varianteId } = z.object({ varianteId: z.string().uuid() }).parse(req.params);
+    await db.variante.delete({ where: { id: varianteId } });
+    return { ok: true };
+  });
+
+  app.get("/api/proyectos/:id/variantes/:varianteId/ver", async (req, reply) => {
+    const { varianteId } = z.object({ varianteId: z.string().uuid() }).parse(req.params);
+    const v = await db.variante.findUnique({ where: { id: varianteId } });
+    if (!v?.archivo) return reply.code(404).send({ error: "El corte todavia no esta listo" });
+    return servir(req, reply, rutaVideo(v.id), "video/mp4");
+  });
+
+  app.get("/api/proyectos/:id/variantes/:varianteId/descargar", async (req, reply) => {
+    const { varianteId } = z.object({ varianteId: z.string().uuid() }).parse(req.params);
+    const v = await db.variante.findUnique({ where: { id: varianteId } });
+    if (!v?.archivo) return reply.code(404).send({ error: "El corte todavia no esta listo" });
+    const limpio = v.nombre.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "corte";
+    return servir(req, reply, rutaVideo(v.id), "video/mp4", `${limpio}-${v.formato}-${v.id.slice(0, 8)}.mp4`);
   });
 
   app.post("/api/proyectos/:id/render", async (req, reply) => {

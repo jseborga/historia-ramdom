@@ -38,6 +38,12 @@ export const ClipSchema = z.object({
   licencia: z.string().max(80),
   url: z.string().url().max(600),
   imagen: z.string().url().max(600).optional(),
+  /**
+   * Duracion real del archivo en origen. Se guarda con el clip porque es el
+   * tope de lo que se puede estirar en la linea de tiempo: sin ella, al
+   * recargar el proyecto el editor ya no sabria hasta donde llega el material.
+   */
+  duracion: z.number().min(0).max(36_000).optional(),
 });
 
 /** Un clip de la pista de video. Su inicio es la suma de los anteriores. */
@@ -259,6 +265,80 @@ export function desdeEscenasAntiguas(escenas: unknown[]): Pick<ProyectoDatos, "v
     t += c.data.duracion;
   }
   return { video, textos };
+}
+
+/**
+ * Recorta las tres pistas a una ventana de tiempo: [inicio, inicio+duracion).
+ *
+ * Es lo que permite sacar del MISMO montaje la version completa y un corte de
+ * 30 segundos sin volver a montar nada. Los clips se parten por donde toca
+ * (moviendo su recorte de entrada), los rotulos se desplazan y los que caen
+ * fuera se van, y la voz y la musica se piden desde el segundo correcto.
+ */
+export function recortarPistas(
+  datos: Pick<ProyectoDatos, "video" | "textos" | "voz">,
+  inicio: number,
+  duracion: number,
+): Pick<ProyectoDatos, "video" | "textos" | "voz"> & { vozDesde: number; musicaDesde: number } {
+  const desde = Math.max(0, inicio);
+  const hasta = desde + Math.max(0.5, duracion);
+
+  const video: ClipPista[] = [];
+  let t = 0;
+  for (const c of datos.video) {
+    const fin = t + c.duracion;
+    if (fin > desde && t < hasta) {
+      // Lo que se corta por delante se descuenta del propio clip de origen.
+      const recortado = Math.max(0, desde - t);
+      const largo = Math.min(fin, hasta) - Math.max(t, desde);
+      if (largo > 0.05) {
+        video.push(
+          ClipPistaSchema.parse({
+            ...c,
+            id: randomUUID(),
+            duracion: largo,
+            recorte: c.recorte + recortado,
+          }),
+        );
+      }
+    }
+    t = fin;
+  }
+  if (!video.length) video.push(clipVacio(Math.max(0.5, hasta - desde)));
+
+  const textos: RotuloPista[] = [];
+  for (const r of datos.textos) {
+    const fin = r.inicio + r.duracion;
+    if (fin <= desde || r.inicio >= hasta) continue;
+    const nuevoInicio = Math.max(r.inicio, desde) - desde;
+    const largo = Math.min(fin, hasta) - Math.max(r.inicio, desde);
+    if (largo > 0.15) {
+      textos.push(RotuloPistaSchema.parse({ ...r, id: randomUUID(), inicio: nuevoInicio, duracion: largo }));
+    }
+  }
+
+  // La voz suena entre [voz.inicio, voz.inicio + voz.duracion): si la ventana
+  // la pilla a medias, el archivo se abre mas adelante en vez de cortarse mal.
+  let voz = datos.voz;
+  let vozDesde = 0;
+  if (voz.modo !== "ninguna" && voz.duracion) {
+    const finVozAbs = voz.inicio + voz.duracion;
+    if (finVozAbs <= desde || voz.inicio >= hasta) {
+      voz = { ...voz, modo: "ninguna" };
+    } else {
+      vozDesde = Math.max(0, desde - voz.inicio);
+      voz = {
+        ...voz,
+        inicio: Math.max(0, voz.inicio - desde),
+        duracion: Math.min(finVozAbs, hasta) - Math.max(voz.inicio, desde),
+        tramos: voz.tramos
+          .filter((tr) => voz.inicio + tr.inicio + tr.duracion > desde && voz.inicio + tr.inicio < hasta)
+          .map((tr) => ({ ...tr, inicio: Math.max(0, voz.inicio + tr.inicio - Math.max(desde, voz.inicio)) })),
+      };
+    }
+  }
+
+  return { video, textos, voz, vozDesde, musicaDesde: desde };
 }
 
 /** Distingue el modelo nuevo (clips sin texto) del antiguo (escenas con texto). */

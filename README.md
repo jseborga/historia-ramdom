@@ -469,7 +469,8 @@ API desplegada usando `API_TOKEN`. No abre ningún puerto nuevo en el servidor.
 Herramientas disponibles: `catalogo`, `diagnostico`, `listar_series`,
 `listar_historias`, `listar_categorias`, `plantear_historia`, `escribir_guion`,
 `crear_historia`, `programar_subida`, `listar_ideas`, `agregar_ideas`,
-`importar_musica_suno`, `rendimiento` y `sincronizar_metricas`. Con ellas puedes pedir
+`importar_musica_suno`, `crear_videoclip`, `momentos_cancion`, `crear_cortes`,
+`rendimiento` y `sincronizar_metricas`. Con ellas puedes pedir
 cosas como *"mira qué ganchos rindieron mejor este mes y prepárame tres
 historias en inglés para el viernes"*.
 
@@ -550,6 +551,55 @@ canciones tuyas: en el plan gratuito de Suno son de uso no comercial, y en los
 de pago la licencia es tuya. Si Suno no deja descargar una canción (privada o
 borrada), la app lo dice y puedes descargarla desde Suno y subirla como
 archivo.
+
+## Videoclips musicales
+
+El mismo editor sirve para hacer el vídeo de una canción. Cambia quién manda:
+en una historia manda la narración, en un videoclip manda la **música**. No hay
+voz en off, la canción suena entera y decide cuánto dura el vídeo.
+
+Pestaña **Música**:
+
+1. **La canción**: un enlace de Suno (se descarga al proyecto) o una pista de
+   la biblioteca. También puedes subir tu propio archivo desde el editor.
+2. **La letra**, pegada tal cual. Si trae etiquetas al estilo de Suno
+   (`[Verso 1]`, `[Coro]`, `[Puente]`), se respetan como tramos; si no, se
+   agrupa por estrofas. Puedes elegir si la letra se ve en pantalla o no.
+3. **Instrumental**: sin letra, escribes tú los **lineamientos** («paisajes de
+   montaña al amanecer, niebla, cámara lenta, nada de ciudad») y de ahí salen
+   los criterios de búsqueda.
+4. **Lineamientos de imagen** (opcional con letra): ambiente, colores, qué
+   evitar. Mandan sobre lo que diga la letra.
+
+Con eso, el montaje se arma solo: cada tramo de la canción busca sus propios
+clips en inglés, los planos cortan más rápido en el coro y más lento en la
+intro, y la letra se coloca donde le toca. Después se edita como cualquier otro
+montaje: mover clips, cambiar textos, sustituir un vídeo que no encaje.
+
+El análisis de la letra lo hace el motor de IA configurado. Si no hay ninguno,
+el reparto se hace por etiquetas y estrofas y las palabras largas de cada tramo
+hacen de criterio de búsqueda: el videoclip sale igual, solo que menos fino.
+
+### Cortes y formatos para redes
+
+En el editor, pestaña **Cortes**: del MISMO montaje salen varias salidas, cada
+una con su tramo y su formato, y cada una se renderiza y se descarga aparte sin
+tocar el MP4 principal.
+
+- **Paquete para redes** deja encoladas tres de golpe: la completa en 16:9 para
+  YouTube, la completa en vertical y el corte de 30 segundos del mejor momento.
+- **Buscar los mejores momentos** analiza la propia canción: mide el nivel
+  segundo a segundo y propone las ventanas con más fuerza, porque el estribillo
+  casi siempre es la parte más llena. Si la letra marca el coro, ese tramo
+  puntúa más alto y el corte sale de ahí.
+- También puedes fijar a mano el segundo de inicio, la duración y el formato.
+
+Un corte no es un recorte del MP4 ya hecho: se vuelve a renderizar desde los
+clips originales, así que el 16:9 y el 9:16 salen bien encuadrados los dos, y
+la música arranca en el segundo que le toca, no desde el principio.
+
+Los cortes se descargan desde la misma pestaña, y comparten los créditos del
+montaje (clips y canción).
 
 ## Licencia de los clips
 

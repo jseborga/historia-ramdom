@@ -272,6 +272,74 @@ servidor.registerTool(
 );
 
 servidor.registerTool(
+  "crear_videoclip",
+  {
+    description:
+      "Monta un videoclip musical: la cancion (enlace de Suno o pista de la biblioteca) manda la duracion y la letra decide que se ve en cada tramo. Si es instrumental, los lineamientos hacen de guion visual. Devuelve el proyecto; el montaje sigue en segundo plano.",
+    inputSchema: {
+      nombre: z.string().max(120).optional(),
+      formato: z.string().max(40).describe("tiktok, youtube, cuadrado, instagram_feed o facebook").optional(),
+      enlaceSuno: z.string().url().describe("https://suno.com/song/...").optional(),
+      musica: z.string().max(200).describe("Nombre de una pista ya presente en la biblioteca").optional(),
+      letra: z.string().max(20_000).describe("La letra tal cual, con sus etiquetas [Verso], [Coro]...").optional(),
+      lineamientos: z.string().max(2000).describe("Que se debe ver; obligatorio en instrumentales").optional(),
+      instrumental: z.boolean().optional(),
+      mostrarLetra: z.boolean().describe("Quemar la letra sobre el video (por defecto si)").optional(),
+    },
+  },
+  async (args) =>
+    texto(await llamar("/api/proyectos/musical", { method: "POST", body: JSON.stringify(args) })),
+);
+
+servidor.registerTool(
+  "momentos_cancion",
+  {
+    description:
+      "Los tramos con mas fuerza de la cancion de un videoclip, para saber por donde cortar los 30 segundos que van a redes.",
+    inputSchema: {
+      proyectoId: z.string().uuid(),
+      ventana: z.number().int().min(5).max(120).describe("Segundos que dura el corte").optional(),
+      cuantos: z.number().int().min(1).max(5).optional(),
+    },
+  },
+  async ({ proyectoId, ventana, cuantos }) => {
+    const q = new URLSearchParams();
+    if (ventana) q.set("ventana", String(ventana));
+    if (cuantos) q.set("cuantos", String(cuantos));
+    return texto(await llamar(`/api/proyectos/${proyectoId}/momentos?${q}`));
+  },
+);
+
+servidor.registerTool(
+  "crear_cortes",
+  {
+    description:
+      "Saca del mismo montaje varias salidas: la version completa en un formato y cortes de X segundos en otros. Cada una se renderiza y se descarga aparte.",
+    inputSchema: {
+      proyectoId: z.string().uuid(),
+      variantes: z
+        .array(
+          z.object({
+            nombre: z.string().max(80),
+            formato: z.string().max(40).describe("tiktok, youtube, cuadrado, instagram_feed o facebook"),
+            inicio: z.number().min(0).describe("Segundo del montaje por el que empieza").optional(),
+            duracion: z.number().min(1).describe("Segundos; vacio = hasta el final").nullable().optional(),
+          }),
+        )
+        .min(1)
+        .max(8),
+    },
+  },
+  async ({ proyectoId, variantes }) =>
+    texto(
+      await llamar(`/api/proyectos/${proyectoId}/variantes`, {
+        method: "POST",
+        body: JSON.stringify({ variantes }),
+      }),
+    ),
+);
+
+servidor.registerTool(
   "rendimiento",
   {
     description:

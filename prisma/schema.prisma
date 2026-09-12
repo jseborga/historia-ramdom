@@ -155,12 +155,21 @@ enum EstadoProyecto {
   ERROR
 }
 
+/// Que gobierna el montaje: la narracion de una historia o una cancion.
+enum TipoProyecto {
+  NARRACION // historias con voz en off (lo de siempre)
+  MUSICA // videoclip: manda la musica y no hay narracion
+}
+
 /// Proyecto de edicion: la linea de tiempo que se monta en el editor.
 model Proyecto {
   id         String          @id @default(uuid())
   historia   Historia?       @relation(fields: [historiaId], references: [id], onDelete: SetNull)
   historiaId String?
   nombre     String
+  tipo       TipoProyecto    @default(NARRACION)
+  /// Videoclip: letra o lineamientos, tramos detectados y criterios de imagen.
+  letra      Json?
   /// Id de preset de formato (tiktok, youtube, cuadrado...).
   formato    String          @default("tiktok")
   /// Pista de video: clips en secuencia, cada uno con su duracion y efecto.
@@ -177,10 +186,34 @@ model Proyecto {
   duracionSeg Float?
   estado     EstadoProyecto  @default(BORRADOR)
   error      String?
+  variantes  Variante[]
   creadoEn   DateTime        @default(now())
   editadoEn  DateTime        @updatedAt
 
   @@index([estado, editadoEn])
+}
+
+/// Un corte o formato alternativo del MISMO montaje: la version completa en
+/// 16:9, los 30 segundos del coro en 9:16... Cada una se renderiza y se
+/// descarga aparte, sin tocar el proyecto.
+model Variante {
+  id          String         @id @default(uuid())
+  proyecto    Proyecto       @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  proyectoId  String
+  nombre      String
+  /// Id de preset de formato de esta salida.
+  formato     String         @default("tiktok")
+  /// Segundo del montaje por el que empieza el corte.
+  inicio      Float          @default(0)
+  /// Segundos que dura; vacio = hasta el final del montaje.
+  duracion    Float?
+  archivo     String? // MP4 dentro de DATA_DIR/videos
+  duracionSeg Float?
+  estado      EstadoProyecto @default(BORRADOR)
+  error       String?
+  creadaEn    DateTime       @default(now())
+
+  @@index([proyectoId, creadaEn])
 }
 
 /// Banco de historias: ideas listas para convertirse en video.
