@@ -24,6 +24,7 @@ import { BuscadorClips } from "./BuscadorClips";
 import { LineaDeTiempo, type Sel } from "./LineaDeTiempo";
 import { Cortes } from "./Cortes";
 import { PanelLetra } from "./PanelLetra";
+import { PanelCanciones } from "./PanelCanciones";
 
 const ANIMACIONES: [Animacion, string][] = [
   ["ninguna", "ninguna"], ["fundido", "fundido"], ["subir", "subir"], ["zoom", "zoom"],
@@ -65,7 +66,7 @@ export function EditorMontaje({
   const [musicaDisponible, setMusicaDisponible] = useState<string[]>([]);
   const [fuentes, setFuentes] = useState<Fuente[]>([]);
   const [sel, setSel] = useState<Sel>({ tipo: "clip" });
-  const [panel, setPanel] = useState<"clip" | "texto" | "voz" | "letra" | "musica" | "cortes" | "formato">("clip");
+  const [panel, setPanel] = useState<"clip" | "texto" | "voz" | "letra" | "canciones" | "musica" | "cortes" | "formato">("clip");
   const [t, setT] = useState(0);
   const [seek, setSeek] = useState({ t: 0, n: 0 });
   const [buscando, setBuscando] = useState(false);
@@ -130,7 +131,7 @@ export function EditorMontaje({
 
   const preset = presets.find((p) => p.id === proyecto.formato) ?? presets[0];
   const { video, textos, voz } = proyecto;
-  const musica: MusicaCapa = proyecto.musica ?? { archivo: null, subida: false, volumen: 0.25 };
+  const musica: MusicaCapa = proyecto.musica ?? { archivo: null, subida: false, volumen: 0.25, partes: [] };
   const total = Math.max(durVideo(video), finVoz(voz), finTextos(textos), 0.5);
   const clipSel = video.find((c) => c.id === sel.id) ?? null;
   const iClip = clipSel ? video.indexOf(clipSel) : -1;
@@ -355,10 +356,10 @@ export function EditorMontaje({
         <div>
           <nav style={{ marginBottom: 8 }}>
             {((esVideoclip
-              ? (["clip", "texto", "letra", "musica", "cortes", "formato"] as const)
+              ? (["clip", "texto", "letra", "canciones", "musica", "cortes", "formato"] as const)
               : (["clip", "texto", "voz", "musica", "cortes", "formato"] as const)) as readonly typeof panel[]).map((p) => (
               <button key={p} className={panel === p ? "activo" : ""} onClick={() => setPanel(p)}>
-                {{ clip: "Clip", texto: "Texto", voz: "Voz", letra: "Letra", musica: "Musica", cortes: "Cortes", formato: "Formato" }[p]}
+                {{ clip: "Clip", texto: "Texto", voz: "Voz", letra: "Letra", canciones: "Canciones", musica: "Musica", cortes: "Cortes", formato: "Formato" }[p]}
               </button>
             ))}
           </nav>
@@ -601,6 +602,16 @@ export function EditorMontaje({
               proyectoId={proyecto.id}
               letra={proyecto.letra ?? null}
               alCambiar={(letra: Letra) => act({ letra })}
+              alMontar={() => setTimeout(cargar, 4000)}
+            />
+          )}
+
+          {panel === "canciones" && (
+            <PanelCanciones
+              proyectoId={proyecto.id}
+              partes={musica.partes ?? []}
+              musicaDisponible={musicaDisponible}
+              alCambiar={(partes) => act({ musica: { ...musica, partes } })}
               alMontar={() => setTimeout(cargar, 4000)}
             />
           )}

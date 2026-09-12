@@ -469,8 +469,9 @@ API desplegada usando `API_TOKEN`. No abre ningún puerto nuevo en el servidor.
 Herramientas disponibles: `catalogo`, `diagnostico`, `listar_series`,
 `listar_historias`, `listar_categorias`, `plantear_historia`, `escribir_guion`,
 `crear_historia`, `programar_subida`, `listar_ideas`, `agregar_ideas`,
-`importar_musica_suno`, `crear_videoclip`, `momentos_cancion`, `crear_cortes`,
-`rendimiento` y `sincronizar_metricas`. Con ellas puedes pedir
+`importar_musica_suno`, `crear_videoclip`, `sugerir_lineamientos`,
+`unir_canciones`, `momentos_cancion`, `crear_cortes`, `rendimiento` y
+`sincronizar_metricas`. Con ellas puedes pedir
 cosas como *"mira qué ganchos rindieron mejor este mes y prepárame tres
 historias en inglés para el viernes"*.
 
@@ -573,10 +574,10 @@ voz en off, la canción suena entera y decide cuánto dura el vídeo.
 
 Pestaña **Música**:
 
-1. **La canción**, de tres maneras: un enlace de Suno (se descarga al
-   proyecto), **subir un archivo** desde tu computadora, o una pista de la
-   biblioteca. La subida es la salida cuando Suno no deja descargar la canción
-   (privadas, o si cambia su descarga): la bajas desde Suno y la subes aquí.
+1. **Las canciones**: una o varias, cada una de un enlace de Suno (se descarga
+   al proyecto), de un archivo subido desde tu computadora o de la biblioteca.
+   La subida es la salida cuando Suno no deja descargar la canción (privadas, o
+   si cambia su descarga): la bajas desde Suno y la subes aquí.
 2. **La letra**, pegada tal cual. Si trae etiquetas al estilo de Suno
    (`[Verso 1]`, `[Coro]`, `[Puente]`), se respetan como tramos; si no, se
    agrupa por estrofas. Puedes elegir si la letra se ve en pantalla o no.
@@ -590,6 +591,27 @@ Con eso, el montaje se arma solo: cada tramo de la canción busca sus propios
 clips en inglés, los planos cortan más rápido en el coro y más lento en la
 intro, y la letra se coloca donde le toca. Después se edita como cualquier otro
 montaje: mover clips, cambiar textos, sustituir un vídeo que no encaje.
+
+**Varias canciones en un solo videoclip.** Suno entrega temas de dos o tres
+minutos; en la lista de canciones puedes encadenar hasta ocho (enlaces de Suno,
+pistas de la biblioteca o archivos subidos). Se mezclan en una sola pista con un
+cruce suave configurable, y **cada canción lleva su propia letra**, así que la
+segunda no hereda los tramos de la primera: en la línea de tiempo los tramos
+salen como «Segunda canción · Coro». Los créditos listan todas. El tope de un
+videoclip es más largo que el de las historias: 15 minutos por defecto,
+configurable con `MAX_VIDEOCLIP_SEG`.
+
+**La IA describe el videoclip por ti.** El botón *Proponer con IA*, en el
+formulario y en la pestaña Letra, lee la letra (o solo el título) y devuelve
+tres cosas: un párrafo de lineamientos en español (ambiente, paleta, tipo de
+planos, qué evitar), las palabras de búsqueda de clips en inglés, y un **prompt
+largo en inglés para generar imágenes** con la herramienta que uses. Lo propuesto
+se puede corregir antes de guardar.
+
+Además, cada tramo del montaje guarda su propio prompt de imagen. Desde la
+pestaña Letra se copian todos o se bajan como `.txt`
+(`GET /api/proyectos/:id/prompts.txt`), listos para pegarlos en un generador de
+imágenes y sustituir después los clips de archivo por lo que generes.
 
 **Todo lo que escribes se guarda en el proyecto** en cuanto lo creas, antes de
 montar nada: la letra, los lineamientos, si es instrumental y si la letra se

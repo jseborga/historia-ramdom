@@ -142,6 +142,27 @@ export type Seccion = {
   peso: number;
   destacada: boolean;
   keywords: string[];
+  /** Descripcion larga en ingles para generar la imagen de ese tramo. */
+  prompt: string;
+};
+
+/** Una cancion dentro de la pista de musica de un videoclip. */
+export type ParteMusica = {
+  archivo: string;
+  titulo: string;
+  enlace: string | null;
+  inicio: number;
+  duracion: number;
+  letra: string;
+};
+
+/** Lo que propone la IA para describir el videoclip. */
+export type Sugerencia = {
+  lineamientos: string;
+  estiloVisual: string;
+  keywords: string[];
+  prompt: string;
+  hashtags: string[];
 };
 
 /** El analisis de la letra (o de los lineamientos) de un videoclip. */
@@ -184,6 +205,8 @@ export type MusicaCapa = {
   archivo: string | null;
   subida: boolean;
   volumen: number;
+  /** Las canciones encadenadas que forman la pista; vacio = una sola. */
+  partes: ParteMusica[];
 };
 
 export type Proyecto = {

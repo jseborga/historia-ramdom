@@ -34,6 +34,11 @@ export type EntradaRender = {
   vozDesde?: number;
   /** Segundo de la pista de música por el que empieza (cortes del montaje). */
   musicaDesde?: number;
+  /**
+   * Tope de duración en segundos. Las historias usan el de la app; un
+   * videoclip musical trae el suyo, más largo, porque encadena canciones.
+   */
+  maxSegundos?: number;
 };
 
 /**
@@ -49,10 +54,11 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
     0.5,
   );
   const tVideo = duracionVideo(e.video);
-  if (total > MAX_DURACION_SEG + 0.5) {
+  const tope = Math.max(e.maxSegundos ?? MAX_DURACION_SEG, 1);
+  if (total > tope + 0.5) {
     throw new Error(
-      `El montaje dura ${total.toFixed(0)} s y el tope es ${MAX_DURACION_SEG} s. ` +
-        "Acórtalo o continúa la historia en otra parte.",
+      `El montaje dura ${total.toFixed(0)} s y el tope es ${tope} s. ` +
+        "Acórtalo, súbelo por partes o cambia el límite en la configuración.",
     );
   }
 

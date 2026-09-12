@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, type Letra } from "../api";
+import { api, type Letra, type Sugerencia } from "../api";
 import { mensajeDe } from "../App";
 
 /**
@@ -27,6 +27,8 @@ export function PanelLetra({
   const [ocupado, setOcupado] = useState("");
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
+  /** Lo ultimo que propuso la IA, para verlo sin perder lo que ya habia. */
+  const [sugerencia, setSugerencia] = useState<Sugerencia | null>(null);
 
   const cambios = { letra: texto, lineamientos, instrumental, mostrarLetra };
   const listo = instrumental ? lineamientos.trim().length > 10 : texto.trim().length > 20;
@@ -42,6 +44,36 @@ export function PanelLetra({
       setError(mensajeDe(err));
     } finally {
       setOcupado("");
+    }
+  }
+
+  /** La IA propone el ambiente, las palabras de busqueda y un prompt de imagen. */
+  async function sugerir() {
+    setOcupado("sugerir");
+    setError("");
+    setOk("");
+    try {
+      const r = await api.post<Sugerencia>(`/api/proyectos/${proyectoId}/lineamientos`, {
+        letra: texto,
+        lineamientos,
+        instrumental,
+      });
+      setSugerencia(r);
+      setLineamientos(r.lineamientos);
+      setOk("Propuesta puesta en los lineamientos. Cambiala a gusto y guarda.");
+    } catch (err) {
+      setError(mensajeDe(err));
+    } finally {
+      setOcupado("");
+    }
+  }
+
+  async function copiar(valor: string, que: string) {
+    try {
+      await navigator.clipboard.writeText(valor);
+      setOk(`${que} copiado.`);
+    } catch {
+      setError("El navegador no dejo copiar; selecciona el texto a mano.");
     }
   }
 
@@ -106,15 +138,46 @@ export function PanelLetra({
       )}
 
       <div style={{ marginTop: 12 }}>
-        <label htmlFor="lineaProyecto">
-          {instrumental ? "Lineamientos: que quieres ver" : "Lineamientos de imagen (opcional)"}
-        </label>
+        <div className="fila">
+          <label htmlFor="lineaProyecto" style={{ margin: 0 }}>
+            {instrumental ? "Lineamientos: que quieres ver" : "Lineamientos de imagen (opcional)"}
+          </label>
+          <button onClick={sugerir} disabled={ocupado !== ""}>
+            {ocupado === "sugerir" ? "Pensando..." : "Proponer con IA"}
+          </button>
+        </div>
         <textarea
           id="lineaProyecto"
           value={lineamientos}
           onChange={(e) => setLineamientos(e.target.value)}
         />
       </div>
+
+      {sugerencia && (
+        <div className="item" style={{ marginTop: 12 }}>
+          <p className="suave">
+            <strong>Estilo:</strong> {sugerencia.estiloVisual || "(sin resumen)"}
+          </p>
+          <p className="suave">
+            <strong>Busqueda de clips:</strong> {sugerencia.keywords.join(", ") || "(ninguna)"}
+          </p>
+          {sugerencia.prompt && (
+            <p className="suave">
+              <strong>Prompt de imagen:</strong> {sugerencia.prompt}
+            </p>
+          )}
+          <div className="pie">
+            {sugerencia.prompt && (
+              <button onClick={() => copiar(sugerencia.prompt, "Prompt")}>Copiar prompt de imagen</button>
+            )}
+            {sugerencia.hashtags.length > 0 && (
+              <button onClick={() => copiar(sugerencia.hashtags.map((h) => `#${h}`).join(" "), "Hashtags")}>
+                Copiar hashtags
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="pie">
         <button onClick={guardar} disabled={ocupado !== ""}>
@@ -134,9 +197,26 @@ export function PanelLetra({
 
       {letra?.secciones.length ? (
         <>
-          <p className="suave" style={{ marginTop: 12 }}>
-            Tramos detectados{letra.estiloVisual ? ` · ${letra.estiloVisual}` : ""}
-          </p>
+          <div className="fila" style={{ marginTop: 12 }}>
+            <p className="suave" style={{ margin: 0 }}>
+              Tramos detectados{letra.estiloVisual ? ` · ${letra.estiloVisual}` : ""}
+            </p>
+            <a className="boton" href={`/api/proyectos/${proyectoId}/prompts.txt`}>
+              Descargar prompts (.txt)
+            </a>
+            <button
+              onClick={() =>
+                copiar(
+                  letra.secciones
+                    .map((s) => `${s.etiqueta}: ${s.prompt || s.keywords.join(", ")}`)
+                    .join("\n"),
+                  "Prompts",
+                )
+              }
+            >
+              Copiar prompts
+            </button>
+          </div>
           <div className="lista">
             {letra.secciones.map((s, i) => (
               <div className="item" key={`${s.etiqueta}-${i}`}>
@@ -147,6 +227,7 @@ export function PanelLetra({
                     peso {s.peso} · clips: {s.keywords.join(", ")}
                   </span>
                 </div>
+                {s.prompt && <p className="suave">Imagen: {s.prompt}</p>}
               </div>
             ))}
           </div>

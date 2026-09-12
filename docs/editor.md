@@ -307,6 +307,37 @@ no, se reutilizan y solo cambian los clips.
 Mientras el servidor monta, el proyecto queda en estado `MONTAJE`: el editor lo
 avisa y se refresca solo cada pocos segundos.
 
+### Varias canciones: la pestaña Canciones
+
+La capa de música guarda, además del archivo que suena, la lista de canciones
+que lo forman (`partes`): de cada una, el archivo, el título, el enlace de
+origen, el segundo en que entra, lo que dura y **su letra**.
+
+La pestaña **Canciones** hace dos cosas distintas:
+
+- Arriba, editar título y letra de las canciones ya mezcladas. Eso no toca el
+  audio; para que la letra nueva reparta tramos hay que volver a montar.
+- Abajo, añadir canciones (de Suno, de la biblioteca o subiendo el archivo) y
+  rehacer la pista: se encadenan en orden con el cruce elegido, se recalculan
+  los tiempos y se vuelve a montar la imagen.
+
+Al montar con varias canciones, cada una reparte sus tramos **dentro de su
+hueco**, y en la imagen cada canción llega hasta donde entra la siguiente, de
+modo que el vídeo dura exactamente lo que la mezcla aunque haya cruce.
+
+El tope de duración de un videoclip es `MAX_VIDEOCLIP_SEG` (900 s por defecto),
+no el de las historias.
+
+### Describir el videoclip con ayuda de IA
+
+En la pestaña Letra, *Proponer con IA* devuelve los lineamientos en español,
+las palabras de búsqueda en inglés y un prompt largo para generar imágenes.
+Cada tramo guarda además su propio prompt; se copian todos o se bajan en
+`.txt` para llevarlos a un generador de imágenes.
+
+Sin motor de IA configurado el botón lo dice claramente, y el montaje sigue
+funcionando con el reparto heurístico de siempre.
+
 ### Oír antes de renderizar
 
 La vista previa reproduce la música del proyecto sincronizada con el reloj de

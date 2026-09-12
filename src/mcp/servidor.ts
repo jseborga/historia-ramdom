@@ -281,6 +281,19 @@ servidor.registerTool(
       formato: z.string().max(40).describe("tiktok, youtube, cuadrado, instagram_feed o facebook").optional(),
       enlaceSuno: z.string().url().describe("https://suno.com/song/...").optional(),
       musica: z.string().max(200).describe("Nombre de una pista ya presente en la biblioteca").optional(),
+      canciones: z
+        .array(
+          z.object({
+            tipo: z.enum(["suno", "biblioteca"]),
+            valor: z.string().max(400),
+            titulo: z.string().max(120).optional(),
+            letra: z.string().max(20_000).optional(),
+          }),
+        )
+        .max(8)
+        .describe("Varias canciones encadenadas, para un videoclip mas largo")
+        .optional(),
+      cruce: z.number().min(0).max(10).optional(),
       letra: z.string().max(20_000).describe("La letra tal cual, con sus etiquetas [Verso], [Coro]...").optional(),
       lineamientos: z.string().max(2000).describe("Que se debe ver; obligatorio en instrumentales").optional(),
       instrumental: z.boolean().optional(),
@@ -289,6 +302,53 @@ servidor.registerTool(
   },
   async (args) =>
     texto(await llamar("/api/proyectos/musical", { method: "POST", body: JSON.stringify(args) })),
+);
+
+servidor.registerTool(
+  "sugerir_lineamientos",
+  {
+    description:
+      "Ayuda para describir un videoclip: a partir de la letra (o del titulo) propone el ambiente, las palabras de busqueda de clips EN INGLES y un prompt largo para generar imagenes con IA. No guarda nada.",
+    inputSchema: {
+      titulo: z.string().max(120).optional(),
+      letra: z.string().max(20_000).optional(),
+      lineamientos: z.string().max(2000).describe("Lo poco que ya haya escrito el autor").optional(),
+      instrumental: z.boolean().optional(),
+      idioma: z.enum(["es", "en"]).optional(),
+    },
+  },
+  async (args) =>
+    texto(await llamar("/api/lineamientos", { method: "POST", body: JSON.stringify(args) })),
+);
+
+servidor.registerTool(
+  "unir_canciones",
+  {
+    description:
+      "Encadena varias canciones (enlaces de Suno o pistas de la biblioteca) en una sola pista para alargar un videoclip, y vuelve a montar la imagen. Cada cancion puede traer su propia letra: asi cada tema reparte sus propios tramos.",
+    inputSchema: {
+      proyectoId: z.string().uuid(),
+      fuentes: z
+        .array(
+          z.object({
+            tipo: z.enum(["suno", "biblioteca", "proyecto"]),
+            valor: z.string().max(400).describe("Enlace de Suno, o nombre de la pista"),
+            titulo: z.string().max(120).optional(),
+            letra: z.string().max(20_000).optional(),
+          }),
+        )
+        .min(1)
+        .max(8),
+      cruce: z.number().min(0).max(10).describe("Segundos de solape entre canciones; 0 = corte seco").optional(),
+    },
+  },
+  async ({ proyectoId, fuentes, cruce }) =>
+    texto(
+      await llamar(`/api/proyectos/${proyectoId}/canciones`, {
+        method: "POST",
+        body: JSON.stringify({ fuentes, cruce }),
+      }),
+    ),
 );
 
 servidor.registerTool(

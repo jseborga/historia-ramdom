@@ -2,7 +2,8 @@ import type { ModoPublicacion } from "@prisma/client";
 import { db } from "../db.js";
 import { generarGuion, GuionSchema, contextoParaContinuar, criteriosVisuales, type Guion, type Premisa } from "../servicios/guion.js";
 import { creditoMusica } from "../servicios/suno.js";
-import { esLetra, type OpcionesVideoclip } from "../servicios/videoclip.js";
+import { esLetra, topeVideoclip, type OpcionesVideoclip } from "../servicios/videoclip.js";
+import { creditosDePartes, type FuenteCancion } from "../servicios/mezcla.js";
 import { generarVoz } from "../servicios/voz.js";
 import {
   elegirClips,
@@ -561,7 +562,10 @@ async function prepararProyecto(proyectoId: string) {
 
   // Descripcion para publicar: titulo, hashtags de la historia si la hay, y creditos.
   const guion = p.historia ? GuionSchema.safeParse(p.historia.guion) : null;
-  const musicaCredito = creditoMusica(datos.musica.archivo);
+  // Con varias canciones el credito sale de la lista; con una, del nombre del archivo.
+  const musicaCredito = datos.musica.partes.length
+    ? creditosDePartes(datos.musica.partes)
+    : creditoMusica(datos.musica.archivo);
   const letra = p.tipo === "MUSICA" ? esLetra(p.letra) : null;
   const hashtags = letra?.hashtags.length ? letra.hashtags : guion?.success ? guion.data.hashtags : [];
   const cabecera = letra?.titulo || (guion?.success ? guion.data.gancho : null);
@@ -574,6 +578,8 @@ async function prepararProyecto(proyectoId: string) {
     rutaMusica,
     descripcion,
     creditos: creditosDeProyecto(datos.video, musicaCredito),
+    // Un videoclip puede pasar del tope de las historias: encadena canciones.
+    maxSegundos: p.tipo === "MUSICA" ? topeVideoclip() : undefined,
   };
 }
 
@@ -585,7 +591,7 @@ export async function renderizarProyectoTrabajo(proyectoId: string) {
   const dir = await crearCarpetaTrabajo(`proy-${proyectoId}`);
 
   try {
-    const { p, datos, rutaVoz, rutaMusica, descripcion, creditos } = await prepararProyecto(proyectoId);
+    const { p, datos, rutaVoz, rutaMusica, descripcion, creditos, maxSegundos } = await prepararProyecto(proyectoId);
     const { archivo, duracion } = await renderizarProyecto(dir, {
       formato: datos.formato,
       video: datos.video,
@@ -596,6 +602,7 @@ export async function renderizarProyectoTrabajo(proyectoId: string) {
       rutaMusica,
       titulo: p.nombre,
       creditos,
+      maxSegundos,
     });
 
     const final = await moverAVideos(archivo, proyectoId);
@@ -639,6 +646,56 @@ export async function montarVideoclipTrabajo(proyectoId: string, opciones: Opcio
 }
 
 /**
+ * Encadena las canciones de un videoclip en una sola pista y monta encima.
+ * Va en segundo plano porque hay que bajar cada tema y mezclarlos con ffmpeg.
+ */
+export async function unirCancionesTrabajo(
+  proyectoId: string,
+  fuentes: FuenteCancion[],
+  cruce?: number,
+  montar = true,
+) {
+  const { unirCanciones } = await import("../servicios/mezcla.js");
+  const { montarVideoclip, guardarLetra } = await import("../servicios/videoclip.js");
+  const { MusicaCapaSchema } = await import("../servicios/proyecto.js");
+
+  await db.proyecto.update({ where: { id: proyectoId }, data: { estado: "MONTAJE", error: null } });
+  try {
+    const r = await unirCanciones(proyectoId, fuentes, cruce);
+    const p = await db.proyecto.findUniqueOrThrow({ where: { id: proyectoId } });
+    const musica = MusicaCapaSchema.parse(p.musica ?? {});
+    await db.proyecto.update({
+      where: { id: proyectoId },
+      data: {
+        tipo: "MUSICA",
+        musica: { ...musica, archivo: r.archivo, subida: true, volumen: 1, partes: r.partes },
+        duracionSeg: r.duracion,
+      },
+    });
+
+    // La letra del proyecto pasa a ser la de todas las canciones seguidas: es
+    // lo que se ve en el editor y de lo que tiran las comprobaciones.
+    const conLetra = r.partes.filter((x) => x.letra.trim());
+    if (conLetra.length) {
+      await guardarLetra(proyectoId, {
+        letra: conLetra.map((x) => `[${x.titulo}]\n${x.letra.trim()}`).join("\n\n"),
+        instrumental: false,
+      });
+    }
+
+    if (montar) await montarVideoclip(proyectoId);
+    await db.proyecto.update({ where: { id: proyectoId }, data: { estado: "BORRADOR", error: null } });
+    return proyectoId;
+  } catch (err) {
+    await db.proyecto.update({
+      where: { id: proyectoId },
+      data: { estado: "ERROR", error: String(err).slice(0, 800) },
+    });
+    throw err;
+  }
+}
+
+/**
  * Renderiza un corte del montaje en su propio formato: el mismo material,
  * recortado a su ventana de tiempo y encajado en otro lienzo. No toca el
  * proyecto ni su MP4.
@@ -652,7 +709,7 @@ export async function renderizarVarianteTrabajo(varianteId: string) {
   const dir = await crearCarpetaTrabajo(`var-${varianteId}`);
 
   try {
-    const { p, datos, rutaVoz, rutaMusica, creditos } = await prepararProyecto(v.proyectoId);
+    const { p, datos, rutaVoz, rutaMusica, creditos, maxSegundos } = await prepararProyecto(v.proyectoId);
     const total = duracionProyecto(datos);
     const inicio = Math.min(Math.max(v.inicio, 0), Math.max(total - 0.5, 0));
     const pedida = v.duracion && v.duracion > 0 ? v.duracion : total - inicio;
@@ -671,6 +728,7 @@ export async function renderizarVarianteTrabajo(varianteId: string) {
       musicaDesde: corte.musicaDesde,
       titulo: `${p.nombre} - ${v.nombre}`,
       creditos,
+      maxSegundos,
     });
 
     const final = await moverAVideos(archivo, varianteId);

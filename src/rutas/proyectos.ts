@@ -23,6 +23,7 @@ import {
   duracionProyecto,
   creditosDeProyecto,
   descripcionDeProyecto,
+  MusicaCapaSchema,
   VOZ_IA_POR_DEFECTO,
   type ClipPista,
   type RotuloPista,
@@ -30,18 +31,43 @@ import {
 } from "../servicios/proyecto.js";
 import { generarNarracion } from "../servicios/narracion.js";
 import type { EscenaPreparada } from "../servicios/clips.js";
-import { encolarProyecto, encolarVideoclip, encolarVariante } from "../cola/cola.js";
+import { encolarProyecto, encolarVideoclip, encolarVariante, encolarCanciones } from "../cola/cola.js";
 import { importarSunoAProyecto, creditoMusica } from "../servicios/suno.js";
-import { momentosDeProyecto, esLetra, guardarLetra } from "../servicios/videoclip.js";
+import {
+  momentosDeProyecto,
+  esLetra,
+  guardarLetra,
+  sugerirLineamientos,
+  promptsDeLetra,
+} from "../servicios/videoclip.js";
+import { creditosDePartes, MAX_CANCIONES, CRUCE_POR_DEFECTO } from "../servicios/mezcla.js";
 
 const idParam = z.object({ id: z.string().uuid() });
 
 const EXTENSIONES = /\.(mp3|m4a|wav|ogg|aac|flac)$/i;
 
+/** Una canción de la lista: enlace de Suno, pista de la biblioteca o archivo ya subido. */
+const FuenteSchema = z.object({
+  tipo: z.enum(["suno", "biblioteca", "proyecto"]),
+  valor: z.string().min(1).max(400),
+  titulo: z.string().max(120).optional(),
+  /** Letra de esta canción; con ella cada tema tiene sus propios tramos. */
+  letra: z.string().max(20_000).optional(),
+});
+
 const TIPOS_AUDIO: Record<string, string> = {
   mp3: "audio/mpeg", m4a: "audio/mp4", wav: "audio/wav",
   ogg: "audio/ogg", aac: "audio/aac", flac: "audio/flac",
 };
+
+/** Créditos de la música: la lista de canciones si las hay, o el nombre del archivo. */
+function creditosMusica(capa: unknown): string | null {
+  const musica = MusicaCapaSchema.safeParse(capa ?? {});
+  if (!musica.success) return null;
+  return musica.data.partes.length
+    ? creditosDePartes(musica.data.partes)
+    : creditoMusica(musica.data.archivo);
+}
 
 const tipoAudio = (nombre: string) =>
   TIPOS_AUDIO[(EXTENSIONES.exec(nombre)?.[1] ?? "").toLowerCase()] ?? "application/octet-stream";
@@ -414,6 +440,9 @@ export async function rutasProyectos(app: FastifyInstance) {
         formato: z.string().max(40).optional(),
         /** Enlace de la cancion en Suno; se descarga a la carpeta del proyecto. */
         enlaceSuno: z.string().max(400).optional(),
+        /** Varias canciones encadenadas, para un videoclip mas largo. */
+        canciones: z.array(FuenteSchema).max(MAX_CANCIONES).optional(),
+        cruce: z.number().min(0).max(10).optional(),
         /** Pista ya presente en la biblioteca (DATA_DIR/musica). */
         musica: z.string().max(200).optional(),
         letra: z.string().max(20_000).optional(),
@@ -426,7 +455,9 @@ export async function rutasProyectos(app: FastifyInstance) {
       })
       .parse(req.body ?? {});
 
-    if (!d.instrumental && !d.letra?.trim() && !d.lineamientos?.trim()) {
+    const lista = d.canciones ?? [];
+    const conLetraPropia = lista.some((c) => c.letra?.trim());
+    if (!d.instrumental && !d.letra?.trim() && !d.lineamientos?.trim() && !conLetraPropia) {
       return reply.code(400).send({ error: "Pega la letra, o marca instrumental y escribe los lineamientos" });
     }
     if (d.musica && !(await listarMusica()).includes(d.musica)) {
@@ -479,8 +510,13 @@ export async function rutasProyectos(app: FastifyInstance) {
 
     // Con la cancion ya puesta se monta enseguida; si se va a subir un
     // archivo, el montaje arranca solo en cuanto llegue.
-    const conMusica = Boolean(d.enlaceSuno || d.musica);
-    if (conMusica) {
+    // Con lista de canciones, un trabajo las encadena y monta encima; con una
+    // sola, se monta directamente. Sin musica todavia, el montaje espera.
+    const conMusica = Boolean(d.enlaceSuno || d.musica || lista.length);
+    if (lista.length) {
+      await db.proyecto.update({ where: { id: proyecto.id }, data: { estado: "MONTAJE" } });
+      await encolarCanciones(proyecto.id, lista, d.cruce);
+    } else if (conMusica) {
       await db.proyecto.update({ where: { id: proyecto.id }, data: { estado: "MONTAJE" } });
       await encolarVideoclip(proyecto.id, { idioma: d.idioma, motor: d.motor, modelo: d.modelo });
     }
@@ -517,7 +553,8 @@ export async function rutasProyectos(app: FastifyInstance) {
       instrumental: o.instrumental,
       mostrarLetra: o.mostrarLetra,
     });
-    if (!letra.texto.trim() && !letra.lineamientos.trim()) {
+    const partes = MusicaCapaSchema.parse(p.musica ?? {}).partes;
+    if (!letra.texto.trim() && !letra.lineamientos.trim() && !partes.some((x) => x.letra.trim())) {
       return reply.code(409).send({
         error: letra.instrumental
           ? "Escribe los lineamientos: sin letra hay que decir que se debe ver"
@@ -528,6 +565,129 @@ export async function rutasProyectos(app: FastifyInstance) {
     await db.proyecto.update({ where: { id }, data: { estado: "MONTAJE", error: null } });
     const job = await encolarVideoclip(id, { idioma: o.idioma, motor: o.motor, modelo: o.modelo, reanalizar: o.reanalizar });
     return reply.code(202).send({ encolada: true, jobId: job.id, letra });
+  });
+
+  /**
+   * Encadena varias canciones en una sola pista y monta encima. Cada canción
+   * puede traer su propia letra: así la segunda no hereda los tramos de la
+   * primera. Va en segundo plano porque hay que descargarlas y mezclarlas.
+   */
+  app.post("/api/proyectos/:id/canciones", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const { fuentes, cruce, montar } = z
+      .object({
+        fuentes: z.array(FuenteSchema).min(1).max(MAX_CANCIONES),
+        /** Segundos de solape entre canciones; 0 = corte seco. */
+        cruce: z.number().min(0).max(10).default(CRUCE_POR_DEFECTO),
+        montar: z.boolean().default(true),
+      })
+      .parse(req.body);
+    await db.proyecto.findUniqueOrThrow({ where: { id } });
+
+    await db.proyecto.update({ where: { id }, data: { estado: "MONTAJE", error: null } });
+    const job = await encolarCanciones(id, fuentes, cruce, montar);
+    return reply.code(202).send({ encolada: true, jobId: job.id });
+  });
+
+  /** Cambia el título o la letra de cada canción sin volver a mezclar el audio. */
+  app.patch("/api/proyectos/:id/canciones", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const { partes } = z
+      .object({
+        partes: z
+          .array(z.object({ archivo: z.string().max(200), titulo: z.string().max(120).optional(), letra: z.string().max(20_000).optional() }))
+          .max(MAX_CANCIONES),
+      })
+      .parse(req.body);
+    const p = await db.proyecto.findUniqueOrThrow({ where: { id } });
+    const musica = MusicaCapaSchema.parse(p.musica ?? {});
+
+    const actualizadas = musica.partes.map((parte) => {
+      const cambio = partes.find((x) => x.archivo === parte.archivo);
+      return cambio ? { ...parte, titulo: cambio.titulo ?? parte.titulo, letra: cambio.letra ?? parte.letra } : parte;
+    });
+    await db.proyecto.update({ where: { id }, data: { musica: { ...musica, partes: actualizadas } } });
+
+    // La letra del proyecto es la de todas las canciones seguidas.
+    const conLetra = actualizadas.filter((x) => x.letra.trim());
+    if (conLetra.length) {
+      await guardarLetra(id, {
+        letra: conLetra.map((x) => `[${x.titulo}]\n${x.letra.trim()}`).join("\n\n"),
+        instrumental: false,
+      });
+    }
+    return { partes: actualizadas };
+  });
+
+  /** La misma ayuda de IA, pero antes de que exista el proyecto. */
+  app.post("/api/lineamientos", async (req, reply) => {
+    const o = z
+      .object({
+        letra: z.string().max(20_000).optional(),
+        lineamientos: z.string().max(2000).optional(),
+        instrumental: z.boolean().optional(),
+        titulo: z.string().max(120).optional(),
+        idioma: z.enum(["es", "en"]).default("es"),
+        motor: z.string().max(40).nullable().default(null),
+        modelo: z.string().max(80).nullable().default(null),
+      })
+      .parse(req.body ?? {});
+    try {
+      return await sugerirLineamientos(o);
+    } catch (err) {
+      return reply.code(422).send({ error: err instanceof Error ? err.message : "No se pudo proponer nada" });
+    }
+  });
+
+  /**
+   * Ayuda de IA para describir el videoclip: a partir de la letra (o de cuatro
+   * palabras) propone ambiente, criterios de búsqueda en inglés y un prompt
+   * largo para generar imágenes. No guarda nada: se revisa y se guarda aparte.
+   */
+  app.post("/api/proyectos/:id/lineamientos", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const o = z
+      .object({
+        letra: z.string().max(20_000).optional(),
+        lineamientos: z.string().max(2000).optional(),
+        instrumental: z.boolean().optional(),
+        idioma: z.enum(["es", "en"]).default("es"),
+        motor: z.string().max(40).nullable().default(null),
+        modelo: z.string().max(80).nullable().default(null),
+      })
+      .parse(req.body ?? {});
+    const p = await db.proyecto.findUniqueOrThrow({ where: { id } });
+    const guardada = esLetra(p.letra);
+    try {
+      return await sugerirLineamientos({
+        letra: o.letra ?? guardada?.texto ?? "",
+        lineamientos: o.lineamientos ?? guardada?.lineamientos ?? "",
+        instrumental: o.instrumental ?? guardada?.instrumental,
+        titulo: guardada?.titulo || p.nombre,
+        duracion: p.duracionSeg ?? undefined,
+        idioma: o.idioma,
+        motor: o.motor,
+        modelo: o.modelo,
+      });
+    } catch (err) {
+      return reply.code(422).send({ error: err instanceof Error ? err.message : "No se pudo proponer nada" });
+    }
+  });
+
+  /** Los prompts de imagen de cada tramo, para llevarlos a un generador. */
+  app.get("/api/proyectos/:id/prompts.txt", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const p = await db.proyecto.findUnique({ where: { id } });
+    if (!p) return reply.code(404).send({ error: "No encontrado" });
+    const letra = esLetra(p.letra);
+    if (!letra?.secciones.length) {
+      return reply.code(409).send({ error: "Todavia no hay tramos: monta el videoclip primero" });
+    }
+    const musica = MusicaCapaSchema.parse(p.musica ?? {});
+    reply
+      .header("Content-Type", "text/plain; charset=utf-8")
+      .header("Content-Disposition", `attachment; filename="videoclip-${p.id.slice(0, 8)}-prompts.txt"`);
+    return reply.send(promptsDeLetra(letra, musica.partes) + "\n");
   });
 
   /** Guarda la letra y los lineamientos sin montar nada. */
@@ -658,7 +818,7 @@ export async function rutasProyectos(app: FastifyInstance) {
     if (!p) return reply.code(404).send({ error: "No encontrado" });
     const { video } = pistasDe(p);
     const guion = p.historia ? GuionSchema.safeParse(p.historia.guion) : null;
-    const musica = creditoMusica((p.musica as { archivo?: string | null } | null)?.archivo);
+    const musica = creditosMusica(p.musica);
     const descripcion =
       p.descripcion ??
       descripcionDeProyecto(p.nombre, video, guion?.success ? guion.data.hashtags : [], guion?.success ? guion.data.gancho : null, musica);
@@ -671,7 +831,7 @@ export async function rutasProyectos(app: FastifyInstance) {
     if (!p) return reply.code(404).send({ error: "No encontrado" });
     const { video } = pistasDe(p);
     const guion = p.historia ? GuionSchema.safeParse(p.historia.guion) : null;
-    const musica = creditoMusica((p.musica as { archivo?: string | null } | null)?.archivo);
+    const musica = creditosMusica(p.musica);
     const descripcion =
       p.descripcion ??
       descripcionDeProyecto(p.nombre, video, guion?.success ? guion.data.hashtags : [], guion?.success ? guion.data.gancho : null, musica);

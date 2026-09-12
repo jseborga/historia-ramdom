@@ -86,10 +86,28 @@ export const VozPistaSchema = z.object({
     .default([]),
 });
 
+/**
+ * Una cancion dentro de la pista de musica. Un videoclip puede encadenar
+ * varias (Suno entrega temas cortos): cada una sabe donde empieza, cuanto
+ * dura, de donde salio y cual es SU letra.
+ */
+export const ParteMusicaSchema = z.object({
+  archivo: z.string().max(200),
+  titulo: z.string().max(120).default(""),
+  /** Enlace publico (Suno) para los creditos; null si es un archivo propio. */
+  enlace: z.string().max(400).nullable().default(null),
+  inicio: z.number().min(0).max(36_000).default(0),
+  duracion: z.number().min(0).max(36_000).default(0),
+  /** Letra de esta cancion; vacia si es instrumental o no se pego. */
+  letra: z.string().max(20_000).default(""),
+});
+
 export const MusicaCapaSchema = z.object({
   archivo: z.string().max(200).nullable().default(null),
   subida: z.boolean().default(false),
   volumen: z.number().min(0).max(1).default(0.25),
+  /** Las canciones que forman `archivo`, en orden. Vacio = una sola pista. */
+  partes: z.array(ParteMusicaSchema).max(8).default([]),
 });
 
 export const ProyectoSchema = z.object({
@@ -98,8 +116,8 @@ export const ProyectoSchema = z.object({
     .string()
     .refine((v) => PRESETS.some((p) => p.id === v), "Formato desconocido")
     .default(PRESET_POR_DEFECTO.id),
-  video: z.array(ClipPistaSchema).min(1).max(120),
-  textos: z.array(RotuloPistaSchema).max(300).default([]),
+  video: z.array(ClipPistaSchema).min(1).max(400),
+  textos: z.array(RotuloPistaSchema).max(600).default([]),
   voz: VozPistaSchema.default({}),
   musica: MusicaCapaSchema.default({}),
 });
@@ -108,6 +126,7 @@ export type ClipPista = z.infer<typeof ClipPistaSchema>;
 export type RotuloPista = z.infer<typeof RotuloPistaSchema>;
 export type VozPista = z.infer<typeof VozPistaSchema>;
 export type MusicaCapa = z.infer<typeof MusicaCapaSchema>;
+export type ParteMusica = z.infer<typeof ParteMusicaSchema>;
 export type ProyectoDatos = z.infer<typeof ProyectoSchema>;
 
 // ---- Tiempo ----

@@ -89,6 +89,12 @@ const Env = z.object({
 
   // Limites de tamano, en megabytes.
   MAX_CLIP_MB: z.coerce.number().int().min(1).max(2000).default(150),
+  /**
+   * Tope de un videoclip musical, en segundos. Es mayor que el de las
+   * historias porque aqui se encadenan varias canciones: 15 minutos por
+   * defecto, que en YouTube es normal y en TikTok ya no cabe.
+   */
+  MAX_VIDEOCLIP_SEG: z.coerce.number().int().min(60).max(3600).default(900),
   MAX_VIDEO_MB: z.coerce.number().int().min(1).max(4000).default(300),
 
   // Proveedores de guion (usa los que tengas)

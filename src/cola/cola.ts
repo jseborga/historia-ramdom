@@ -10,11 +10,13 @@ import {
   buscarIdeasEnReddit,
   renderizarProyectoTrabajo,
   montarVideoclipTrabajo,
+  unirCancionesTrabajo,
   renderizarVarianteTrabajo,
   continuarHistoria,
   type OpcionesHistoria,
 } from "./trabajos.js";
 import type { OpcionesVideoclip } from "../servicios/videoclip.js";
+import type { FuenteCancion } from "../servicios/mezcla.js";
 
 export { cola, opcionesTrabajo };
 
@@ -70,6 +72,16 @@ export async function encolarVideoclip(proyectoId: string, opciones: OpcionesVid
   return cola.add("montar-videoclip", { proyectoId, opciones }, { ...opcionesTrabajo, attempts: 1 });
 }
 
+/** Encola la union de varias canciones en una sola pista (y su montaje). */
+export async function encolarCanciones(
+  proyectoId: string,
+  fuentes: FuenteCancion[],
+  cruce?: number,
+  montar = true,
+) {
+  return cola.add("unir-canciones", { proyectoId, fuentes, cruce, montar }, { ...opcionesTrabajo, attempts: 1 });
+}
+
 /** Encola el render de un corte del montaje. */
 export async function encolarVariante(varianteId: string) {
   return cola.add("render-variante", { varianteId }, { ...opcionesTrabajo, attempts: 1 });
@@ -104,6 +116,8 @@ export async function iniciarWorker() {
       if (job.name === "limpiar") return limpiarArchivos();
       if (job.name === "render-proyecto") return renderizarProyectoTrabajo(job.data.proyectoId);
       if (job.name === "montar-videoclip") return montarVideoclipTrabajo(job.data.proyectoId, job.data.opciones);
+      if (job.name === "unir-canciones")
+        return unirCancionesTrabajo(job.data.proyectoId, job.data.fuentes, job.data.cruce, job.data.montar);
       if (job.name === "render-variante") return renderizarVarianteTrabajo(job.data.varianteId);
       if (job.name === "continuar") return continuarHistoria(job.data.historiaId);
       if (job.name === "metricas") return sincronizarMetricas();

@@ -4,6 +4,7 @@ import { db } from "../db.js";
 import { duracionAudio } from "../render/ffmpeg.js";
 import { energiaPorSegundo, mejoresMomentos, type Momento, type TramoLetra } from "../render/audio.js";
 import { MAX_DURACION_SEG } from "../render/presets.js";
+import { env } from "../env.js";
 import { ESTILO_POR_DEFECTO } from "../render/rotulos.js";
 import { rutaSubidaSegura, rutaMusicaSegura } from "../almacen.js";
 import { buscarClips, CLIP_LARGO, type ClipInfo } from "./clips.js";
@@ -36,6 +37,12 @@ export const SeccionSchema = z.object({
   destacada: z.boolean().default(false),
   /** Criterios de busqueda de clips EN INGLES para este tramo. */
   keywords: z.array(z.string().min(1).max(40)).min(1).max(4),
+  /**
+   * Descripcion larga EN INGLES de la imagen de este tramo, lista para pegar
+   * en un generador de imagenes (o para buscar a mano algo mas fino que las
+   * palabras clave).
+   */
+  prompt: z.string().max(500).default(""),
 });
 
 export type Seccion = z.infer<typeof SeccionSchema>;
@@ -206,10 +213,13 @@ export async function analizarLetra(p: PeticionLetra): Promise<Letra> {
     '  "hashtags": ["sinAlmohadilla", "otro"],',
     '  "secciones": [',
     '    { "etiqueta": "Coro", "texto": "las lineas de la letra de este tramo", "peso": 2,',
-    '      "destacada": true, "keywords": ["neon city night", "crowd dancing"] }',
+    '      "destacada": true, "keywords": ["neon city night", "crowd dancing"],',
+    '      "prompt": "descripcion larga en ingles de la imagen de este tramo" }',
     "  ]",
     "}",
     'En instrumentales deja "texto" vacio. Las keywords son de 1 a 3 por tramo, concretas y visuales.',
+    "El `prompt` es una frase larga EN INGLES que describa el plano de ese tramo (encuadre, luz, " +
+      "colores, movimiento de camara, ambiente), para generar la imagen con IA o buscarla a mano.",
     "",
     instrumental ? `INDICACIONES: ${lineamientos}` : `LETRA:\n${letra.slice(0, 8000)}`,
   ]
@@ -238,6 +248,107 @@ export async function analizarLetra(p: PeticionLetra): Promise<Letra> {
   } catch {
     return respaldo();
   }
+}
+
+/** Lo que devuelve la ayuda de IA para describir el videoclip. */
+export const SugerenciaSchema = z.object({
+  /** Parrafo para el campo de lineamientos: ambiente, colores, planos, que evitar. */
+  lineamientos: z.string().min(10).max(2000),
+  /** Como se ve el videoclip entero, en una frase. */
+  estiloVisual: z.string().max(300).default(""),
+  /** Criterios de busqueda de clips EN INGLES. */
+  keywords: z.array(z.string().min(1).max(40)).max(10).default([]),
+  /** Descripcion larga EN INGLES para generar imagenes del videoclip. */
+  prompt: z.string().max(600).default(""),
+  hashtags: z.array(z.string().max(40)).max(8).default([]),
+});
+
+export type Sugerencia = z.infer<typeof SugerenciaSchema>;
+
+/**
+ * Ayuda de IA para describir el videoclip ANTES de montarlo: a partir de la
+ * letra (o de cuatro palabras sueltas) propone el ambiente, los criterios de
+ * busqueda en ingles y un prompt largo para generar imagenes. No guarda nada:
+ * se revisa, se corrige y se guarda desde el editor.
+ */
+export async function sugerirLineamientos(p: {
+  letra?: string;
+  /** Lo poco que ya haya escrito el usuario; la propuesta parte de ahi. */
+  lineamientos?: string;
+  instrumental?: boolean;
+  titulo?: string;
+  duracion?: number;
+  idioma?: string;
+  motor?: string | null;
+  modelo?: string | null;
+}): Promise<Sugerencia> {
+  const elegido = (p.motor && esMotor(p.motor) ? p.motor : null) ?? motorDisponible();
+  if (!elegido) {
+    throw new Error(
+      "No hay ningun motor de IA configurado: añade una clave de Groq, Gemini, OpenAI o Claude en el entorno",
+    );
+  }
+  const letra = (p.letra ?? "").trim();
+  const instrumental = p.instrumental ?? !letra;
+  if (!letra && !(p.lineamientos ?? "").trim() && !(p.titulo ?? "").trim()) {
+    throw new Error("Escribe al menos el titulo, una idea o la letra para que la IA proponga algo");
+  }
+
+  const prompt = [
+    "Eres director de fotografia de videoclips. Describe COMO SE VE el videoclip de esta cancion.",
+    p.titulo ? `Titulo: ${p.titulo}.` : "",
+    p.duracion ? `Dura unos ${Math.round(p.duracion)} segundos.` : "",
+    instrumental ? "La cancion es instrumental." : "",
+    (p.lineamientos ?? "").trim()
+      ? `El autor ya apunto esto y hay que respetarlo y ampliarlo: ${p.lineamientos}`
+      : "",
+    "El video se monta con clips de archivo (Pexels y Pixabay) y, si el autor quiere, con imagenes",
+    "generadas por IA. Asi que hacen falta las dos cosas: palabras de busqueda cortas EN INGLES y",
+    "un prompt largo EN INGLES para generar imagenes.",
+    "Nada de personas reales identificables, marcas ni logotipos.",
+    ORTOGRAFIA,
+    "",
+    "Devuelve exactamente este JSON:",
+    "{",
+    '  "lineamientos": "parrafo en español: ambiente, paleta de color, tipo de planos, ritmo y que evitar",',
+    '  "estiloVisual": "una frase que resuma el look",',
+    '  "keywords": ["visual keyword in english", "another"],',
+    '  "prompt": "long english prompt for an image generator: subject, framing, light, color, mood, lens",',
+    '  "hashtags": ["sinAlmohadilla", "otro"]',
+    "}",
+    "",
+    letra ? `LETRA:\n${letra.slice(0, 6000)}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const crudo = await textoConMotor(elegido as Motor, prompt, p.modelo, p.idioma ?? "es");
+  if (!crudo) throw new Error(`El motor ${elegido} no devolvio contenido`);
+  return SugerenciaSchema.parse(extraerJSON(crudo));
+}
+
+/** Los prompts de imagen de cada tramo, listos para copiar o descargar. */
+export function promptsDeLetra(letra: Letra, partes: { titulo: string; inicio: number }[] = []): string {
+  const cabecera = [
+    letra.titulo ? `# ${letra.titulo}` : "# Videoclip",
+    letra.estiloVisual ? `Estilo: ${letra.estiloVisual}` : "",
+    letra.keywords.length ? `Búsqueda general: ${letra.keywords.join(", ")}` : "",
+    partes.length > 1 ? `Canciones: ${partes.map((p) => p.titulo).join(" · ")}` : "",
+    "",
+  ].filter(Boolean);
+
+  const cuerpo = letra.secciones.map((s, i) =>
+    [
+      `${i + 1}. ${s.etiqueta}${s.destacada ? " (momento fuerte)" : ""}`,
+      `   Búsqueda: ${s.keywords.join(", ")}`,
+      s.prompt ? `   Imagen: ${s.prompt}` : "",
+      s.texto.trim() ? `   Letra: ${s.texto.replace(/\n/g, " / ")}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  );
+
+  return [...cabecera, ...cuerpo].join("\n");
 }
 
 // ---- Montaje ----
@@ -410,6 +521,9 @@ export type OpcionesVideoclip = {
   reanalizar?: boolean;
 };
 
+/** Segundos que puede durar un videoclip; nunca menos que el tope general. */
+export const topeVideoclip = () => Math.max(env.MAX_VIDEOCLIP_SEG, MAX_DURACION_SEG);
+
 /** Ruta real del archivo de musica del proyecto, este subido o en la biblioteca. */
 export function rutaMusicaDeProyecto(proyectoId: string, musica: { archivo: string | null; subida: boolean }) {
   if (!musica.archivo) throw new Error("El proyecto no tiene musica: añade un enlace de Suno o sube un archivo");
@@ -432,8 +546,9 @@ export async function montarVideoclip(proyectoId: string, opciones: OpcionesVide
   if (!Number.isFinite(duracionCancion) || duracionCancion < 1) {
     throw new Error("No se pudo medir la cancion");
   }
-  // El tope de la app manda: una cancion mas larga se monta hasta donde cabe.
-  const total = Math.min(duracionCancion, MAX_DURACION_SEG);
+  // Un videoclip puede encadenar varias canciones, asi que tiene su propio
+  // tope (MAX_VIDEOCLIP_SEG), mas largo que el de las historias.
+  const total = Math.min(duracionCancion, topeVideoclip());
 
   // La configuracion vive en el proyecto: lo que llegue en las opciones solo
   // la pisa campo a campo, asi el boton de "volver a montar" no necesita
@@ -461,7 +576,49 @@ export async function montarVideoclip(proyectoId: string, opciones: OpcionesVide
         modelo: opciones.modelo,
       });
 
-  const tramos = repartirSecciones(letra.secciones, total);
+  // Con varias canciones, cada una reparte SUS tramos dentro de su hueco: la
+  // letra de la segunda no se estira sobre la primera.
+  const partes = musica.partes.filter((x) => x.inicio < total - 0.5);
+  const conLetraPropia = partes.filter((x) => x.letra.trim()).length > 0;
+
+  let secciones = letra.secciones;
+  let tramos: TramoLetra[];
+
+  if (partes.length > 1 && (conLetraPropia || !letra.texto.trim())) {
+    secciones = [];
+    tramos = [];
+    for (const [i, parte] of partes.entries()) {
+      // Con cruce, las canciones se solapan en el audio: en la imagen cada una
+      // llega hasta donde entra la siguiente, para que el video dure lo mismo
+      // que la mezcla y no se vaya sumando el solape.
+      const fin = Math.min(partes[i + 1]?.inicio ?? total, total);
+      const dura = Math.max(0.5, fin - parte.inicio);
+      const propia = parte.letra.trim()
+        ? (
+            await analizarLetra({
+              letra: parte.letra,
+              lineamientos: letra.lineamientos,
+              instrumental: false,
+              mostrarLetra: letra.mostrarLetra,
+              titulo: parte.titulo,
+              duracion: dura,
+              idioma: opciones.idioma,
+              motor: opciones.motor,
+              modelo: opciones.modelo,
+            })
+          ).secciones
+        : seccionesInstrumentales(dura, letra.lineamientos || letra.texto);
+
+      // El nombre de la cancion delante: en el editor se ve de quien es cada tramo.
+      const etiquetadas = propia.map((x) => ({ ...x, etiqueta: `${parte.titulo} · ${x.etiqueta}` }));
+      const dentro = repartirSecciones(etiquetadas, dura).map((x) => ({ ...x, inicio: x.inicio + parte.inicio }));
+      secciones.push(...etiquetadas);
+      tramos.push(...dentro);
+    }
+    letra.secciones = secciones;
+  } else {
+    tramos = repartirSecciones(secciones, total);
+  }
 
   // Un solo viaje a las APIs de clips por criterio, sin repetir busquedas.
   const generales = letra.keywords.slice(0, 3);
@@ -471,7 +628,7 @@ export async function montarVideoclip(proyectoId: string, opciones: OpcionesVide
     if (!busquedas.has(clave)) busquedas.set(clave, buscarClips(clave, true).catch(() => []));
     return busquedas.get(clave)!;
   };
-  for (const s of letra.secciones) for (const k of s.keywords) pedir(k);
+  for (const s of secciones) for (const k of s.keywords) pedir(k);
   for (const k of generales) pedir(k);
 
   const video: ClipPista[] = [];
@@ -479,7 +636,7 @@ export async function montarVideoclip(proyectoId: string, opciones: OpcionesVide
   const usados = new Set<string>();
   const mostrarLetra = letra.mostrarLetra && !letra.instrumental;
 
-  for (const [i, seccion] of letra.secciones.entries()) {
+  for (const [i, seccion] of secciones.entries()) {
     const tramo = tramos[i];
     const listas = await Promise.all([...seccion.keywords, ...generales].map(pedir));
     const candidatos = [...new Map(listas.flat().map((c) => [c.id, c])).values()];
@@ -500,7 +657,7 @@ export async function montarVideoclip(proyectoId: string, opciones: OpcionesVide
   };
 
   await db.proyecto.update({ where: { id: proyectoId }, data: datos });
-  return { video, textos, letra, tramos, duracion: total, duracionCancion };
+  return { video, textos, letra, tramos, duracion: total, duracionCancion, partes };
 }
 
 /**
@@ -515,7 +672,7 @@ export async function momentosDeProyecto(proyectoId: string, ventana = 30, cuant
   const musica = MusicaCapaSchema.parse(p.musica ?? {});
   const ruta = rutaMusicaDeProyecto(proyectoId, musica);
 
-  const duracion = Math.min(await duracionAudio(ruta), MAX_DURACION_SEG);
+  const duracion = Math.min(await duracionAudio(ruta), topeVideoclip());
   const letra = esLetra(p.letra);
   const tramos = letra?.secciones.length ? repartirSecciones(letra.secciones, duracion) : [];
   const energias = await energiaPorSegundo(ruta);
