@@ -25,6 +25,23 @@ export function ffmpeg(args: string[], cwd: string, timeoutMs = 15 * 60_000) {
   });
 }
 
+/** Comprueba que un archivo subido trae de verdad una pista de audio. */
+export function tieneAudio(archivo: string) {
+  return new Promise<boolean>((resolve) => {
+    const p = spawn("ffprobe", [
+      "-v", "error",
+      "-select_streams", "a:0",
+      "-show_entries", "stream=codec_type",
+      "-of", "csv=p=0",
+      archivo,
+    ]);
+    let salida = "";
+    p.stdout.on("data", (d) => (salida += d));
+    p.on("error", () => resolve(false));
+    p.on("close", () => resolve(salida.trim() === "audio"));
+  });
+}
+
 export function duracion(archivo: string, cwd: string) {
   return new Promise<number>((resolve, reject) => {
     const p = spawn(

@@ -30,6 +30,15 @@ export function aISO(valorLocal: string): string | null {
 
 export const api = {
   get: <T>(ruta: string) => peticion<T>(ruta),
+  /** Subida de archivos: sin Content-Type, lo pone el navegador con el limite. */
+  subir: async <T>(ruta: string, archivo: File): Promise<T> => {
+    const cuerpo = new FormData();
+    cuerpo.append("archivo", archivo);
+    const res = await fetch(ruta, { method: "POST", body: cuerpo, credentials: "same-origin" });
+    const datos = await res.json().catch(() => null);
+    if (!res.ok) throw new ErrorAPI(datos?.error ?? `Error ${res.status}`, res.status);
+    return datos as T;
+  },
   put: <T>(ruta: string, cuerpo: unknown) =>
     peticion<T>(ruta, { method: "PUT", body: JSON.stringify(cuerpo) }),
   post: <T>(ruta: string, cuerpo?: unknown) =>
@@ -58,6 +67,66 @@ export type Catalogo = {
 export type Idioma = "es" | "en";
 
 export type ModoAudio = "VOZ" | "MUSICA" | "MUDO";
+
+export type Preset = {
+  id: string;
+  nombre: string;
+  ancho: number;
+  alto: number;
+  fps: number;
+  maxSegundos: number;
+  nota: string;
+};
+
+export type Posicion = "arriba" | "centro" | "abajo";
+export type Animacion = "ninguna" | "fundido" | "subir" | "zoom";
+
+export type EstiloTexto = {
+  tamano: number;
+  color: string;
+  contorno: string;
+  posicion: Posicion;
+  negrita: boolean;
+};
+
+export type EscenaMontaje = {
+  id: string;
+  clip: ClipCandidato | null;
+  color: string;
+  duracion: number;
+  texto: string;
+  estilo: EstiloTexto;
+  animacion: Animacion;
+  esGancho: boolean;
+};
+
+export type VozCapa = {
+  modo: "ninguna" | "ia" | "archivo";
+  archivo: string | null;
+  config: Voz | null;
+};
+
+export type MusicaCapa = {
+  archivo: string | null;
+  subida: boolean;
+  volumen: number;
+};
+
+export type Proyecto = {
+  id: string;
+  historiaId: string | null;
+  nombre: string;
+  formato: string;
+  escenas: EscenaMontaje[];
+  voz: VozCapa | null;
+  musica: MusicaCapa | null;
+  archivo: string | null;
+  duracionSeg: number | null;
+  estado: "BORRADOR" | "RENDER" | "LISTO" | "ERROR";
+  error: string | null;
+  editadoEn: string;
+  musicaDisponible?: string[];
+};
 
 export type ClipCandidato = {
   id: string;

@@ -1,10 +1,12 @@
 import { mkdir, rm, rename, copyFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { env, DIR_VIDEOS, DIR_TRABAJO, DIR_MUSICA } from "./env.js";
+import { env, DIR_VIDEOS, DIR_TRABAJO, DIR_MUSICA, DIR_PROYECTOS } from "./env.js";
 
 export const rutaVideos = () => join(env.DATA_DIR, DIR_VIDEOS);
 export const rutaTrabajo = () => join(env.DATA_DIR, DIR_TRABAJO);
 export const rutaMusica = () => join(env.DATA_DIR, DIR_MUSICA);
+/** Archivos subidos de cada proyecto: voz y musica propias. */
+export const rutaProyecto = (id: string) => join(env.DATA_DIR, DIR_PROYECTOS, id);
 
 /** La ruta del MP4 siempre se arma con el ID de la base de datos. */
 export const rutaVideo = (id: string) => join(rutaVideos(), `${id}.mp4`);
@@ -13,6 +15,21 @@ export async function prepararCarpetas() {
   await mkdir(rutaVideos(), { recursive: true });
   await mkdir(rutaTrabajo(), { recursive: true });
   await mkdir(rutaMusica(), { recursive: true });
+  await mkdir(join(env.DATA_DIR, DIR_PROYECTOS), { recursive: true });
+}
+
+export async function crearCarpetaProyecto(id: string) {
+  const dir = rutaProyecto(id);
+  await mkdir(dir, { recursive: true });
+  return dir;
+}
+
+/** Nombre de archivo subido: se genera aqui, nunca sale del navegador. */
+export function rutaSubidaSegura(proyectoId: string, nombre: string) {
+  if (!/^[\w.-]+$/.test(nombre) || nombre.includes("..")) {
+    throw new Error("Nombre de archivo invalido");
+  }
+  return join(rutaProyecto(proyectoId), nombre);
 }
 
 export async function crearCarpetaTrabajo(id: string) {

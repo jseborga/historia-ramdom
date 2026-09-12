@@ -231,6 +231,18 @@ export function Historias() {
                 )}
                 <button onClick={() => copiarCreditos(h.id)}>Copiar creditos</button>
                 <button onClick={() => copiarGuion(h.id)}>Copiar guion</button>
+                {h.titulo && (
+                  <button
+                    onClick={() =>
+                      accion(
+                        () => api.post("/api/proyectos", { historiaId: h.id }),
+                        "Montaje creado. Abrelo en la pestana Montaje.",
+                      )
+                    }
+                  >
+                    Abrir en el editor
+                  </button>
+                )}
                 {h.archivo && h.estado !== "SUBIDA" && (
                   <>
                     <input

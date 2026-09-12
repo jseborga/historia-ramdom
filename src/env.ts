@@ -174,3 +174,4 @@ export const MAX_VIDEO_BYTES = env.MAX_VIDEO_MB * MB;
 export const DIR_VIDEOS = "videos";
 export const DIR_TRABAJO = "trabajo";
 export const DIR_MUSICA = "musica";
+export const DIR_PROYECTOS = "proyectos";

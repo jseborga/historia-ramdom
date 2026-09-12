@@ -303,3 +303,61 @@ export async function limpiarArchivos() {
   await borrarSesionesCaducadas();
   return borrados.length;
 }
+
+/** Trabajo del editor: renderiza la linea de tiempo de un proyecto. */
+export async function renderizarProyectoTrabajo(proyectoId: string) {
+  const { renderizarProyecto } = await import("../render/proyecto.js");
+  const { ProyectoSchema } = await import("../servicios/proyecto.js");
+  const { rutaSubidaSegura } = await import("../almacen.js");
+
+  const p = await db.proyecto.findUniqueOrThrow({ where: { id: proyectoId } });
+  const datos = ProyectoSchema.parse({
+    nombre: p.nombre,
+    formato: p.formato,
+    escenas: p.escenas,
+    voz: p.voz ?? {},
+    musica: p.musica ?? {},
+  });
+
+  await db.proyecto.update({
+    where: { id: proyectoId },
+    data: { estado: "RENDER", error: null },
+  });
+  const dir = await crearCarpetaTrabajo(`proy-${proyectoId}`);
+
+  try {
+    const rutaVoz =
+      datos.voz.modo === "archivo" && datos.voz.archivo
+        ? rutaSubidaSegura(proyectoId, datos.voz.archivo)
+        : undefined;
+    const rutaMusica = datos.musica.archivo
+      ? datos.musica.subida
+        ? rutaSubidaSegura(proyectoId, datos.musica.archivo)
+        : rutaMusicaSegura(datos.musica.archivo)
+      : undefined;
+
+    const { archivo, duracion } = await renderizarProyecto(dir, {
+      escenas: datos.escenas,
+      formato: datos.formato,
+      voz: datos.voz,
+      musica: datos.musica,
+      rutaVoz,
+      rutaMusica,
+    });
+
+    const final = await moverAVideos(archivo, proyectoId);
+    await db.proyecto.update({
+      where: { id: proyectoId },
+      data: { archivo: final, duracionSeg: duracion, estado: "LISTO" },
+    });
+    return proyectoId;
+  } catch (err) {
+    await db.proyecto.update({
+      where: { id: proyectoId },
+      data: { estado: "ERROR", error: String(err).slice(0, 800) },
+    });
+    throw err;
+  } finally {
+    await borrarCarpetaTemporal(dir);
+  }
+}

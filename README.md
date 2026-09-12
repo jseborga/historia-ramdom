@@ -24,6 +24,9 @@ Implementa la guía de `docs/guia-original.md`.
   métricas lo califican y los que funcionan se vuelven a usar solos.
 - **Servidor MCP.** Claude puede consultar el banco, ver qué rinde y encargar
   historias hablando en lenguaje natural.
+- **Editor de montaje.** Línea de tiempo con vista previa, texto con estilo y
+  animaciones, capas de voz y música, y presets de formato por red
+  ([`docs/editor.md`](docs/editor.md)).
 - **Vista previa.** El MP4 se reproduce en la propia app antes de descargarlo, y
   los clips candidatos se ven antes de elegir cuál aparece en cada escena.
 - **Comprobación de servicios.** Un botón verifica que cada clave, la base de
@@ -209,6 +212,21 @@ pestaña **Historias** hay dos botones: *Copiar descripción* (título, hashtags
 aviso de contenido generado con IA y créditos) y *Copiar créditos* (solo la
 lista, por si prefieres pegarla en un comentario). La misma lista está en
 `GET /api/historias/:id/creditos`.
+
+## Editor de montaje
+
+La pestaña **Montaje** abre una línea de tiempo al estilo CapCut: se crea desde
+una historia con las escenas y los clips ya colocados en orden, y desde ahí se
+cambia cada pieza. Texto con tamaño, color, posición y cuatro animaciones; el
+clip de cada escena buscable por palabras; voz de IA o archivo propio; música de
+la biblioteca o subida; y un preset de formato por red (TikTok, Instagram feed,
+cuadrado, YouTube, Facebook). Al final, un solo MP4.
+
+Las cuatro animaciones están elegidas porque ffmpeg las reproduce igual que la
+vista previa, con etiquetas ASS (`\fad`, `\move`, `\t`), en vez de aproximarlas.
+
+El detalle completo —incluida la lista de lo que este editor todavía **no**
+hace— está en [`docs/editor.md`](docs/editor.md).
 
 ## Comprobar que todo funciona
 

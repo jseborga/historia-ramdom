@@ -116,10 +116,42 @@ model Historia {
   publicarEn  DateTime? // subida programada a TikTok
   error       String?
   metrica     Metrica?
+  proyectos   Proyecto[]
   creadaEn    DateTime       @default(now())
 
   @@index([serieId, creadaEn])
   @@index([estado])
+}
+
+enum EstadoProyecto {
+  BORRADOR
+  RENDER
+  LISTO
+  ERROR
+}
+
+/// Proyecto de edicion: la linea de tiempo que se monta en el editor.
+model Proyecto {
+  id         String          @id @default(uuid())
+  historia   Historia?       @relation(fields: [historiaId], references: [id], onDelete: SetNull)
+  historiaId String?
+  nombre     String
+  /// Id de preset de formato (tiktok, youtube, cuadrado...).
+  formato    String          @default("tiktok")
+  /// Escenas de la linea de tiempo: clip, duracion, texto y animacion.
+  escenas    Json
+  /// Capa de voz: { modo: "ia" | "archivo" | "ninguna", archivo?, voz? }
+  voz        Json?
+  /// Capa de musica: { archivo, volumen }
+  musica     Json?
+  archivo    String? // MP4 final dentro de DATA_DIR/videos
+  duracionSeg Float?
+  estado     EstadoProyecto  @default(BORRADOR)
+  error      String?
+  creadoEn   DateTime        @default(now())
+  editadoEn  DateTime        @updatedAt
+
+  @@index([estado, editadoEn])
 }
 
 /// Banco de historias: ideas listas para convertirse en video.

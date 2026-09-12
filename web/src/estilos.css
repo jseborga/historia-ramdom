@@ -151,3 +151,60 @@ form.login { max-width: 340px; margin: 15vh auto 0; display: grid; gap: 12px; }
 .punto.ok { color: var(--ok); }
 .punto.error { color: var(--error); }
 .punto.sin_configurar { color: var(--suave); }
+
+/* ---- Editor de montaje ---- */
+.montaje { display: grid; gap: 16px; grid-template-columns: minmax(220px, 320px) 1fr; }
+@media (max-width: 760px) { .montaje { grid-template-columns: 1fr; } }
+
+.lienzo {
+  position: relative;
+  width: 100%;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.lienzo video, .lienzo .fondo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
+.rotulo {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  text-align: center;
+  line-height: 1.15;
+  white-space: pre-wrap;
+  pointer-events: none;
+}
+
+.rotulo.arriba { top: 20%; transform: translateY(-50%); }
+.rotulo.centro { top: 50%; transform: translateY(-50%); }
+.rotulo.abajo { top: 76%; transform: translateY(-50%); }
+
+@keyframes entrarFundido { from { opacity: 0; } to { opacity: 1; } }
+@keyframes entrarSubir { from { opacity: 0; transform: translateY(calc(-50% + 22px)); } to { opacity: 1; } }
+@keyframes entrarZoom { from { opacity: 0; scale: 0.82; } to { opacity: 1; scale: 1; } }
+
+.rotulo.anim-fundido { animation: entrarFundido 0.3s ease both; }
+.rotulo.anim-subir { animation: entrarSubir 0.35s ease both; }
+.rotulo.anim-zoom { animation: entrarZoom 0.35s ease both; }
+
+.pistas { display: flex; gap: 4px; overflow-x: auto; padding: 8px 0; }
+
+.bloque {
+  flex: 0 0 auto;
+  min-width: 56px;
+  border: 2px solid var(--borde);
+  border-radius: 8px;
+  padding: 6px;
+  background: var(--fondo);
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--suave);
+}
+
+.bloque.sel { border-color: var(--acento); color: var(--texto); }
+.bloque .mini { height: 46px; border-radius: 4px; background: #000; object-fit: cover; width: 100%; }
