@@ -6,6 +6,8 @@ import { z } from "zod";
 import { db } from "../db.js";
 import { rutaVideo, crearCarpetaProyecto, rutaSubidaSegura, rutaMusicaSegura, listarMusica } from "../almacen.js";
 import { PRESETS, MAX_DURACION_SEG } from "../render/presets.js";
+import { PERFILES, perfilDe, type Calidad } from "../render/calidad.js";
+import { estimarSalida } from "../servicios/estimacion.js";
 import { MAX_AUDIO_BYTES, MAX_AUDIO_MB } from "../env.js";
 import { tieneAudio, duracionAudio } from "../render/ffmpeg.js";
 import { fuentesDisponibles, archivoDeFuente } from "../render/fuentes.js";
@@ -255,7 +257,7 @@ export async function rutasProyectos(app: FastifyInstance) {
     const d = ProyectoSchema.parse(req.body);
     return db.proyecto.update({
       where: { id },
-      data: { nombre: d.nombre, formato: d.formato, escenas: d.video, textos: d.textos, voz: d.voz, musica: d.musica },
+      data: { nombre: d.nombre, formato: d.formato, calidad: d.calidad, escenas: d.video, textos: d.textos, voz: d.voz, musica: d.musica },
     });
   });
 
@@ -754,6 +756,8 @@ export async function rutasProyectos(app: FastifyInstance) {
               inicio: z.number().min(0).max(MAX_DURACION_SEG).default(0),
               /** Vacio = hasta el final del montaje. */
               duracion: z.number().min(1).max(MAX_DURACION_SEG).nullable().default(null),
+              /** Vacía = la calidad del proyecto. */
+              calidad: z.string().refine((v) => v in PERFILES, "Calidad desconocida").nullable().default(null),
             }),
           )
           .min(1)
@@ -857,9 +861,33 @@ export async function rutasProyectos(app: FastifyInstance) {
     return servir(req, reply, rutaVideo(p.id), "video/mp4", `proyecto-${p.id.slice(0, 8)}.mp4`);
   });
 
-  /** Duracion total con las tres pistas, para avisar si se pasa del preset. */
+  /**
+   * Duración total con las tres pistas y, con ella, lo que va a pesar el MP4
+   * en cada calidad. Es lo que permite decidir ANTES de renderizar, en vez de
+   * esperar diez minutos para descubrir que no cabe.
+   */
   app.post("/api/proyectos/:id/duracion", async (req) => {
-    const d = ProyectoSchema.pick({ video: true, textos: true, voz: true }).parse(req.body);
-    return { segundos: duracionProyecto(d) };
+    const d = ProyectoSchema.pick({ video: true, textos: true, voz: true })
+      .extend({
+        formato: ProyectoSchema.shape.formato.optional(),
+        calidad: ProyectoSchema.shape.calidad.optional(),
+      })
+      .parse(req.body);
+    const segundos = duracionProyecto(d);
+    const estimacion = await estimarSalida(segundos, d.formato ?? "tiktok", perfilDe(d.calidad).id);
+    return { segundos, ...estimacion };
+  });
+
+  /** Lo mismo, pero con lo que hay guardado: sirve para la lista y el MCP. */
+  app.get("/api/proyectos/:id/estimacion", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const { calidad } = z.object({ calidad: z.string().max(20).optional() }).parse(req.query ?? {});
+    const p = await db.proyecto.findUnique({ where: { id } });
+    if (!p) return reply.code(404).send({ error: "No encontrado" });
+    const { video, textos } = pistasDe(p);
+    const voz = ProyectoSchema.shape.voz.parse(p.voz ?? {});
+    const segundos = duracionProyecto({ video, textos, voz });
+    const r = await estimarSalida(segundos, p.formato, perfilDe(calidad ?? p.calidad).id);
+    return { segundos, ...r, bytesReales: p.bytes ?? null };
   });
 }

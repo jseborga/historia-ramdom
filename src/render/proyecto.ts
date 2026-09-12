@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import { env, MAX_VIDEO_BYTES, MB } from "../env.js";
 import { ffmpeg } from "./ffmpeg.js";
 import { buscarPreset, filtroEscena, MAX_DURACION_SEG, type Preset } from "./presets.js";
+import { aplicarCalidad, perfilDe, estimar, techoBitrate, bppMedido } from "./calidad.js";
 import { crearASSProyecto, type Rotulo } from "./rotulos.js";
 import { descargarClip } from "../servicios/clips.js";
 import {
@@ -39,6 +40,15 @@ export type EntradaRender = {
    * videoclip musical trae el suyo, más largo, porque encadena canciones.
    */
   maxSegundos?: number;
+  /** Perfil de compresión: "alta", "normal" (por defecto) o "ligera". */
+  calidad?: string | null;
+  /**
+   * Tamaño máximo del archivo en bytes. Si la estimación se pasa, se pone un
+   * techo de bitrate para que quepa en vez de renderizar y fallar al final.
+   */
+  limiteBytes?: number;
+  /** Bits por píxel medidos en renders anteriores, para afinar la estimación. */
+  bppReal?: number | null;
 };
 
 /**
@@ -47,7 +57,11 @@ export type EntradaRender = {
  * textos duran mas que los clips, el ultimo fotograma se congela: nada se corta.
  */
 export async function renderizarProyecto(dir: string, e: EntradaRender) {
+  // `preset` es el formato tal cual (y la referencia de los rotulos);
+  // `lienzo` es lo que se codifica de verdad, que la calidad ligera encoge.
   const preset = buscarPreset(e.formato);
+  const perfil = perfilDe(e.calidad);
+  const lienzo = aplicarCalidad(preset, e.calidad);
   const conVoz = e.voz.modo !== "ninguna" && Boolean(e.rutaVoz);
   const total = Math.max(
     duracionProyecto({ video: e.video, textos: e.textos, voz: conVoz ? e.voz : { ...e.voz, modo: "ninguna" } }),
@@ -62,14 +76,22 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
     );
   }
 
-  // 1. Pista de video: cada clip con su recorte, duracion y efecto
+  // 1. Pista de video: cada clip con su recorte, duracion y efecto.
+  //    Un mismo clip puede salir varias veces en la linea de tiempo (pasa
+  //    siempre en los videoclips largos): se descarga UNA vez y se reusa, que
+  //    ahorra ancho de banda y, sobre todo, disco en la carpeta de trabajo.
   const partes: string[] = [];
+  const descargados = new Map<string, string>();
   for (const [i, c] of e.video.entries()) {
     const v = `v${i}.mp4`;
-    const vf = filtroEscena(preset, c.efecto, c.duracion);
+    const vf = filtroEscena(lienzo, c.efecto, c.duracion);
     if (c.clip) {
-      const origen = `c${i}.mp4`;
-      await descargarClip(c.clip.url, join(dir, origen));
+      let origen = descargados.get(c.clip.url);
+      if (!origen) {
+        origen = `fuente${descargados.size}.mp4`;
+        await descargarClip(c.clip.url, join(dir, origen));
+        descargados.set(c.clip.url, origen);
+      }
       await ffmpeg(
         ["-stream_loop", "-1", "-i", origen, "-ss", c.recorte.toFixed(3), "-t", c.duracion.toFixed(3),
          "-vf", vf, "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", v],
@@ -78,7 +100,7 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
     } else {
       await ffmpeg(
         ["-f", "lavfi",
-         "-i", `color=c=${c.color.replace("#", "0x")}:s=${preset.ancho}x${preset.alto}:r=${preset.fps}:d=${c.duracion.toFixed(3)}`,
+         "-i", `color=c=${c.color.replace("#", "0x")}:s=${lienzo.ancho}x${lienzo.alto}:r=${lienzo.fps}:d=${c.duracion.toFixed(3)}`,
          "-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", v],
         dir,
       );
@@ -142,10 +164,17 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
   }
   filtro += "[mix]loudnorm=I=-14:TP=-1.5:LRA=11[a]";
 
+  // Si por la cuenta no cabe en el limite, se pone techo de bitrate (VBV) en
+  // vez de codificar diez minutos para acabar fallando por tamaño.
+  const estimado = estimar(total, preset, perfil.id, e.bppReal).bytes;
+  const techo = e.limiteBytes ? techoBitrate(total, e.limiteBytes, perfil.id, estimado) : null;
+
   args.push(
     "-filter_complex", filtro, "-map", "[v]", "-map", "[a]",
-    "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", String(preset.fps),
-    "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart",
+    "-c:v", "libx264", "-preset", perfil.preset, "-crf", String(perfil.crf),
+    ...(techo ? ["-maxrate", String(techo), "-bufsize", String(techo * 2)] : []),
+    "-pix_fmt", "yuv420p", "-r", String(lienzo.fps),
+    "-c:a", "aac", "-b:a", `${perfil.audioKbps}k`, "-ar", "48000", "-movflags", "+faststart",
     // Los créditos van dentro del archivo: quien lo abra los tiene aunque
     // se pierda el .txt. Los valores van como argumento, nunca por shell.
     ...(e.titulo ? ["-metadata", `title=${e.titulo.slice(0, 200)}`] : []),
@@ -156,10 +185,19 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
 
   const archivo = join(dir, "final.mp4");
   const { size } = await stat(archivo);
-  if (size > MAX_VIDEO_BYTES) {
+  if (size > (e.limiteBytes ?? MAX_VIDEO_BYTES)) {
     throw new Error(
       `El video compilado pesa ${(size / MB).toFixed(1)} MB y supera el limite de ${env.MAX_VIDEO_MB} MB (MAX_VIDEO_MB).`,
     );
   }
-  return { archivo, duracion: total, bytes: size, preset: preset as Preset };
+  return {
+    archivo,
+    duracion: total,
+    bytes: size,
+    preset: preset as Preset,
+    lienzo: lienzo as Preset,
+    calidad: perfil.id,
+    // Lo que ha pesado de verdad, para que la proxima estimacion sea mejor.
+    bpp: bppMedido(size, total, lienzo),
+  };
 }

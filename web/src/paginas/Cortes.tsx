@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Momento, type Preset, type Variante } from "../api";
+import { api, type Calidad, type Catalogo, type Momento, type Preset, type Variante } from "../api";
 import { mensajeDe } from "../App";
 
 const reloj = (s: number) => {
@@ -13,15 +13,19 @@ const reloj = (s: number) => {
  * 30 segundos del coro para TikTok... Cada uno se renderiza aparte y se
  * descarga aparte; el montaje no se toca.
  */
+const mb = (bytes: number) => `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`;
+
 export function Cortes({
   proyectoId,
   presets,
   formato,
   total,
   esVideoclip,
+  catalogo,
 }: {
   proyectoId: string;
   presets: Preset[];
+  catalogo: Catalogo;
   /** Formato del proyecto, el que se propone por defecto. */
   formato: string;
   /** Duracion del montaje, para acotar los cortes. */
@@ -37,6 +41,8 @@ export function Cortes({
   const [inicio, setInicio] = useState(0);
   const [duracion, setDuracion] = useState(30);
   const [completa, setCompleta] = useState(false);
+  /** Vacía = la calidad del proyecto. */
+  const [calidad, setCalidad] = useState<Calidad | "">("");
   const [ocupado, setOcupado] = useState("");
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
@@ -75,7 +81,10 @@ export function Cortes({
     }
   }
 
-  const crear = (lista: { nombre: string; formato: string; inicio: number; duracion: number | null }[], mensaje: string) =>
+  const crear = (
+    lista: { nombre: string; formato: string; inicio: number; duracion: number | null; calidad?: Calidad | null }[],
+    mensaje: string,
+  ) =>
     accion("crear", () => api.post(`/api/proyectos/${proyectoId}/variantes`, { variantes: lista }), mensaje);
 
   async function sugerir() {
@@ -217,6 +226,17 @@ export function Cortes({
           </select>
         </div>
         <div>
+          <label htmlFor="calidadCorte">Calidad</label>
+          <select id="calidadCorte" value={calidad} onChange={(e) => setCalidad(e.target.value as Calidad | "")}>
+            <option value="">La del proyecto</option>
+            {(catalogo.calidades ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
           <label htmlFor="tramoCorte">Tramo</label>
           <select
             id="tramoCorte"
@@ -265,6 +285,7 @@ export function Cortes({
                   formato: fmt,
                   inicio: completa ? 0 : inicio,
                   duracion: completa ? null : Math.max(1, Math.min(duracion, tope - inicio)),
+                  calidad: calidad || null,
                 },
               ],
               "Corte encolado; se renderiza en segundo plano.",
@@ -287,6 +308,8 @@ export function Cortes({
                 {v.formato} ·{" "}
                 {v.duracion ? `${reloj(v.inicio)} → ${reloj(v.inicio + v.duracion)}` : "completa"}
                 {v.duracionSeg ? ` · ${v.duracionSeg.toFixed(1)}s` : ""}
+                {v.calidad ? ` · ${v.calidad}` : ""}
+                {v.bytes ? ` · ${mb(v.bytes)}` : ""}
               </span>
             </div>
             {v.error && <pre>{v.error}</pre>}

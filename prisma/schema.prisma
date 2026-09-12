@@ -185,6 +185,10 @@ model Proyecto {
   /// Título, hashtags y créditos de los clips, listo para pegar al publicar.
   descripcion String?
   duracionSeg Float?
+  /// Perfil de compresión del render: alta, normal o ligera.
+  calidad    String          @default("normal")
+  /// Lo que pesó el MP4. Sirve para afinar la estimación de los siguientes.
+  bytes      Float?
   estado     EstadoProyecto  @default(BORRADOR)
   error      String?
   variantes  Variante[]
@@ -210,6 +214,9 @@ model Variante {
   duracion    Float?
   archivo     String? // MP4 dentro de DATA_DIR/videos
   duracionSeg Float?
+  /// Perfil de compresión de este corte; vacío = el del proyecto.
+  calidad     String?
+  bytes       Float?
   estado      EstadoProyecto @default(BORRADOR)
   error       String?
   creadaEn    DateTime       @default(now())

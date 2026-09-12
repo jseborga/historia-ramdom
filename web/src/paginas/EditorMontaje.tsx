@@ -12,6 +12,7 @@ import {
   type Letra,
   type MusicaCapa,
   type Preset,
+  type ResumenEstimacion,
   type Proyecto,
   type Region,
   type RotuloPista,
@@ -77,6 +78,8 @@ export function EditorMontaje({
   const [reproducir, setReproducir] = useState({ n: 0 });
   const [region, setRegion] = useState<Region>("bolivia");
   const [modismos, setModismos] = useState(true);
+  /** Lo que va a pesar el MP4, calculado en el servidor con el historial. */
+  const [peso, setPeso] = useState<ResumenEstimacion | null>(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -113,6 +116,29 @@ export function EditorMontaje({
 
   const alTiempo = useCallback((x: number) => setT(x), []);
 
+  // Cuanto va a pesar el MP4: lo calcula el servidor, que sabe lo que pesaron
+  // los renders anteriores de este formato. Se pide con calma para no
+  // preguntar en cada tecla.
+  useEffect(() => {
+    if (!proyecto) return;
+    const t = setTimeout(async () => {
+      try {
+        setPeso(
+          await api.post<ResumenEstimacion>(`/api/proyectos/${proyecto.id}/duracion`, {
+            video: proyecto.video,
+            textos: proyecto.textos,
+            voz: proyecto.voz,
+            formato: proyecto.formato,
+            calidad: proyecto.calidad,
+          }),
+        );
+      } catch {
+        setPeso(null);
+      }
+    }, 700);
+    return () => clearTimeout(t);
+  }, [proyecto?.id, proyecto?.formato, proyecto?.calidad, proyecto?.video, proyecto?.textos, proyecto?.voz]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Espacio reproduce/pausa, Supr borra lo seleccionado, S divide el clip.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -144,6 +170,10 @@ export function EditorMontaje({
     : null;
   const esVideoclip = proyecto.tipo === "MUSICA";
 
+  const pesoActual = peso?.opciones.find((o) => o.calidad === (proyecto.calidad ?? "normal")) ?? null;
+  // Un videoclip puede durar mucho mas que una historia.
+  const tope = proyecto.tipo === "MUSICA" ? (catalogo.limites.videoclipSeg ?? 900) : 350;
+
   const act = (c: Partial<Proyecto>) => setProyecto({ ...proyecto, ...c });
   const actClip = (c: Partial<ClipPista>) =>
     clipSel && act({ video: video.map((x) => (x.id === clipSel.id ? { ...x, ...c } : x)) });
@@ -161,7 +191,7 @@ export function EditorMontaje({
     setOcupado("guardar");
     setError("");
     try {
-      await api.put(`/api/proyectos/${proyecto!.id}`, { nombre: proyecto!.nombre, formato: proyecto!.formato, video, textos, voz, musica });
+      await api.put(`/api/proyectos/${proyecto!.id}`, { nombre: proyecto!.nombre, formato: proyecto!.formato, calidad: proyecto!.calidad ?? "normal", video, textos, voz, musica });
       if (!silencioso) setOk("Proyecto guardado.");
       return true;
     } catch (err) { setError(mensajeDe(err)); return false; } finally { setOcupado(""); }
@@ -351,6 +381,14 @@ export function EditorMontaje({
             textos hasta {finTextos(textos).toFixed(1)}s
             {total > durVideo(video) + 0.05 ? " · el ultimo clip se congela para cubrir el resto" : ""}
           </p>
+          {pesoActual && (
+            <p className={pesoActual.cabe ? "suave" : "aviso error"}>
+              Al renderizar: {Math.floor(total / 60)}:{String(Math.round(total % 60)).padStart(2, "0")} ·{" "}
+              {pesoActual.ancho}x{pesoActual.alto} a {pesoActual.fps} fps · <strong>≈ {pesoActual.mb} MB</strong>
+              {pesoActual.medido ? " (segun tus renders)" : " (aproximado)"}
+              {peso?.aviso ? ` · ${peso.aviso}` : ""}
+            </p>
+          )}
         </div>
 
         <div>
@@ -623,6 +661,7 @@ export function EditorMontaje({
               formato={proyecto.formato}
               total={total}
               esVideoclip={proyecto.tipo === "MUSICA"}
+              catalogo={catalogo}
             />
           )}
 
@@ -637,12 +676,45 @@ export function EditorMontaje({
               {preset && (
                 <>
                   <p className="suave" style={{ marginTop: 8 }}>{preset.nota}</p>
-                  <p className={total > 350 ? "aviso error" : "suave"}>
-                    Duracion total: {total.toFixed(1)} s · tope {Math.min(preset.maxSegundos, 350)} s
-                    {total > 350 ? " · pasa del tope: el render se negara. Acorta o continua la historia en otra parte." : ""}
+                  <p className={total > tope ? "aviso error" : "suave"}>
+                    Duracion total: {total.toFixed(1)} s · tope {tope} s
+                    {total > tope ? " · pasa del tope: el render se negara. Acorta el montaje o sube el limite." : ""}
                   </p>
                 </>
               )}
+
+              <h3 style={{ marginTop: 20 }}>Peso del archivo</h3>
+              <p className="suave">
+                El tamaño es bitrate por duracion: bajando la calidad o la resolucion baja el peso,
+                y las redes recomprimen el video de todas formas. Tope del servidor:{" "}
+                {catalogo.limites.videoMB} MB.
+              </p>
+              <div className="lista">
+                {(peso?.opciones ?? []).map((o) => (
+                  <div className="item" key={o.calidad}>
+                    <div className="fila">
+                      <label className="suave" style={{ margin: 0 }}>
+                        <input
+                          type="radio"
+                          name="calidad"
+                          style={{ width: "auto", marginRight: 6 }}
+                          checked={(proyecto.calidad ?? "normal") === o.calidad}
+                          onChange={() => act({ calidad: o.calidad })}
+                        />
+                        <strong>{o.nombre}</strong>
+                      </label>
+                      <span className={o.cabe ? "suave" : "estado ERROR"}>
+                        ≈ {o.mb} MB · {o.ancho}x{o.alto} a {o.fps} fps
+                        {o.medido ? " · medido" : ""}
+                        {o.cabe ? "" : " · no cabe"}
+                      </span>
+                    </div>
+                    <p className="suave">{o.nota}</p>
+                  </div>
+                ))}
+                {!peso && <p className="suave">Calculando el peso...</p>}
+              </div>
+              {peso?.aviso && <p className="aviso error">{peso.aviso}</p>}
               <h3 style={{ marginTop: 20 }}>Estilo para todos los rotulos</h3>
               {(() => {
                 const g = global ?? { ...(textoSel?.estilo ?? textos[0]?.estilo ?? ESTILO), animacion: textoSel?.animacion ?? "fundido", lectura: textoSel?.lectura ?? "frases" };

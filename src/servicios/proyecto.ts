@@ -4,6 +4,7 @@ import { creditosLargos, armarDescripcion } from "./clips.js";
 import { VozSchema, VOZ_POR_DEFECTO } from "./voz.js";
 import { ESTILO_POR_DEFECTO, fragmentar, type EstiloTexto, type Lectura } from "../render/rotulos.js";
 import { PRESETS, PRESET_POR_DEFECTO } from "../render/presets.js";
+import { esCalidad } from "../render/calidad.js";
 import type { ClipInfo } from "./clips.js";
 import type { Guion } from "./guion.js";
 
@@ -116,6 +117,11 @@ export const ProyectoSchema = z.object({
     .string()
     .refine((v) => PRESETS.some((p) => p.id === v), "Formato desconocido")
     .default(PRESET_POR_DEFECTO.id),
+  /** Perfil de compresión del render: alta, normal o ligera. */
+  calidad: z
+    .string()
+    .refine((v) => esCalidad(v), "Calidad desconocida")
+    .default("normal"),
   video: z.array(ClipPistaSchema).min(1).max(400),
   textos: z.array(RotuloPistaSchema).max(600).default([]),
   voz: VozPistaSchema.default({}),

@@ -196,6 +196,42 @@ migración inicial de `prisma/migrations/` se aplica sola.
 
 Programa copias del volumen y de Postgres, y prueba una restauración.
 
+## Peso del vídeo: cuánto va a ocupar y cómo bajarlo
+
+El tamaño de un MP4 es, con poca variación, **bitrate × duración**. Por eso el
+editor lo dice **antes** de renderizar, en la pestaña Formato y bajo la vista
+previa: duración, resolución real y los megas aproximados.
+
+Hay tres perfiles de compresión:
+
+| Calidad | Resolución | CRF / audio | 3:30 min | 15 min |
+| --- | --- | --- | --- | --- |
+| Alta | la del formato | 20 / 192 kbps | ≈ 154 MB | ≈ 661 MB |
+| Normal (por defecto) | la del formato | 23 / 128 kbps | ≈ 103 MB | ≈ 441 MB |
+| Ligera | 720p a 24 fps | 26 / 96 kbps | ≈ 27 MB | ≈ 117 MB |
+
+Las cifras son para vertical 1080×1920 con material de archivo normal; un
+vídeo de planos quietos pesa bastante menos. La estimación **se corrige sola**:
+cada render guarda lo que pesó de verdad y, a partir del segundo, la cuenta usa
+tu propio historial para ese formato y esa calidad (lo marca como «medido»).
+
+Tres cosas más que evitan llenar el disco:
+
+- **Techo de bitrate.** Si por la cuenta el archivo no cabe en `MAX_VIDEO_MB`,
+  el codificador recibe un techo (VBV) para que quepa, en vez de tardar diez
+  minutos y fallar al final por tamaño.
+- **Cada clip se descarga una vez.** En un videoclip largo el mismo vídeo de
+  archivo aparece muchas veces en la línea de tiempo; antes se bajaba una vez
+  por aparición. Ahora se reutiliza, que ahorra descargas y disco temporal.
+- **Limpieza diaria.** Los MP4 se borran pasados `RETENCION_DIAS` días y las
+  carpetas de trabajo, al terminar cada render.
+
+La calidad se elige por proyecto (pestaña Formato) y también por corte, así que
+puedes dejar la versión completa en normal y sacar los cortes de 30 segundos en
+ligera. Ten en cuenta que TikTok, YouTube e Instagram recomprimen el vídeo al
+subirlo: pasar de «normal» a «alta» casi nunca se nota en la red, y duplica el
+archivo.
+
 ## Límites de tamaño
 
 | Variable | Por defecto | Qué hace |

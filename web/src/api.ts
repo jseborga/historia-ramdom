@@ -66,13 +66,44 @@ export type Catalogo = {
   idiomas: Idioma[];
   regiones: { id: Region; nombre: string }[];
   generosIA: Record<string, Genero>;
+  calidades: { id: Calidad; nombre: string; nota: string; escala: number; fps: number | null }[];
   categorias: Categoria[];
   categoriaAleatoria: string;
-  limites: { clipMB: number; videoMB: number };
+  limites: { clipMB: number; videoMB: number; videoclipSeg: number };
   retencionDias: number;
 };
 
 export type Idioma = "es" | "en";
+
+/** Perfil de compresion del render. */
+export type Calidad = "alta" | "normal" | "ligera";
+
+/** Lo que pesaria el video con una calidad concreta. */
+export type Estimacion = {
+  calidad: Calidad;
+  nombre: string;
+  nota: string;
+  ancho: number;
+  alto: number;
+  fps: number;
+  bitrate: number;
+  bytes: number;
+  mb: number;
+  cabe: boolean;
+  /** true = calculado con lo que pesaron renders anteriores, no con la tabla. */
+  medido: boolean;
+};
+
+export type ResumenEstimacion = {
+  segundos: number;
+  duracion: number;
+  formato: string;
+  limiteMB: number;
+  calidad: Calidad;
+  opciones: Estimacion[];
+  aviso: string | null;
+  bytesReales?: number | null;
+};
 
 export type ModoAudio = "VOZ" | "MUSICA" | "MUDO";
 
@@ -188,6 +219,9 @@ export type Variante = {
   duracion: number | null;
   archivo: string | null;
   duracionSeg: number | null;
+  /** Vacia = la calidad del proyecto. */
+  calidad: Calidad | null;
+  bytes: number | null;
   estado: "BORRADOR" | "MONTAJE" | "RENDER" | "LISTO" | "ERROR";
   error: string | null;
   creadaEn: string;
@@ -216,6 +250,10 @@ export type Proyecto = {
   /** NARRACION: historia con voz. MUSICA: videoclip gobernado por la cancion. */
   tipo: "NARRACION" | "MUSICA";
   formato: string;
+  /** Perfil de compresion: alta, normal o ligera. */
+  calidad: Calidad;
+  /** Lo que peso el MP4, cuando ya se renderizo. */
+  bytes?: number | null;
   video: ClipPista[];
   textos: RotuloPista[];
   voz: VozPista;

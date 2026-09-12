@@ -366,6 +366,27 @@ En videoclips, «Buscar los mejores momentos» mide el nivel de la canción
 segundo a segundo y propone las ventanas con más energía, con un empujón para
 el tramo marcado como coro en la letra.
 
+## Cuánto va a pesar (pestaña Formato)
+
+Debajo de la vista previa y en la pestaña **Formato** se ve, antes de
+renderizar: la duración en minutos, la resolución real a la que se va a
+codificar y los megas aproximados. La pestaña Formato ofrece los tres perfiles
+(alta, normal, ligera) con su peso estimado y marca en rojo el que no cabe en
+`MAX_VIDEO_MB`.
+
+La cuenta sale de `src/render/calidad.ts`: bits por píxel × ancho × alto × fps,
+más el audio. La primera vez usa una tabla por perfil; después, `bppHistorico`
+(en `src/servicios/estimacion.ts`) promedia lo que pesaron de verdad los
+renders anteriores del mismo formato y calidad, y la estimación pasa a ser
+historia en vez de tabla.
+
+La calidad ligera baja el lienzo a 720p y a 24 fps. Los rótulos se siguen
+calculando sobre el formato original (el ASS lleva `PlayRes` del preset), así
+que se ven igual de grandes en proporción.
+
+Si la estimación no cabe en el límite, el render añade `-maxrate` y `-bufsize`
+para que el archivo quepa, en vez de codificarlo entero y fallar al final.
+
 ## Descargar el resultado y sus créditos
 
 Al acabar el render hay tres cosas, todas en la lista de **Montaje** (y las dos

@@ -11,6 +11,7 @@ import {
 } from "../servicios/voz.js";
 import { listarMusica } from "../almacen.js";
 import { catalogoCategorias, CATEGORIA_ALEATORIA } from "../servicios/categorias.js";
+import { PERFILES } from "../render/calidad.js";
 import { tiktokConfigurado } from "../servicios/tiktok.js";
 import { redditConfigurado } from "../servicios/reddit.js";
 import { env } from "../env.js";
@@ -62,7 +63,15 @@ export async function rutasCatalogo(app: FastifyInstance) {
       /** Categorías y subcategorías de historia; `aleatoria` sortea una cada vez. */
       categorias: catalogoCategorias(),
       categoriaAleatoria: CATEGORIA_ALEATORIA,
-      limites: { clipMB: env.MAX_CLIP_MB, videoMB: env.MAX_VIDEO_MB },
+      /** Perfiles de compresión, con lo que cambia cada uno. */
+      calidades: Object.values(PERFILES).map((c) => ({
+        id: c.id,
+        nombre: c.nombre,
+        nota: c.nota,
+        escala: c.escala,
+        fps: c.fps,
+      })),
+      limites: { clipMB: env.MAX_CLIP_MB, videoMB: env.MAX_VIDEO_MB, videoclipSeg: env.MAX_VIDEOCLIP_SEG },
       retencionDias: env.RETENCION_DIAS,
     };
   });

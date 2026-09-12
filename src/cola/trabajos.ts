@@ -586,13 +586,17 @@ async function prepararProyecto(proyectoId: string) {
 /** Trabajo del editor: renderiza las tres pistas de un proyecto. */
 export async function renderizarProyectoTrabajo(proyectoId: string) {
   const { renderizarProyecto } = await import("../render/proyecto.js");
+  const { bppHistorico } = await import("../servicios/estimacion.js");
+  const { perfilDe } = await import("../render/calidad.js");
+  const { MAX_VIDEO_BYTES } = await import("../env.js");
 
   await db.proyecto.update({ where: { id: proyectoId }, data: { estado: "RENDER", error: null } });
   const dir = await crearCarpetaTrabajo(`proy-${proyectoId}`);
 
   try {
     const { p, datos, rutaVoz, rutaMusica, descripcion, creditos, maxSegundos } = await prepararProyecto(proyectoId);
-    const { archivo, duracion } = await renderizarProyecto(dir, {
+    const calidad = perfilDe(p.calidad).id;
+    const { archivo, duracion, bytes, bpp } = await renderizarProyecto(dir, {
       formato: datos.formato,
       video: datos.video,
       textos: datos.textos,
@@ -603,12 +607,15 @@ export async function renderizarProyectoTrabajo(proyectoId: string) {
       titulo: p.nombre,
       creditos,
       maxSegundos,
+      calidad,
+      limiteBytes: MAX_VIDEO_BYTES,
+      bppReal: await bppHistorico(datos.formato, calidad),
     });
 
     const final = await moverAVideos(archivo, proyectoId);
     await db.proyecto.update({
       where: { id: proyectoId },
-      data: { archivo: final, duracionSeg: duracion, estado: "LISTO", descripcion },
+      data: { archivo: final, duracionSeg: duracion, bytes, estado: "LISTO", descripcion },
     });
     return proyectoId;
   } catch (err) {
@@ -703,6 +710,9 @@ export async function unirCancionesTrabajo(
 export async function renderizarVarianteTrabajo(varianteId: string) {
   const { renderizarProyecto } = await import("../render/proyecto.js");
   const { recortarPistas, duracionProyecto } = await import("../servicios/proyecto.js");
+  const { bppHistorico } = await import("../servicios/estimacion.js");
+  const { perfilDe } = await import("../render/calidad.js");
+  const { MAX_VIDEO_BYTES } = await import("../env.js");
 
   const v = await db.variante.findUniqueOrThrow({ where: { id: varianteId } });
   await db.variante.update({ where: { id: varianteId }, data: { estado: "RENDER", error: null } });
@@ -715,8 +725,10 @@ export async function renderizarVarianteTrabajo(varianteId: string) {
     const pedida = v.duracion && v.duracion > 0 ? v.duracion : total - inicio;
     const largo = Math.max(0.5, Math.min(pedida, total - inicio));
     const corte = recortarPistas(datos, inicio, largo);
+    // El corte hereda la calidad del proyecto si no se le puso otra.
+    const calidad = perfilDe(v.calidad ?? p.calidad).id;
 
-    const { archivo, duracion } = await renderizarProyecto(dir, {
+    const { archivo, duracion, bytes } = await renderizarProyecto(dir, {
       formato: v.formato,
       video: corte.video,
       textos: corte.textos,
@@ -729,12 +741,15 @@ export async function renderizarVarianteTrabajo(varianteId: string) {
       titulo: `${p.nombre} - ${v.nombre}`,
       creditos,
       maxSegundos,
+      calidad,
+      limiteBytes: MAX_VIDEO_BYTES,
+      bppReal: await bppHistorico(v.formato, calidad),
     });
 
     const final = await moverAVideos(archivo, varianteId);
     await db.variante.update({
       where: { id: varianteId },
-      data: { archivo: final, duracionSeg: duracion, estado: "LISTO" },
+      data: { archivo: final, duracionSeg: duracion, bytes, calidad, estado: "LISTO" },
     });
     return varianteId;
   } catch (err) {
