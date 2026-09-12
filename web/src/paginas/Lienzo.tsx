@@ -16,6 +16,7 @@ export function Lienzo({
   vozInicio,
   seek,
   alTiempo,
+  alternar,
 }: {
   video: ClipPista[];
   textos: RotuloPista[];
@@ -26,12 +27,19 @@ export function Lienzo({
   /** Salto pedido desde fuera (bloque pulsado, regla). `n` cambia en cada salto. */
   seek: { t: number; n: number };
   alTiempo: (t: number) => void;
+  /** Cambia para alternar reproducir/pausar desde fuera (barra espaciadora). */
+  alternar?: { n: number };
 }) {
   const [t, setT] = useState(0);
   const [reproduciendo, setReproduciendo] = useState(false);
   const audio = useRef<HTMLAudioElement>(null);
   const vid = useRef<HTMLVideoElement>(null);
   const ultimo = useRef(0);
+
+  useEffect(() => {
+    if (!alternar || alternar.n === 0) return;
+    setReproduciendo((r) => !r);
+  }, [alternar?.n]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Saltos desde fuera
   useEffect(() => {

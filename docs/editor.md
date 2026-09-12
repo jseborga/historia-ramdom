@@ -23,6 +23,64 @@ del servidor**, no una voz sintética del navegador.
 Si la voz o los textos duran más que los clips, el último fotograma se congela
 para cubrir el resto: nada se corta. El resumen bajo la vista previa lo avisa.
 
+## Ensamblado automático: la narración manda
+
+*Ensamblar con la narración* (barra superior) monta el proyecto en este orden,
+que es el que pediste:
+
+1. **La voz manda.** Se genera la narración con una sola voz —la mejor local
+   disponible si no elegiste otra— **frase a frase**, y se mide cuánto ocupa
+   cada frase en el audio final (con 0,28 s de silencio entre frases).
+2. **El texto se acomoda a la voz.** Un rótulo por frase, colocado
+   *exactamente* donde se lee; el primero, el gancho, más grande y centrado.
+3. **El vídeo es la última capa.** Se rellena hasta la duración de la voz con
+   clips al azar, **largos primero (30 s o más)**, cada uno con su duración
+   real de origen y sin repetir mientras haya de dónde elegir. El primer clip
+   es el gancho: 4 segundos con un plano llamativo (se busca con la primera
+   frase más "cinematic").
+
+Si la voz dura más que todos los clips disponibles, el conjunto se repite hasta
+tres veces y, si aun así falta, se cierra con un fondo de color. Nada queda sin
+imagen.
+
+El cron en modo Montaje hace exactamente esto con cada historia que escribe.
+
+## Duración real de los clips
+
+Cuando se elige un clip —a mano, al azar o por parecido— **su duración es la
+real del archivo en origen** (Pexels y Pixabay la devuelven), recortada al
+hueco si es más largo. Después solo se puede **acortar**: el campo de duración,
+el borde arrastrable y la división tienen como tope la duración de origen, que
+se muestra junto al campo. Nunca se impone una duración más larga que el vídeo.
+
+## Voces
+
+La narración se lee con **una sola voz**. Las locales, de más robótica a más
+natural, todas sin coste ni clave:
+
+| Motor | Voces | Cómo suena |
+|---|---|---|
+| espeak-ng | `es-419`, `es`, `en-us` | Robótica, instantánea |
+| MBROLA | `mb-mx1`, `mb-mx2`, `mb-vz1`, `mb-es1`, `mb-es2` | Difonos: claramente más natural que espeak, igual de rápida |
+| Piper | `piper:es_MX-claude-high`, `piper:es_ES-davefx-medium` | Neural: la mejor sin pagar, ~0,7 s por frase |
+
+El selector marca la calidad con estrellas y solo lista las que funcionan en
+esa máquina; por defecto se usa la mejor disponible. Gemini y OpenAI siguen
+ahí para cuando se quiera más. Verificado en este entorno: las tres familias
+sintetizan, y Piper produce una frase de 15 palabras en 0,75 s.
+
+## Redactar la narración
+
+En la pestaña Voz, tres botones:
+
+- **Redactar narración (texto plano):** la IA reescribe el guion como prosa
+  corrida, bien puntuada, con ¡! y ¿? donde toca, sin marcas.
+- **Redactar expresiva (marcas para Gemini):** lo mismo, con indicaciones de
+  tono breves entre corchetes —`[pausa]`, `[susurrando]`, `[con énfasis]`—
+  que **Gemini TTS interpreta** y que las voces locales y OpenAI **ignoran**
+  (se quitan antes de leer, y no aparecen en los rótulos).
+- **Cargar el guion tal cual:** sin pasar por la IA.
+
 ## Cómo funciona
 
 1. **Montaje → Nuevo montaje.** Desde una historia: los clips en secuencia con
@@ -37,11 +95,17 @@ para cubrir el resto: nada se corta. El resumen bajo la vista previa lo avisa.
 3. **Clip.** Duración, segundo de entrada, efecto, buscar / parecido / al azar,
    mover, duplicar, quitar. *Buscar clip parecido* usa el texto que cae encima
    de ese clip en la línea de tiempo.
-4. **Texto.** Nuevo en el instante del cabezal, inicio y duración, empujar ±0,5
-   s, duplicar a continuación, estilo y animación.
+4. **Texto.** Nuevo en el instante del cabezal, arrastrar para mover, borde
+   derecho para estirar, se pega al borde de clip más cercano; estilo y
+   animación.
 5. **Formato.** Preset y estilo global para todos los rótulos.
 6. **Renderizar MP4.** Si la narración del servidor no está generada o cambió
    el texto, se genera en el render.
+
+**Línea de tiempo:** zoom con el deslizador o Ctrl+rueda (de 8 a 240 píxeles
+por segundo, con marcas de medio segundo al acercar), cabezal arrastrable,
+*Dividir clip* en el cabezal (o tecla S), espacio para reproducir y Supr para
+borrar lo seleccionado. La pista de voz muestra una marca por frase medida.
 
 ## Precargado por el cron
 
@@ -208,6 +272,6 @@ Para que quede claro qué esperar:
 - **La vista previa es orientativa.** Posición, tamaño, color y animación se
   corresponden con el render, pero el salto de línea puede caer distinto unos
   píxeles, porque el navegador y libass no miden el texto igual.
-- **Los rótulos no se arrastran con el ratón**: se colocan con inicio y
-  duración numéricos, con ±0,5 s y con las herramientas de reparto.
 - **La vista previa no reproduce la música**, solo la narración.
+- **El karaoke dentro de una frase sigue siendo proporcional** a la longitud
+  de las palabras; lo exacto es el inicio y el fin de cada frase.

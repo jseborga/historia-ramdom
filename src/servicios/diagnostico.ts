@@ -8,6 +8,7 @@ import { rutaTrabajo } from "../almacen.js";
 import { MODELOS } from "./guion.js";
 import { redditConfigurado } from "./reddit.js";
 import { fuentesDisponibles } from "../render/fuentes.js";
+import { vocesLocalesDisponibles } from "./voz.js";
 import { tiktokConfigurado } from "./tiktok.js";
 
 /**
@@ -178,9 +179,11 @@ export async function diagnosticar(): Promise<Prueba[]> {
     }),
 
     // ---- Voz ----
-    medir("voz_local", "Voz local (espeak-ng)", "Voz", async () => {
-      const v = await version("espeak-ng");
-      return `${v} · voz ${env.VOZ_LOCAL_VOZ} a ${env.VOZ_LOCAL_VELOCIDAD} ppm`;
+    medir("voz_local", "Voces locales", "Voz", async () => {
+      const lista = await vocesLocalesDisponibles();
+      if (!lista.length) throw new Error("No hay ninguna voz local: instala espeak-ng, mbrola o piper");
+      const mejor = [...lista].sort((a, b) => b.calidad - a.calidad)[0];
+      return `${lista.length} voces · la mejor: ${mejor.nombre}`;
     }),
 
     medir("voz_gemini", "Voz de Google AI Studio", "Voz", async () => {

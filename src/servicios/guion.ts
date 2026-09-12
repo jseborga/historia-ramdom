@@ -204,6 +204,55 @@ export async function generarKeywords(textos: string[], idioma = "es", motor?: s
   }
 }
 
+export type EstiloNarracion = "plano" | "expresivo";
+
+/**
+ * Convierte un guion (o un texto) en narracion corrida, bien puntuada y con
+ * signos de exclamacion e interrogacion donde toca. En modo expresivo anade
+ * indicaciones breves entre corchetes que Gemini TTS interpreta como tono;
+ * los motores locales las quitan antes de leer.
+ */
+export async function escribirNarracion(
+  fuente: string,
+  estilo: EstiloNarracion,
+  idioma = "es",
+  motor?: string | null,
+): Promise<string> {
+  const elegido = (motor && esMotor(motor) ? motor : null) ?? motorDisponible();
+  if (!elegido) throw new Error("No hay ningun motor de IA configurado para redactar la narracion");
+
+  const prompt = [
+    "Reescribe el siguiente contenido como una NARRACION CORRIDA para leer en voz alta en un video vertical corto.",
+    "Un solo texto seguido, en parrafos cortos, sin titulos, sin listas, sin comillas de dialogo.",
+    "Puntuacion cuidada: frases completas terminadas en punto, comas donde se respira,",
+    "signos de exclamacion e interrogacion de apertura y cierre donde el tono lo pida.",
+    "Conserva el gancho como primera frase, corta y fuerte. No inventes datos nuevos.",
+    estilo === "expresivo"
+      ? "Ademas, anade indicaciones de tono ENTRE CORCHETES, muy breves y solo cuando ayuden, por ejemplo " +
+        "[pausa], [susurrando], [con enfasis], [mas lento], [alegre], [serio]. Nunca mas de una por frase."
+      : "Sin indicaciones de tono ni marcas: texto plano limpio.",
+    'Devuelve exactamente este JSON: { "narracion": "..." }',
+    "",
+    "CONTENIDO:",
+    fuente.slice(0, 6000),
+  ].join("\n");
+
+  const crudo = await (elegido === "claude"
+    ? textoConClaude(prompt, MODELOS.claude, idioma)
+    : elegido === "openai"
+      ? textoConOpenAI(prompt, MODELOS.openai, idioma)
+      : elegido === "gemini"
+        ? textoConGemini(prompt, MODELOS.gemini, idioma)
+        : textoConGroq(prompt, MODELOS.groq, idioma));
+  const { narracion } = z.object({ narracion: z.string().min(20).max(20_000) }).parse(extraerJSON(crudo));
+  return narracion.replace(/\r/g, "").replace(/[ \t]+/g, " ").trim();
+}
+
+/** El guion en prosa, tal cual, para cuando no se quiere pasar por la IA. */
+export function guionComoNarracion(guion: Guion): string {
+  return [guion.gancho, ...guion.escenas.map((e) => e.texto)].join("\n\n");
+}
+
 export const GuionSchema = z.object({
   titulo: z.string().min(1).max(120),
   /** Primera frase del video: abre un bucle y decide si se quedan o no. */

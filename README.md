@@ -33,8 +33,12 @@ Implementa la guía de `docs/guia-original.md`.
 - **Párrafos largos y karaoke.** Escenas de hasta tres minutos que se van
   leyendo frase a frase o por bloques, con resaltado palabra a palabra, clips
   encontrados automáticamente por parecido con el texto y efectos de imagen.
-- **Voz local por defecto.** `espeak-ng` en el servidor: robótica, pero gratis,
-  sin clave y siempre disponible. Gemini y OpenAI cuando se quiera más.
+- **Voces locales sin coste.** espeak-ng (robótica), MBROLA (natural) y Piper
+  (neural, la mejor sin pagar); por defecto la mejor disponible. La narración
+  se genera frase a frase y se mide, así que los textos caen donde se leen.
+  Gemini y OpenAI cuando se quiera más.
+- **Ensamblado con la narración al mando.** Voz medida → textos donde suenan →
+  vídeo rellenado con clips largos al azar y un gancho de 4 s.
 - **Vista previa.** El MP4 se reproduce en la propia app antes de descargarlo, y
   los clips candidatos se ven antes de elegir cuál aparece en cada escena.
 - **Comprobación de servicios.** Un botón verifica que cada clave, la base de

@@ -19,6 +19,7 @@ import { mensajeDe } from "../App";
 import { SelectorVoz } from "./comunes";
 import { Lienzo } from "./Lienzo";
 import { BuscadorClips } from "./BuscadorClips";
+import { LineaDeTiempo, type Sel } from "./LineaDeTiempo";
 
 const ANIMACIONES: [Animacion, string][] = [
   ["ninguna", "ninguna"], ["fundido", "fundido"], ["subir", "subir"], ["zoom", "zoom"],
@@ -51,7 +52,6 @@ const finVoz = (voz: VozPista) => (voz.modo === "ninguna" || !voz.duracion ? 0 :
 const finTextos = (textos: RotuloPista[]) => textos.reduce((m, r) => Math.max(m, r.inicio + r.duracion), 0);
 const red = (n: number) => Math.round(n * 10) / 10;
 
-type Sel = { tipo: "clip" | "texto" | "voz"; id?: string };
 
 export function EditorMontaje({
   id, catalogo, alSalir,
@@ -69,6 +69,7 @@ export function EditorMontaje({
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
   const [global, setGlobal] = useState<(EstiloTexto & { animacion: Animacion; lectura: Lectura }) | null>(null);
+  const [reproducir, setReproducir] = useState({ n: 0 });
 
   const cargar = useCallback(async () => {
     try {
@@ -101,6 +102,19 @@ export function EditorMontaje({
   }, [fuentes]);
 
   const alTiempo = useCallback((x: number) => setT(x), []);
+
+  // Espacio reproduce/pausa, Supr borra lo seleccionado, S divide el clip.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (e.code === "Space") { e.preventDefault(); setReproducir((r) => ({ n: r.n + 1 })); }
+      if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); borrarSeleccion(); }
+      if (e.key.toLowerCase() === "s") dividirClip();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
   const ir = (x: number) => setSeek((s) => ({ t: Math.max(0, x), n: s.n + 1 }));
 
   if (!proyecto) return <p className="suave">{error || "Cargando proyecto..."}</p>;
@@ -187,7 +201,7 @@ export function EditorMontaje({
       const objetivo = (soloEste && clipSel ? [clipSel] : video).map((c) => ({ id: c.id, texto: textoSobre(video.indexOf(c)) || proyecto!.nombre, tieneClip: Boolean(c.clip) }));
       const r = await api.post<{ clips: Record<string, ClipCandidato | null> }>(`/api/proyectos/${proyecto!.id}/clips-automaticos`, { escenas: objetivo, soloVacias });
       const n = Object.values(r.clips).filter(Boolean).length;
-      act({ video: video.map((c) => (r.clips[c.id] ? { ...c, clip: r.clips[c.id] } : c)) });
+      act({ video: video.map((c) => (r.clips[c.id] ? { ...c, clip: r.clips[c.id], recorte: 0, duracion: r.clips[c.id]!.duracion ? Math.min(r.clips[c.id]!.duracion!, c.duracion) : c.duracion } : c)) });
       setOk(n ? `${n} clip(s) encontrados.` : "No habia clips que rellenar.");
     } catch (err) { setError(mensajeDe(err)); } finally { setOcupado(""); }
   }
@@ -198,8 +212,48 @@ export function EditorMontaje({
       const lista = await api.get<ClipCandidato[]>(`/api/clips?keywords=${encodeURIComponent(consulta)}`);
       const otros = lista.filter((c) => c.id !== clipSel.clip?.id);
       if (!otros.length) { setError("No hay mas clips para ese texto."); return; }
-      actClip({ clip: otros[Math.floor(Math.random() * otros.length)] });
+      const elegido = otros[Math.floor(Math.random() * otros.length)];
+      actClip({ clip: elegido, recorte: 0, duracion: elegido.duracion ? Math.min(elegido.duracion, clipSel.duracion) : clipSel.duracion });
     } catch (err) { setError(mensajeDe(err)); }
+  }
+  function borrarSeleccion() {
+    if (sel.tipo === "clip" && clipSel && video.length > 1) { act({ video: video.filter((c) => c.id !== clipSel.id) }); setSel({ tipo: "clip", id: video[Math.max(0, iClip - 1)]?.id }); }
+    if (sel.tipo === "texto" && textoSel) { act({ textos: textos.filter((r) => r.id !== textoSel.id) }); setSel({ tipo: "texto" }); }
+  }
+  /** Parte el clip que esta bajo el cabezal en dos, sin perder ni un fotograma. */
+  function dividirClip() {
+    for (const [i, c] of video.entries()) {
+      const ini = inicioDe(video, i);
+      if (t > ini + 0.3 && t < ini + c.duracion - 0.3) {
+        const corte = red(t - ini);
+        const a = { ...c, duracion: corte };
+        const b = { ...c, id: crypto.randomUUID(), duracion: red(c.duracion - corte), recorte: red(c.recorte + corte), efecto: "ninguno" as Efecto };
+        const copia = [...video];
+        copia.splice(i, 1, a, b);
+        act({ video: copia });
+        setSel({ tipo: "clip", id: b.id });
+        return;
+      }
+    }
+  }
+  async function escribirNarracion(estilo: "plano" | "expresivo" | "guion") {
+    setOcupado("narracion");
+    setError("");
+    try {
+      const { narracion } = await api.post<{ narracion: string }>(`/api/proyectos/${proyecto!.id}/narracion`, { estilo, texto: estilo === "guion" ? undefined : voz.texto || undefined });
+      actVoz({ texto: narracion, archivo: null, duracion: null, huella: null, tramos: [] });
+      setOk(estilo === "guion" ? "Guion cargado como narracion." : `Narracion ${estilo} redactada. Genera la voz para medirla.`);
+    } catch (err) { setError(mensajeDe(err)); } finally { setOcupado(""); }
+  }
+  async function ensamblar() {
+    if (!(await guardar(true))) return;
+    setOcupado("ensamblar");
+    setError("");
+    try {
+      await api.post(`/api/proyectos/${proyecto!.id}/ensamblar`, { preferirLargos: true, ganchoSeg: 4 });
+      await cargar();
+      setOk("Ensamblado: la voz manda, los textos caen donde suenan y el video se rellena con clips largos.");
+    } catch (err) { setError(mensajeDe(err)); } finally { setOcupado(""); }
   }
   function moverClip(desde: number, hacia: number) {
     if (hacia < 0 || hacia >= video.length) return;
@@ -225,8 +279,11 @@ export function EditorMontaje({
         <button className="primario" onClick={renderizar} disabled={proyecto.estado === "RENDER"}>
           {proyecto.estado === "RENDER" ? "Renderizando..." : "Renderizar MP4"}
         </button>
+        <button onClick={ensamblar} disabled={ocupado === "ensamblar" || !voz.texto.trim()} title="La voz manda: genera la narracion, coloca los textos donde suenan y rellena el video con clips largos al azar">
+          {ocupado === "ensamblar" ? "Ensamblando..." : "Ensamblar con la narracion"}
+        </button>
         <button onClick={() => completarClips(true)} disabled={ocupado === "clips"}>
-          {ocupado === "clips" ? "Buscando clips..." : "Completar clips automaticos"}
+          {ocupado === "clips" ? "Buscando clips..." : "Completar clips vacios"}
         </button>
         {proyecto.estado === "LISTO" && proyecto.archivo && (
           <a className="boton" href={`/api/proyectos/${proyecto.id}/descargar`}>MP4 listo: descargar</a>
@@ -241,7 +298,7 @@ export function EditorMontaje({
         <div>
           {preset && (
             <Lienzo video={video} textos={textos} preset={preset} duracionTotal={total}
-              urlVoz={urlVoz} vozInicio={voz.inicio} seek={seek} alTiempo={alTiempo} />
+              urlVoz={urlVoz} vozInicio={voz.inicio} seek={seek} alTiempo={alTiempo} alternar={reproducir} />
           )}
           <p className="suave">
             Video {durVideo(video).toFixed(1)}s · voz {finVoz(voz) ? `hasta ${finVoz(voz).toFixed(1)}s` : "sin generar"} ·
@@ -265,9 +322,9 @@ export function EditorMontaje({
                 <>
                   <div className="campos">
                     <div>
-                      <label htmlFor="dur">Duracion (s)</label>
-                      <input id="dur" type="number" min={0.5} max={180} step="0.5" value={clipSel.duracion}
-                        onChange={(e) => actClip({ duracion: Number(e.target.value) || 0.5 })} />
+                      <label htmlFor="dur">Duracion (s){clipSel.clip?.duracion ? ` · origen ${clipSel.clip.duracion.toFixed(0)} s` : ""}</label>
+                      <input id="dur" type="number" min={0.5} max={clipSel.clip?.duracion ?? 180} step="0.5" value={clipSel.duracion}
+                        onChange={(e) => actClip({ duracion: Math.min(clipSel.clip?.duracion ?? 180, Number(e.target.value) || 0.5) })} />
                     </div>
                     <div>
                       <label htmlFor="rec">Empieza en el segundo</label>
@@ -299,7 +356,7 @@ export function EditorMontaje({
                   {clipSel.clip && <p className="suave">{clipSel.clip.autor} · {clipSel.clip.fuente}</p>}
                   {buscando && (
                     <BuscadorClips sugerencia={(textoSobre(iClip) || proyecto.nombre).split(" ").slice(0, 3).join(" ")}
-                      alElegir={(clip) => { actClip({ clip }); setBuscando(false); }} />
+                      alElegir={(clip) => { actClip({ clip, recorte: 0, duracion: clip?.duracion ? Math.min(clip.duracion, clipSel.duracion) : clipSel.duracion }); setBuscando(false); }} />
                   )}
                 </>
               )}
@@ -394,7 +451,12 @@ export function EditorMontaje({
               </div>
               {voz.modo === "servidor" && (
                 <>
-                  <label htmlFor="narr" style={{ marginTop: 12 }}>Texto de la narracion (todo seguido, una sola voz)</label>
+                  <div className="pie" style={{ marginTop: 12, marginBottom: 4 }}>
+                    <button onClick={() => escribirNarracion("plano")} disabled={ocupado === "narracion"}>Redactar narracion (texto plano)</button>
+                    <button onClick={() => escribirNarracion("expresivo")} disabled={ocupado === "narracion"}>Redactar expresiva (marcas para Gemini)</button>
+                    {proyecto.historiaId && <button onClick={() => escribirNarracion("guion")} disabled={ocupado === "narracion"}>Cargar el guion tal cual</button>}
+                  </div>
+                  <label htmlFor="narr">Texto de la narracion (todo seguido, una sola voz)</label>
                   <textarea id="narr" style={{ minHeight: 160 }} value={voz.texto} onChange={(e) => actVoz({ texto: e.target.value })} />
                   <div className="campos" style={{ marginTop: 12 }}>
                     <SelectorVoz catalogo={catalogo} valor={voz.config ?? catalogo.vozPorDefecto} alCambiar={(config) => actVoz({ config })} />
@@ -410,7 +472,11 @@ export function EditorMontaje({
                     <button onClick={ajustarClipsAVoz} disabled={!voz.duracion}>Ajustar clips a la voz</button>
                     <span className="suave">{voz.duracion ? `${voz.duracion.toFixed(1)} s generados` : "sin generar: se genera al renderizar"}</span>
                   </div>
-                  <p className="suave">Con la voz del servidor tarda un segundo y la vista previa la reproduce de verdad. Si cambias el texto, vuelve a generarla.</p>
+                  <p className="suave">
+                    Se genera frase a frase y se mide cada una: los textos pueden caer exactamente donde se leen.
+                    Las marcas entre corchetes ([pausa], [susurrando]) solo las interpreta Gemini; las voces locales las ignoran.
+                    {voz.tramos.length ? ` ${voz.tramos.length} frases medidas.` : ""}
+                  </p>
                 </>
               )}
               {voz.modo === "archivo" && (
@@ -499,55 +565,13 @@ export function EditorMontaje({
         </div>
       </div>
 
-      {/* ---- Linea de tiempo: tres pistas sobre el mismo eje ---- */}
-      <section className="tarjeta">
-        <div className="fila" style={{ marginBottom: 8 }}>
-          <h2 style={{ margin: 0 }}>Linea de tiempo</h2>
-          <button onClick={() => { const c = clipNuevo(); act({ video: [...video, c] }); setSel({ tipo: "clip", id: c.id }); setPanel("clip"); }}>Anadir clip al final</button>
-          <span className="suave">Pulsa en la regla para saltar; pulsa un bloque para editarlo.</span>
-        </div>
-        <div className="tiempo" style={{ overflowX: "auto" }}>
-          <div style={{ position: "relative", width: ancho, minWidth: "100%" }}>
-            <div className="regla" onClick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); ir((e.clientX - r.left) / PPS); }}>
-              {Array.from({ length: Math.ceil(Math.max(total, 10)) + 1 }, (_, s) => (
-                <span key={s} className="marca" style={{ left: s * PPS }}>{s}s</span>
-              ))}
-            </div>
-            <div className="pista" onClick={(e) => { if (e.target === e.currentTarget) { const r = e.currentTarget.getBoundingClientRect(); ir((e.clientX - r.left) / PPS); } }}>
-              <span className="nombrePista">Video</span>
-              {video.map((c, i) => (
-                <div key={c.id} className={`bloque ${sel.id === c.id ? "sel" : ""}`}
-                  style={{ position: "absolute", left: inicioDe(video, i) * PPS, width: Math.max(c.duracion * PPS - 2, 24), top: 4 }}
-                  onClick={() => { setSel({ tipo: "clip", id: c.id }); setPanel("clip"); ir(inicioDe(video, i)); }}>
-                  {c.clip?.imagen ? <img className="mini" src={c.clip.imagen} alt="" loading="lazy" /> : <div className="mini" style={{ background: c.color }} />}
-                  <span>{i + 1} · {c.duracion}s</span>
-                </div>
-              ))}
-            </div>
-            <div className="pista pistaTextos" onClick={(e) => { if (e.target === e.currentTarget) { const r = e.currentTarget.getBoundingClientRect(); ir((e.clientX - r.left) / PPS); } }}>
-              <span className="nombrePista">Textos</span>
-              {textos.map((r) => (
-                <div key={r.id} className={`bloque texto ${sel.id === r.id ? "sel" : ""}`}
-                  style={{ position: "absolute", left: r.inicio * PPS, width: Math.max(r.duracion * PPS - 2, 24), top: 4 }}
-                  onClick={() => { setSel({ tipo: "texto", id: r.id }); setPanel("texto"); ir(r.inicio); }}>
-                  <span>{r.texto.slice(0, 28) || "(vacio)"}</span>
-                </div>
-              ))}
-            </div>
-            <div className="pista pistaVoz" onClick={(e) => { if (e.target === e.currentTarget) { const r = e.currentTarget.getBoundingClientRect(); ir((e.clientX - r.left) / PPS); } }}>
-              <span className="nombrePista">Voz</span>
-              {voz.modo !== "ninguna" && (
-                <div className={`bloque voz ${sel.tipo === "voz" ? "sel" : ""}`}
-                  style={{ position: "absolute", left: voz.inicio * PPS, width: Math.max((voz.duracion ?? 2) * PPS - 2, 24), top: 4 }}
-                  onClick={() => { setSel({ tipo: "voz" }); setPanel("voz"); ir(voz.inicio); }}>
-                  <span>{voz.duracion ? `${voz.modo === "archivo" ? "archivo" : "narracion"} · ${voz.duracion.toFixed(1)}s` : "sin generar"}</span>
-                </div>
-              )}
-            </div>
-            <div className="cabezal" style={{ left: t * PPS }} />
-          </div>
-        </div>
-      </section>
+      <LineaDeTiempo video={video} textos={textos} voz={voz} total={total} t={t} sel={sel}
+        alSeleccionar={(x) => { setSel(x); setPanel(x.tipo === "clip" ? "clip" : x.tipo === "texto" ? "texto" : "voz"); }}
+        alSaltar={ir}
+        alCambiarVideo={(v) => act({ video: v })}
+        alCambiarTextos={(r) => act({ textos: r })}
+        alCambiarVoz={actVoz}
+        alDividir={dividirClip} />
     </>
   );
 }

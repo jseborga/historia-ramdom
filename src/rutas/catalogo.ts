@@ -5,6 +5,8 @@ import {
   VOZ_POR_DEFECTO,
   VOZ_GEMINI_POR_DEFECTO,
   VOZ_OPENAI_POR_DEFECTO,
+  vocesLocalesDisponibles,
+  mejorVozLocal,
 } from "../servicios/voz.js";
 import { listarMusica } from "../almacen.js";
 import { tiktokConfigurado } from "../servicios/tiktok.js";
@@ -32,7 +34,9 @@ export async function rutasCatalogo(app: FastifyInstance) {
         disponible: Boolean(claves[m]),
       })),
       voces: VOCES,
-      vozPorDefecto: VOZ_POR_DEFECTO,
+      /** Solo las que funcionan en esta maquina, con su calidad. */
+      vocesLocales: await vocesLocalesDisponibles(),
+      vozPorDefecto: { ...VOZ_POR_DEFECTO, nombre: await mejorVozLocal("es") },
       vozGeminiPorDefecto: VOZ_GEMINI_POR_DEFECTO,
       vozOpenAIPorDefecto: VOZ_OPENAI_POR_DEFECTO,
       musica: await listarMusica(),

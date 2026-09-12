@@ -248,8 +248,8 @@ async function crearMontaje(
 
     // Las duraciones iniciales salen del texto; el editor las cambia a gusto.
     const duraciones = guionado.map((e) => duracionPorTexto(e.texto, serie.segundosEscena));
-    // Tres pistas: clips en secuencia, un rotulo por escena sobre su clip, y
-    // la narracion entera como un solo texto para leer con una sola voz.
+    // Tres pistas de partida; despues, si hay voz, el ensamblador las rehace
+    // con la narracion al mando: voz medida, textos donde suenan, clips largos.
     const pistas = pistasDesdeGuion(guion, clips, duraciones);
     const proyecto = await db.proyecto.create({
       data: {
@@ -281,6 +281,13 @@ async function crearMontaje(
       },
     });
     if (o.ideaId) await marcarIdeaUsada(o.ideaId);
+
+    if (serie.modoAudio === "VOZ") {
+      const { ensamblarProyecto } = await import("../servicios/ensamblar.js");
+      await ensamblarProyecto(proyecto.id).catch((err) =>
+        db.historia.update({ where: { id: historiaId }, data: { error: `Ensamblado parcial: ${String(err).slice(0, 300)}` } }),
+      );
+    }
     return proyecto.id;
   } catch (err) {
     await db.historia.update({

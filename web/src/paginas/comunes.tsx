@@ -49,6 +49,7 @@ export function SelectorVoz({
   alCambiar: (v: Voz) => void;
 }) {
   const nombres = catalogo.voces[valor.proveedor] ?? [];
+  const locales = catalogo.vocesLocales ?? [];
   return (
     <>
       <div>
@@ -89,11 +90,17 @@ export function SelectorVoz({
           value={valor.nombre}
           onChange={(e) => alCambiar({ ...valor, nombre: e.target.value })}
         >
-          {nombres.map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
+          {valor.proveedor === "local"
+            ? locales.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {"★".repeat(v.calidad)} {v.nombre}
+                </option>
+              ))
+            : nombres.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
         </select>
       </div>
     </>

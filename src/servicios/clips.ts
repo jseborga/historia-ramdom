@@ -28,7 +28,12 @@ export type ClipInfo = {
   url: string;
   /** Fotograma de muestra, para elegir el clip sin descargarlo. */
   imagen?: string;
+  /** Duracion real del archivo en origen, en segundos. */
+  duracion?: number;
 };
+
+/** A partir de aqui un clip cuenta como "largo". */
+export const CLIP_LARGO = 30;
 
 export type EscenaPreparada = {
   texto: string;
@@ -92,14 +97,16 @@ function puntuar(c: Candidato) {
   return vertical + Math.min(c.alto, 1920);
 }
 
-async function buscarPexels(keyword: string): Promise<Candidato[]> {
+async function buscarPexels(keyword: string, largos: boolean): Promise<Candidato[]> {
   if (!env.PEXELS_API_KEY) return [];
   const url = new URL("https://api.pexels.com/videos/search");
   url.search = new URLSearchParams({
     query: keyword,
     orientation: "portrait",
     size: "medium",
-    per_page: "15",
+    per_page: "20",
+    // Pexels filtra por duracion en origen; asi los largos vienen de serie.
+    ...(largos ? { min_duration: String(CLIP_LARGO - 5) } : {}),
   }).toString();
 
   const res = await fetch(url, {
@@ -129,6 +136,7 @@ async function buscarPexels(keyword: string): Promise<Candidato[]> {
         licencia: "Pexels License",
         url: mejor.link,
         imagen: v.image,
+        duracion: typeof v.duration === "number" ? v.duration : undefined,
       },
     });
   }
@@ -136,6 +144,7 @@ async function buscarPexels(keyword: string): Promise<Candidato[]> {
 }
 
 async function buscarPixabay(keyword: string): Promise<Candidato[]> {
+  // Pixabay no filtra por duracion: se ordena despues con la que devuelve.
   if (!env.PIXABAY_API_KEY) return [];
   const url = new URL("https://pixabay.com/api/videos/");
   url.search = new URLSearchParams({
@@ -172,21 +181,30 @@ async function buscarPixabay(keyword: string): Promise<Candidato[]> {
         licencia: "Pixabay Content License",
         url: mejor.url,
         imagen: variantes.find((v) => v.thumbnail)?.thumbnail,
+        duracion: typeof h.duration === "number" ? h.duration : undefined,
       },
     });
   }
   return salida;
 }
 
-export async function buscarClips(keyword: string): Promise<ClipInfo[]> {
-  const clave = `clips:${keyword.toLowerCase().trim()}`;
+/**
+ * Busca clips. Con `largos`, los de 30 s o mas van primero (y a Pexels se le
+ * pide directamente que no mande cortos): sirve para cubrir narraciones
+ * enteras sin cambiar de plano cada cuatro segundos.
+ */
+export async function buscarClips(keyword: string, largos = false): Promise<ClipInfo[]> {
+  const clave = `clips:${largos ? "largos:" : ""}${keyword.toLowerCase().trim()}`;
   return buscarConCache(clave, async () => {
     const [pexels, pixabay] = await Promise.all([
-      buscarPexels(keyword).catch(() => []),
+      buscarPexels(keyword, largos).catch(() => []),
       buscarPixabay(keyword).catch(() => []),
     ]);
+    const esLargo = (c: Candidato) => (c.info.duracion ?? 0) >= CLIP_LARGO;
     return [...pexels, ...pixabay]
-      .sort((a, b) => puntuar(b) - puntuar(a))
+      .sort((a, b) =>
+        largos && esLargo(a) !== esLargo(b) ? Number(esLargo(b)) - Number(esLargo(a)) : puntuar(b) - puntuar(a),
+      )
       .map((c) => c.info);
   });
 }
@@ -201,6 +219,7 @@ export async function elegirClips(
   usados: Set<string> = new Set(),
   /** Clip elegido a mano por escena: indice -> id de clip. */
   preseleccion: Record<number, string> = {},
+  largos = false,
 ): Promise<(ClipInfo | null)[]> {
   const yaElegidos = new Set(usados);
   const salida: (ClipInfo | null)[] = [];
@@ -211,7 +230,7 @@ export async function elegirClips(
     let respaldo: ClipInfo | undefined;
 
     for (const keyword of escena.keywords) {
-      const candidatos = await buscarClips(keyword);
+      const candidatos = await buscarClips(keyword, largos);
       respaldo ??= candidatos[0];
 
       // El id elegido a mano se resuelve contra la busqueda, no se acepta la

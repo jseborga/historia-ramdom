@@ -237,3 +237,13 @@ form.login { max-width: 340px; margin: 15vh auto 0; display: grid; gap: 12px; }
 .bloque.sel { border-color: var(--acento); color: var(--texto); }
 .bloque .mini { height: 46px; border-radius: 4px; background: #000; object-fit: cover; width: 100%; }
 .pista .bloque { height: 76px; overflow: hidden; }
+
+/* Linea de tiempo profesional */
+.marca.menor { height: 8px; top: 12px; }
+.asa { position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: ew-resize; background: linear-gradient(90deg, transparent, rgba(110,168,254,0.6)); border-radius: 0 6px 6px 0; }
+.bloque.sel .asa { background: linear-gradient(90deg, transparent, var(--acento)); }
+.cabezal { cursor: ew-resize; width: 2px; }
+.cabezalAsa { position: absolute; top: 0; left: -6px; width: 14px; height: 14px; background: var(--acento); border-radius: 3px; }
+.tramo { position: absolute; top: 2px; height: 6px; background: rgba(126,226,168,0.45); border-radius: 2px; }
+.bloque.voz { overflow: visible; }
+.pista .bloque img { pointer-events: none; }

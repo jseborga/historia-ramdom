@@ -73,6 +73,10 @@ export const VozPistaSchema = z.object({
   inicio: z.number().min(0).max(3600).default(0),
   /** Con que texto y voz se genero `archivo`; si cambia, hay que regenerar. */
   huella: z.string().max(64).nullable().default(null),
+  /** Frase a frase, con el tiempo REAL que ocupa cada una en el audio. */
+  tramos: z
+    .array(z.object({ texto: z.string(), inicio: z.number(), duracion: z.number() }))
+    .default([]),
 });
 
 export const MusicaCapaSchema = z.object({
@@ -157,15 +161,32 @@ export function repartirTextos(
   });
 }
 
-/** Rotulos a partir de la narracion, frase a frase, sobre su duracion. */
+/**
+ * Rotulos a partir de la narracion. Si la voz ya esta generada, cada frase
+ * cae EXACTAMENTE donde suena (tramos medidos del audio); si no, se reparte
+ * en proporcion a las palabras.
+ */
 export function textosDesdeNarracion(
   voz: VozPista,
   duracionSiNoHay: number,
   lectura: Lectura = "frases",
+  base: Partial<RotuloPista> = {},
 ): RotuloPista[] {
+  if (voz.modo !== "ninguna" && voz.tramos.length) {
+    return voz.tramos.map((t) =>
+      RotuloPistaSchema.parse({
+        ...base,
+        id: randomUUID(),
+        inicio: voz.inicio + t.inicio,
+        duracion: Math.max(t.duracion, 0.2),
+        texto: t.texto,
+        lectura: lectura === "bloques" ? "bloques" : "todo",
+      }),
+    );
+  }
   const frases = fragmentar(voz.texto, lectura === "todo" ? "frases" : lectura);
   const largo = voz.duracion && voz.modo !== "ninguna" ? voz.duracion : duracionSiNoHay;
-  return repartirTextos(frases, voz.inicio, largo, { lectura: "todo" });
+  return repartirTextos(frases, voz.inicio, largo, { ...base, lectura: "todo" });
 }
 
 /**

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { writeFile } from "node:fs/promises";
+import { access, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import { env } from "../env.js";
@@ -35,9 +35,82 @@ export const VOZ_OPENAI_POR_DEFECTO: VozConfig = {
   nombre: env.OPENAI_VOZ,
 };
 
+/**
+ * Voces locales, de mas robotica a mas natural. `motor` decide como se
+ * sintetiza; `disponible` se comprueba en la maquina al arrancar.
+ */
+export type VozLocal = {
+  id: string;
+  nombre: string;
+  motor: "espeak" | "mbrola" | "piper";
+  idioma: "es" | "en";
+  calidad: 1 | 2 | 3;
+};
+
+export const VOCES_LOCALES: VozLocal[] = [
+  { id: "es-419", nombre: "espeak · espanol latino (robotica)", motor: "espeak", idioma: "es", calidad: 1 },
+  { id: "es", nombre: "espeak · espanol de Espana (robotica)", motor: "espeak", idioma: "es", calidad: 1 },
+  { id: "en-us", nombre: "espeak · ingles EE. UU. (robotica)", motor: "espeak", idioma: "en", calidad: 1 },
+  { id: "mb-mx1", nombre: "MBROLA · mexicano 1 (natural)", motor: "mbrola", idioma: "es", calidad: 2 },
+  { id: "mb-mx2", nombre: "MBROLA · mexicano 2 (natural)", motor: "mbrola", idioma: "es", calidad: 2 },
+  { id: "mb-vz1", nombre: "MBROLA · venezolano (natural)", motor: "mbrola", idioma: "es", calidad: 2 },
+  { id: "mb-es1", nombre: "MBROLA · espanol 1 (natural)", motor: "mbrola", idioma: "es", calidad: 2 },
+  { id: "mb-es2", nombre: "MBROLA · espanol 2 (natural)", motor: "mbrola", idioma: "es", calidad: 2 },
+  { id: "piper:es_MX-claude-high", nombre: "Piper · mexicano, neural (la mejor)", motor: "piper", idioma: "es", calidad: 3 },
+  { id: "piper:es_ES-davefx-medium", nombre: "Piper · espanol de Espana, neural", motor: "piper", idioma: "es", calidad: 3 },
+];
+
+const PIPER_BIN = process.env.PIPER_BIN ?? "/opt/piper/piper";
+const PIPER_VOCES = process.env.PIPER_VOCES ?? "/opt/piper/voces";
+const MBROLA_DIR = "/usr/share/mbrola";
+
+const existe = (ruta: string) => access(ruta).then(() => true, () => false);
+
+/** Existe si se puede arrancar; el codigo de salida da igual (mbrola sale con error sin argumentos). */
+async function hayBinario(nombre: string) {
+  return new Promise<boolean>((resolve) => {
+    const p = spawn(nombre, ["--version"]);
+    p.on("error", () => resolve(false));
+    p.on("close", () => resolve(true));
+  });
+}
+
+let cacheDisponibles: VozLocal[] | null = null;
+
+/** Las voces locales que de verdad funcionan en esta maquina. */
+export async function vocesLocalesDisponibles(): Promise<VozLocal[]> {
+  if (cacheDisponibles) return cacheDisponibles;
+  const [espeak, mbrola, piper] = await Promise.all([
+    hayBinario("espeak-ng"),
+    hayBinario("mbrola"),
+    existe(PIPER_BIN),
+  ]);
+  const salida: VozLocal[] = [];
+  for (const v of VOCES_LOCALES) {
+    if (v.motor === "espeak" && espeak) salida.push(v);
+    else if (v.motor === "mbrola" && espeak && mbrola) {
+      const carpeta = v.id.slice(3);
+      if (await existe(join(MBROLA_DIR, carpeta, carpeta))) salida.push(v);
+    } else if (v.motor === "piper" && piper) {
+      if (await existe(join(PIPER_VOCES, `${v.id.slice(6)}.onnx`))) salida.push(v);
+    }
+  }
+  cacheDisponibles = salida;
+  return salida;
+}
+
+/** La mejor voz local disponible, para usarla por defecto. */
+export async function mejorVozLocal(idioma: "es" | "en" = "es"): Promise<string> {
+  const lista = (await vocesLocalesDisponibles()).filter((v) => v.idioma === idioma);
+  return lista.sort((a, b) => b.calidad - a.calidad)[0]?.id ?? env.VOZ_LOCAL_VOZ;
+}
+
+/** Indicaciones entre corchetes ([pausa], [susurrando]...) que solo entiende Gemini. */
+export const limpiarMarcas = (t: string) => t.replace(/\[[^\]\n]{1,40}\]/g, " ").replace(/\s+/g, " ").trim();
+
 /** Voces disponibles; sirven para poblar el selector del frontend. */
 export const VOCES = {
-  local: ["es-419", "es", "en-us", "en-gb", "pt-br", "fr-fr", "it", "de"],
+  local: VOCES_LOCALES.map((v) => v.id),
   gemini: ["Kore", "Puck", "Charon", "Fenrir", "Aoede", "Leda", "Orus", "Zephyr"],
   openai: ["coral", "alloy", "echo", "fable", "onyx", "nova", "shimmer", "sage"],
 } as const;
@@ -93,27 +166,31 @@ export function vozLocal(
   voz = env.VOZ_LOCAL_VOZ,
   velocidad = env.VOZ_LOCAL_VELOCIDAD,
 ) {
+  const limpio = limpiarMarcas(texto);
   return new Promise<void>((resolve, reject) => {
-    // Solo letras, digitos, guiones y "+" (variantes como es+f3): nada mas llega al argumento.
-    if (!/^[a-z0-9+_-]{1,24}$/i.test(voz)) return reject(new Error(`Voz local invalida: ${voz}`));
-    const p = spawn("espeak-ng", [
-      "-v", voz,
-      "-s", String(velocidad),
-      "-p", "45",
-      "-a", "170",
-      "--stdin",
-      "-w", destino,
-    ]);
+    // Solo letras, digitos, guiones, "+" y ":" (piper:xxx): nada mas llega al argumento.
+    if (!/^[a-z0-9+_:.-]{1,40}$/i.test(voz)) return reject(new Error(`Voz local invalida: ${voz}`));
+
+    const esPiper = voz.startsWith("piper:");
+    const p = esPiper
+      ? spawn(PIPER_BIN, [
+          "--model", join(PIPER_VOCES, `${voz.slice(6)}.onnx`),
+          // 1,0 es el ritmo natural del modelo; 150 ppm equivale a eso.
+          "--length_scale", (150 / velocidad).toFixed(2),
+          "--output_file", destino,
+        ])
+      : spawn("espeak-ng", ["-v", voz, "-s", String(velocidad), "-p", "45", "-a", "170", "--stdin", "-w", destino]);
+
     let errores = "";
     p.stderr.on("data", (d) => (errores = (errores + d).slice(-1000)));
     p.on("error", () =>
-      reject(new Error("espeak-ng no esta instalado: la voz local necesita el paquete espeak-ng")),
+      reject(new Error(esPiper ? "Piper no esta instalado (PIPER_BIN)" : "espeak-ng no esta instalado")),
     );
     p.on("close", (code) =>
-      code === 0 ? resolve() : reject(new Error(`espeak-ng termino con codigo ${code}: ${errores}`)),
+      code === 0 ? resolve() : reject(new Error(`${esPiper ? "piper" : "espeak-ng"} termino con codigo ${code}: ${errores}`)),
     );
     p.stdin.on("error", () => {});
-    p.stdin.end(texto.replace(/\s+/g, " ").trim() + "\n");
+    p.stdin.end(limpio + "\n");
   });
 }
 
@@ -131,7 +208,7 @@ export async function vozGemini(
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY! },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: `${INSTRUCCION} Narra: ${texto}` }] }],
+          contents: [{ parts: [{ text: `${INSTRUCCION} Las indicaciones entre corchetes son de tono y no se leen. Narra: ${texto}` }] }],
           generationConfig: {
             responseModalities: ["AUDIO"],
             speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voz } } },
@@ -168,7 +245,7 @@ export async function vozOpenAI(
       body: JSON.stringify({
         model: modelo,
         voice: voz,
-        input: texto,
+        input: limpiarMarcas(texto),
         response_format: "mp3",
         instructions: INSTRUCCION,
       }),

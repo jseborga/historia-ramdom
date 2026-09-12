@@ -55,6 +55,7 @@ export type Fuente = { id: string; nombre: string; estilo: "sans" | "serif" };
 export type Catalogo = {
   motores: { id: string; modelo: string; disponible: boolean }[];
   voces: Record<"local" | "gemini" | "openai", string[]>;
+  vocesLocales: VozLocal[];
   vozPorDefecto: Voz;
   vozGeminiPorDefecto: Voz;
   vozOpenAIPorDefecto: Voz;
@@ -126,6 +127,8 @@ export type VozPista = {
   duracion: number | null;
   inicio: number;
   huella: string | null;
+  /** Frase a frase, con el tiempo real que ocupa cada una en el audio. */
+  tramos: { texto: string; inicio: number; duracion: number }[];
 };
 
 export type MusicaCapa = {
@@ -160,6 +163,16 @@ export type ClipCandidato = {
   licencia: string;
   url: string;
   imagen?: string;
+  /** Duracion real del archivo en origen, en segundos. */
+  duracion?: number;
+};
+
+export type VozLocal = {
+  id: string;
+  nombre: string;
+  motor: "espeak" | "mbrola" | "piper";
+  idioma: "es" | "en";
+  calidad: 1 | 2 | 3;
 };
 
 export type Prueba = {

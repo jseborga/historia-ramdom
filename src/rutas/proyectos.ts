@@ -8,7 +8,8 @@ import { rutaVideo, crearCarpetaProyecto, rutaSubidaSegura, listarMusica } from 
 import { PRESETS } from "../render/presets.js";
 import { tieneAudio, duracionAudio } from "../render/ffmpeg.js";
 import { fuentesDisponibles, archivoDeFuente } from "../render/fuentes.js";
-import { GuionSchema, generarKeywords } from "../servicios/guion.js";
+import { GuionSchema, generarKeywords, escribirNarracion, guionComoNarracion } from "../servicios/guion.js";
+import { ensamblarProyecto } from "../servicios/ensamblar.js";
 import { elegirClips } from "../servicios/clips.js";
 import {
   ProyectoSchema,
@@ -211,6 +212,42 @@ export async function rutasProyectos(app: FastifyInstance) {
     if (!voz?.archivo) return reply.code(404).send({ error: "Todavia no hay narracion" });
     const tipo = voz.archivo.endsWith(".mp3") ? "audio/mpeg" : "audio/wav";
     return servir(req, reply, rutaSubidaSegura(id, voz.archivo), tipo);
+  });
+
+  /**
+   * Redacta la narracion corrida a partir del guion de la historia (o del
+   * texto actual): "plano" es texto limpio bien puntuado; "expresivo" anade
+   * marcas de tono entre corchetes para Gemini. "guion" la devuelve tal cual.
+   */
+  app.post("/api/proyectos/:id/narracion", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const { estilo, texto, idioma } = z
+      .object({
+        estilo: z.enum(["plano", "expresivo", "guion"]).default("plano"),
+        texto: z.string().max(20_000).optional(),
+        idioma: z.enum(["es", "en"]).default("es"),
+      })
+      .parse(req.body ?? {});
+    const p = await db.proyecto.findUniqueOrThrow({ where: { id }, include: { historia: true } });
+    const guion = p.historia ? GuionSchema.safeParse(p.historia.guion) : null;
+    const fuente = texto?.trim() || (guion?.success ? guionComoNarracion(guion.data) : ((p.voz as VozPista | null)?.texto ?? ""));
+    if (!fuente.trim()) return reply.code(409).send({ error: "No hay guion ni texto del que partir" });
+    if (estilo === "guion") return { narracion: fuente };
+    return { narracion: await escribirNarracion(fuente, estilo, idioma) };
+  });
+
+  /** Ensambla el proyecto entero con la narracion al mando. */
+  app.post("/api/proyectos/:id/ensamblar", async (req) => {
+    const { id } = idParam.parse(req.params);
+    const opciones = z
+      .object({
+        preferirLargos: z.boolean().default(true),
+        ganchoSeg: z.number().min(2).max(10).default(4),
+        lectura: z.enum(["frases", "bloques"]).default("frases"),
+        animacion: z.enum(["fundido", "resaltar", "ninguna"]).default("fundido"),
+      })
+      .parse(req.body ?? {});
+    return ensamblarProyecto(id, opciones);
   });
 
   /** Rotulos frase a frase repartidos sobre la narracion (o sobre los clips). */
