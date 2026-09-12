@@ -39,26 +39,42 @@ export const VOZ_OPENAI_POR_DEFECTO: VozConfig = {
  * Voces locales, de mas robotica a mas natural. `motor` decide como se
  * sintetiza; `disponible` se comprueba en la maquina al arrancar.
  */
+export type Genero = "masculino" | "femenino" | "desconocido";
+
 export type VozLocal = {
   id: string;
   nombre: string;
   motor: "espeak" | "mbrola" | "piper";
   idioma: "es" | "en";
   calidad: 1 | 2 | 3;
+  genero: Genero;
 };
 
 export const VOCES_LOCALES: VozLocal[] = [
-  { id: "es-419", nombre: "espeak · espanol latino (robotica)", motor: "espeak", idioma: "es", calidad: 1 },
-  { id: "es", nombre: "espeak · espanol de Espana (robotica)", motor: "espeak", idioma: "es", calidad: 1 },
-  { id: "en-us", nombre: "espeak · ingles EE. UU. (robotica)", motor: "espeak", idioma: "en", calidad: 1 },
-  { id: "mb-mx1", nombre: "MBROLA · mexicano 1 (natural)", motor: "mbrola", idioma: "es", calidad: 2 },
-  { id: "mb-mx2", nombre: "MBROLA · mexicano 2 (natural)", motor: "mbrola", idioma: "es", calidad: 2 },
-  { id: "mb-vz1", nombre: "MBROLA · venezolano (natural)", motor: "mbrola", idioma: "es", calidad: 2 },
-  { id: "mb-es1", nombre: "MBROLA · espanol 1 (natural)", motor: "mbrola", idioma: "es", calidad: 2 },
-  { id: "mb-es2", nombre: "MBROLA · espanol 2 (natural)", motor: "mbrola", idioma: "es", calidad: 2 },
-  { id: "piper:es_MX-claude-high", nombre: "Piper · mexicano, neural (la mejor)", motor: "piper", idioma: "es", calidad: 3 },
-  { id: "piper:es_ES-davefx-medium", nombre: "Piper · espanol de Espana, neural", motor: "piper", idioma: "es", calidad: 3 },
+  { id: "es-419", nombre: "espeak · español latino, hombre (robótica)", motor: "espeak", idioma: "es", calidad: 1, genero: "masculino" },
+  { id: "es-419+f3", nombre: "espeak · español latino, mujer (robótica)", motor: "espeak", idioma: "es", calidad: 1, genero: "femenino" },
+  { id: "es", nombre: "espeak · español de España, hombre (robótica)", motor: "espeak", idioma: "es", calidad: 1, genero: "masculino" },
+  { id: "en-us", nombre: "espeak · inglés EE. UU., hombre (robótica)", motor: "espeak", idioma: "en", calidad: 1, genero: "masculino" },
+  { id: "en-us+f3", nombre: "espeak · inglés EE. UU., mujer (robótica)", motor: "espeak", idioma: "en", calidad: 1, genero: "femenino" },
+  { id: "mb-mx1", nombre: "MBROLA · mexicano 1 (natural)", motor: "mbrola", idioma: "es", calidad: 2, genero: "masculino" },
+  { id: "mb-mx2", nombre: "MBROLA · mexicano 2 (natural)", motor: "mbrola", idioma: "es", calidad: 2, genero: "desconocido" },
+  { id: "mb-vz1", nombre: "MBROLA · venezolano (natural)", motor: "mbrola", idioma: "es", calidad: 2, genero: "masculino" },
+  { id: "mb-es1", nombre: "MBROLA · español 1 (natural)", motor: "mbrola", idioma: "es", calidad: 2, genero: "masculino" },
+  { id: "mb-es2", nombre: "MBROLA · español 2 (natural)", motor: "mbrola", idioma: "es", calidad: 2, genero: "masculino" },
+  { id: "piper:es_MX-claude-high", nombre: "Piper · mexicano, neural (la mejor)", motor: "piper", idioma: "es", calidad: 3, genero: "desconocido" },
+  { id: "piper:es_AR-daniela-high", nombre: "Piper · argentina, mujer, neural", motor: "piper", idioma: "es", calidad: 3, genero: "femenino" },
+  { id: "piper:es_ES-davefx-medium", nombre: "Piper · español de España, hombre, neural", motor: "piper", idioma: "es", calidad: 3, genero: "masculino" },
+  { id: "piper:en_US-lessac-medium", nombre: "Piper · inglés EE. UU., mujer, neural", motor: "piper", idioma: "en", calidad: 3, genero: "femenino" },
 ];
+
+/** Género de las voces de IA, para poder filtrar en el selector. */
+export const GENERO_VOZ_IA: Record<string, Genero> = {
+  Kore: "femenino", Aoede: "femenino", Leda: "femenino", Zephyr: "femenino",
+  Puck: "masculino", Charon: "masculino", Fenrir: "masculino", Orus: "masculino",
+  coral: "femenino", nova: "femenino", shimmer: "femenino", sage: "femenino",
+  echo: "masculino", onyx: "masculino", fable: "masculino", ash: "masculino", ballad: "masculino",
+  alloy: "desconocido",
+};
 
 const PIPER_BIN = process.env.PIPER_BIN ?? "/opt/piper/piper";
 const PIPER_VOCES = process.env.PIPER_VOCES ?? "/opt/piper/voces";
@@ -99,10 +115,11 @@ export async function vocesLocalesDisponibles(): Promise<VozLocal[]> {
   return salida;
 }
 
-/** La mejor voz local disponible, para usarla por defecto. */
-export async function mejorVozLocal(idioma: "es" | "en" = "es"): Promise<string> {
-  const lista = (await vocesLocalesDisponibles()).filter((v) => v.idioma === idioma);
-  return lista.sort((a, b) => b.calidad - a.calidad)[0]?.id ?? env.VOZ_LOCAL_VOZ;
+/** La mejor voz local disponible del idioma y, si se pide, del género. */
+export async function mejorVozLocal(idioma: "es" | "en" = "es", genero?: Genero): Promise<string> {
+  const todas = (await vocesLocalesDisponibles()).filter((v) => v.idioma === idioma);
+  const lista = genero && genero !== "desconocido" ? todas.filter((v) => v.genero === genero) : todas;
+  return (lista.length ? lista : todas).sort((a, b) => b.calidad - a.calidad)[0]?.id ?? env.VOZ_LOCAL_VOZ;
 }
 
 /** Indicaciones entre corchetes ([pausa], [susurrando]...) que solo entiende Gemini. */

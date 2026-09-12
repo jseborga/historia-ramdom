@@ -5,6 +5,7 @@ import {
   type Idioma,
   type ModoAudio,
   type ModoPublicacion,
+  type Region,
   type Serie,
   type Voz,
 } from "../api";
@@ -15,6 +16,7 @@ import {
   SelectorModo,
   SelectorMotor,
   SelectorMusica,
+  SelectorRegion,
   SelectorVoz,
 } from "./comunes";
 
@@ -41,6 +43,9 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
   const [motor, setMotor] = useState(catalogo.motores.find((m) => m.disponible)?.id ?? "groq");
   const [modelo, setModelo] = useState<string | null>(null);
   const [idioma, setIdioma] = useState<Idioma>("es");
+  const [region, setRegion] = useState<Region>("bolivia");
+  const [modismos, setModismos] = useState(true);
+  const [partes, setPartes] = useState(1);
   const [musicaModo, setMusicaModo] = useState<"FIJA" | "ROTAR">("FIJA");
   const [modoAudio, setModoAudio] = useState<ModoAudio>("VOZ");
   const [segundosEscena, setSegundosEscena] = useState<number | null>(null);
@@ -87,6 +92,9 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
             .filter(Boolean),
           duracion,
           idioma,
+          region,
+          modismos,
+          partes,
           cron,
           zonaHoraria,
           motor,
@@ -132,7 +140,7 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
               id="duracionSerie"
               type="number"
               min={15}
-              max={180}
+              max={350}
               value={duracion}
               onChange={(e) => setDuracion(Number(e.target.value))}
             />
@@ -183,6 +191,15 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
               ))}
             </select>
           </div>
+          <SelectorRegion catalogo={catalogo} region={region} modismos={modismos} alCambiar={(r, m) => { setRegion(r); setModismos(m); }} />
+          <div>
+            <label htmlFor="partes">Historia por partes</label>
+            <select id="partes" value={partes} onChange={(e) => setPartes(Number(e.target.value))}>
+              {[1, 2, 3, 4, 5, 6].map((n) => (
+                <option key={n} value={n}>{n === 1 ? "Una sola parte" : `${n} partes seguidas`}</option>
+              ))}
+            </select>
+          </div>
           <div>
             <label htmlFor="musicaModo">Musica</label>
             <select
@@ -223,7 +240,7 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
                 <strong>{s.nombre}</strong>
                 <span className="estado">{s.activa ? "activa" : "en pausa"}</span>
                 <span className="suave">
-                  {s.tipo} · {s.idioma} · {s.salida === "MONTAJE" ? "montaje" : "video"} · {s.modoAudio} · {s.cron} ({s.zonaHoraria}) · {s.motor}
+                  {s.tipo} · {s.idioma}/{s.region}{s.modismos ? "" : " neutro"}{s.partes > 1 ? ` · ${s.partes} partes` : ""} · {s.salida === "MONTAJE" ? "montaje" : "video"} · {s.modoAudio} · {s.cron} ({s.zonaHoraria}) · {s.motor}
                   {s.modelo ? ` (${s.modelo})` : ""} · {s.duracion}s ·{" "}
                   {s._count?.historias ?? 0} historias
                 </span>

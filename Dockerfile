@@ -37,7 +37,8 @@ ARG PIPER_VERSION=2023.11.14-2
 RUN mkdir -p /opt/piper/voces \
     && curl -sSL "https://github.com/rhasspy/piper/releases/download/${PIPER_VERSION}/piper_linux_x86_64.tar.gz" \
        | tar -xz -C /opt/piper --strip-components=1 \
-    && for v in es/es_MX/claude/high/es_MX-claude-high es/es_ES/davefx/medium/es_ES-davefx-medium; do \
+    && for v in es/es_MX/claude/high/es_MX-claude-high es/es_ES/davefx/medium/es_ES-davefx-medium \
+                es/es_AR/daniela/high/es_AR-daniela-high en/en_US/lessac/medium/en_US-lessac-medium; do \
          n=$(basename "$v"); \
          curl -sSL -o "/opt/piper/voces/$n.onnx" "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/$v.onnx"; \
          curl -sSL -o "/opt/piper/voces/$n.onnx.json" "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/$v.onnx.json"; \

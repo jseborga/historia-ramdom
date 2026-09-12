@@ -104,7 +104,7 @@ servidor.registerTool(
     inputSchema: {
       tipo: z.enum(["Reflexion", "Historia"]),
       tema: z.string().max(200).optional(),
-      duracion: z.number().int().min(15).max(180).optional(),
+      duracion: z.number().int().min(15).max(350).optional(),
       idioma: z.enum(["es", "en"]).optional(),
       motor: z.enum(["groq", "openai", "gemini", "claude"]).optional(),
       modelo: z.string().max(80).optional(),
@@ -122,7 +122,7 @@ servidor.registerTool(
     inputSchema: {
       tipo: z.enum(["Reflexion", "Historia"]),
       tema: z.string().max(200).optional(),
-      duracion: z.number().int().min(15).max(180).optional(),
+      duracion: z.number().int().min(15).max(350).optional(),
       idioma: z.enum(["es", "en"]).optional(),
       motor: z.enum(["groq", "openai", "gemini", "claude"]).optional(),
       modelo: z.string().max(80).optional(),

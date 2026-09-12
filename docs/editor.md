@@ -69,6 +69,50 @@ esa máquina; por defecto se usa la mejor disponible. Gemini y OpenAI siguen
 ahí para cuando se quiera más. Verificado en este entorno: las tres familias
 sintetizan, y Piper produce una frase de 15 palabras en 0,75 s.
 
+## Ortografía, región y modismos
+
+Los textos generados llevaban sin tildes, sin ñ y sin ¿¡ por una causa
+concreta: los propios prompts estaban escritos así y el modelo copiaba el
+estilo. Ahora todos los prompts están en español correcto y además incluyen
+una regla explícita de ortografía (tildes, ñ, diéresis, signos de apertura y
+cierre, mayúsculas).
+
+Cada guion y cada narración se pide para una **región**:
+
+| Región | Texto |
+|---|---|
+| **Bolivia** (por defecto) | Español de Bolivia con modismos y giros bolivianos naturales, sin caricaturizar |
+| Latinoamérica | Español latinoamericano cercano, con expresiones comunes en toda la región |
+| EE. UU. | Inglés de Estados Unidos |
+
+Y con **modismos** o **neutro**: en neutro se pide español latinoamericano sin
+regionalismos. Se elige en el editor, en cada serie y al redactar la narración.
+
+## Tope de 350 segundos e historias por partes
+
+Ningún vídeo pasa de **350 s**: la duración de series e historias se limita a
+ese valor, los guiones largos se piden con escenas de unos 8 s (hasta 45),
+la narración redactada se limita a ~850 palabras, y el render se **niega** si
+el montaje se pasa (el panel Formato lo avisa antes).
+
+Para historias más largas, **por partes**: en la lista de historias, *Continuar
+(parte N+1)* escribe la siguiente entrega retomando exactamente donde quedó la
+anterior —recibe un resumen y su última frase—, con un gancho que recuerda dónde
+iba la historia y un cierre que deja ganas de la siguiente. Se produce con los
+mismos ajustes que la parte anterior. Una serie puede pedir de 1 a 6 partes
+seguidas por ejecución.
+
+## Voz masculina o femenina
+
+En el selector de voz, *Voz masculina o femenina* filtra las locales por género
+y las de IA por una tabla conocida (Kore, Aoede, Leda, Zephyr, coral, nova,
+shimmer, sage → femeninas; Puck, Charon, Fenrir, Orus, echo, onyx, fable, ash,
+ballad → masculinas). Entre las locales, la femenina neural es **Piper
+`es_AR-daniela-high`** (Apache/CC0, incluida en la imagen) y para inglés
+`en_US-lessac-medium`; espeak tiene variantes femeninas (`+f3`). Dos voces de
+Piper quedan como "desconocido" porque su ficha no lo indica y no he podido
+escucharlas.
+
 ## Redactar la narración
 
 En la pestaña Voz, tres botones:

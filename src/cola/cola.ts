@@ -9,6 +9,7 @@ import {
   sincronizarMetricas,
   buscarIdeasEnReddit,
   renderizarProyectoTrabajo,
+  continuarHistoria,
   type OpcionesHistoria,
 } from "./trabajos.js";
 
@@ -51,6 +52,11 @@ export async function encolarHistoriaSuelta(opciones: OpcionesHistoria) {
 
 let worker: Worker | undefined;
 
+/** Encola la parte siguiente de una historia. */
+export async function encolarContinuacion(historiaId: string) {
+  return cola.add("continuar", { historiaId }, opcionesTrabajo);
+}
+
 /** Encola el render de un proyecto del editor. */
 export async function encolarProyecto(proyectoId: string) {
   return cola.add("render-proyecto", { proyectoId }, { ...opcionesTrabajo, attempts: 1 });
@@ -84,6 +90,7 @@ export async function iniciarWorker() {
       if (job.name === "publicar") return publicarHistoria(job.data.historiaId);
       if (job.name === "limpiar") return limpiarArchivos();
       if (job.name === "render-proyecto") return renderizarProyectoTrabajo(job.data.proyectoId);
+      if (job.name === "continuar") return continuarHistoria(job.data.historiaId);
       if (job.name === "metricas") return sincronizarMetricas();
       if (job.name === "ideas") return buscarIdeasEnReddit();
     },

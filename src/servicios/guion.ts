@@ -19,14 +19,40 @@ export type Motor = (typeof MOTORES)[number];
 
 export const esMotor = (v: string): v is Motor => (MOTORES as readonly string[]).includes(v);
 
-const IDIOMAS: Record<string, string> = {
-  es: "espanol latinoamericano neutro",
-  en: "ingles estadounidense natural",
-};
+export const REGIONES = ["bolivia", "latam", "eeuu"] as const;
+export type Region = (typeof REGIONES)[number];
 
-const sistema = (idioma: string) =>
-  `Eres guionista de videos verticales cortos en ${IDIOMAS[idioma] ?? IDIOMAS.es}. ` +
-  "Respondes unicamente con un objeto JSON valido, sin texto alrededor y sin bloques de codigo.";
+/** Cómo debe sonar el texto según la región y si se piden modismos. */
+export function descripcionRegion(region: string, modismos: boolean, idioma: string) {
+  if (idioma === "en" || region === "eeuu") {
+    return modismos
+      ? "inglés de Estados Unidos, natural y coloquial, con expresiones propias del país"
+      : "inglés de Estados Unidos, claro y neutro";
+  }
+  if (region === "bolivia") {
+    return modismos
+      ? "español de Bolivia: usa con naturalidad modismos y giros bolivianos (sin exagerar ni caricaturizar), " +
+        "voseo o tuteo según suene natural en Bolivia, y referencias cotidianas del país"
+      : "español latinoamericano neutro, sin modismos regionales";
+  }
+  return modismos
+    ? "español latinoamericano, cercano y coloquial, con expresiones comunes en toda la región"
+    : "español latinoamericano neutro, sin modismos regionales";
+}
+
+/**
+ * Regla de ortografía explícita. Un prompt escrito sin tildes hace que el
+ * modelo escriba sin tildes; por eso este texto lleva todas las suyas.
+ */
+const ORTOGRAFIA =
+  "Escribe con ortografía impecable: todas las tildes (á, é, í, ó, ú), la ñ, la diéresis cuando toque, " +
+  "los signos de apertura ¿ y ¡ además de los de cierre, comas, puntos y mayúsculas correctas. " +
+  "Nunca omitas tildes ni escribas 'n' por 'ñ'.";
+
+const sistema = (idioma: string, region = "latam", modismos = true) =>
+  `Eres guionista de vídeos verticales cortos. Escribes en ${descripcionRegion(region, modismos, idioma)}. ` +
+  `${ORTOGRAFIA} ` +
+  "Respondes únicamente con un objeto JSON válido, sin texto alrededor y sin bloques de código.";
 
 async function pedirJSON(url: string, init: RequestInit, servicio: string) {
   const res = await fetch(url, { ...init, signal: AbortSignal.timeout(60_000) });
@@ -46,7 +72,7 @@ function extraerJSON(texto: string): unknown {
   return JSON.parse(limpio.slice(inicio, fin + 1));
 }
 
-export async function textoConGroq(prompt: string, modelo = MODELOS.groq, idioma = "es") {
+export async function textoConGroq(prompt: string, modelo = MODELOS.groq, idioma = "es", region = "latam", modismos = true) {
   if (!env.GROQ_API_KEY) throw new Error("Falta GROQ_API_KEY");
   const data = await pedirJSON(
     "https://api.groq.com/openai/v1/chat/completions",
@@ -59,7 +85,7 @@ export async function textoConGroq(prompt: string, modelo = MODELOS.groq, idioma
       body: JSON.stringify({
         model: modelo,
         messages: [
-          { role: "system", content: sistema(idioma) },
+          { role: "system", content: sistema(idioma, region, modismos) },
           { role: "user", content: prompt },
         ],
         response_format: { type: "json_object" },
@@ -70,7 +96,7 @@ export async function textoConGroq(prompt: string, modelo = MODELOS.groq, idioma
   return data.choices?.[0]?.message?.content as string;
 }
 
-export async function textoConOpenAI(prompt: string, modelo = MODELOS.openai, idioma = "es") {
+export async function textoConOpenAI(prompt: string, modelo = MODELOS.openai, idioma = "es", region = "latam", modismos = true) {
   if (!env.OPENAI_API_KEY) throw new Error("Falta OPENAI_API_KEY");
   const data = await pedirJSON(
     "https://api.openai.com/v1/chat/completions",
@@ -83,7 +109,7 @@ export async function textoConOpenAI(prompt: string, modelo = MODELOS.openai, id
       body: JSON.stringify({
         model: modelo,
         messages: [
-          { role: "system", content: sistema(idioma) },
+          { role: "system", content: sistema(idioma, region, modismos) },
           { role: "user", content: prompt },
         ],
         response_format: { type: "json_object" },
@@ -94,7 +120,7 @@ export async function textoConOpenAI(prompt: string, modelo = MODELOS.openai, id
   return data.choices?.[0]?.message?.content as string;
 }
 
-export async function textoConGemini(prompt: string, modelo = MODELOS.gemini, idioma = "es") {
+export async function textoConGemini(prompt: string, modelo = MODELOS.gemini, idioma = "es", region = "latam", modismos = true) {
   if (!env.GEMINI_API_KEY) throw new Error("Falta GEMINI_API_KEY");
   const data = await pedirJSON(
     `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`,
@@ -102,7 +128,7 @@ export async function textoConGemini(prompt: string, modelo = MODELOS.gemini, id
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: sistema(idioma) }] },
+        systemInstruction: { parts: [{ text: sistema(idioma, region, modismos) }] },
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         generationConfig: { responseMimeType: "application/json" },
       }),
@@ -113,7 +139,7 @@ export async function textoConGemini(prompt: string, modelo = MODELOS.gemini, id
   return partes.map((p: { text?: string }) => p.text ?? "").join("") as string;
 }
 
-export async function textoConClaude(prompt: string, modelo = MODELOS.claude, idioma = "es") {
+export async function textoConClaude(prompt: string, modelo = MODELOS.claude, idioma = "es", region = "latam", modismos = true) {
   if (!env.ANTHROPIC_API_KEY) throw new Error("Falta ANTHROPIC_API_KEY");
   const data = await pedirJSON(
     "https://api.anthropic.com/v1/messages",
@@ -127,7 +153,7 @@ export async function textoConClaude(prompt: string, modelo = MODELOS.claude, id
       body: JSON.stringify({
         model: modelo,
         max_tokens: 8000,
-        system: sistema(idioma),
+        system: sistema(idioma, region, modismos),
         messages: [{ role: "user", content: prompt }],
       }),
     },
@@ -179,7 +205,7 @@ export async function generarKeywords(textos: string[], idioma = "es", motor?: s
   if (!elegido || !textos.length) return textos.map(keywordsHeuristicas);
 
   const prompt = [
-    "Para cada uno de estos textos de un video vertical, da de 1 a 3 palabras clave EN INGLES,",
+    "Para cada uno de estos textos de un vídeo vertical, da de 1 a 3 palabras clave EN INGLÉS,",
     "concretas y visuales, para buscar un video de archivo que se parezca a lo que describe",
     "(ejemplos: 'rainy window', 'sunrise mountains', 'person walking city night').",
     "Devuelve exactamente este JSON, con un array por texto y en el mismo orden:",
@@ -217,19 +243,24 @@ export async function escribirNarracion(
   estilo: EstiloNarracion,
   idioma = "es",
   motor?: string | null,
+  region = "bolivia",
+  modismos = true,
 ): Promise<string> {
   const elegido = (motor && esMotor(motor) ? motor : null) ?? motorDisponible();
   if (!elegido) throw new Error("No hay ningun motor de IA configurado para redactar la narracion");
 
   const prompt = [
-    "Reescribe el siguiente contenido como una NARRACION CORRIDA para leer en voz alta en un video vertical corto.",
-    "Un solo texto seguido, en parrafos cortos, sin titulos, sin listas, sin comillas de dialogo.",
-    "Puntuacion cuidada: frases completas terminadas en punto, comas donde se respira,",
-    "signos de exclamacion e interrogacion de apertura y cierre donde el tono lo pida.",
+    "Reescribe el siguiente contenido como una NARRACIÓN CORRIDA para leer en voz alta en un vídeo vertical.",
+    "Un solo texto seguido, en párrafos cortos, sin títulos, sin listas, sin comillas de diálogo.",
+    "Puntuación cuidada: frases completas terminadas en punto, comas donde se respira,",
+    "signos de exclamación e interrogación de apertura y cierre donde el tono lo pida.",
+    ORTOGRAFIA,
+    `Escribe en ${descripcionRegion(region, modismos, idioma)}.`,
     "Conserva el gancho como primera frase, corta y fuerte. No inventes datos nuevos.",
+    "No pases de 850 palabras: el vídeo tiene un tope de 350 segundos.",
     estilo === "expresivo"
-      ? "Ademas, anade indicaciones de tono ENTRE CORCHETES, muy breves y solo cuando ayuden, por ejemplo " +
-        "[pausa], [susurrando], [con enfasis], [mas lento], [alegre], [serio]. Nunca mas de una por frase."
+      ? "Además, añade indicaciones de tono ENTRE CORCHETES, muy breves y solo cuando ayuden, por ejemplo " +
+        "[pausa], [susurrando], [con énfasis], [más lento], [alegre], [serio]. Nunca más de una por frase."
       : "Sin indicaciones de tono ni marcas: texto plano limpio.",
     'Devuelve exactamente este JSON: { "narracion": "..." }',
     "",
@@ -238,12 +269,12 @@ export async function escribirNarracion(
   ].join("\n");
 
   const crudo = await (elegido === "claude"
-    ? textoConClaude(prompt, MODELOS.claude, idioma)
+    ? textoConClaude(prompt, MODELOS.claude, idioma, region, modismos)
     : elegido === "openai"
-      ? textoConOpenAI(prompt, MODELOS.openai, idioma)
+      ? textoConOpenAI(prompt, MODELOS.openai, idioma, region, modismos)
       : elegido === "gemini"
-        ? textoConGemini(prompt, MODELOS.gemini, idioma)
-        : textoConGroq(prompt, MODELOS.groq, idioma));
+        ? textoConGemini(prompt, MODELOS.gemini, idioma, region, modismos)
+        : textoConGroq(prompt, MODELOS.groq, idioma, region, modismos));
   const { narracion } = z.object({ narracion: z.string().min(20).max(20_000) }).parse(extraerJSON(crudo));
   return narracion.replace(/\r/g, "").replace(/[ \t]+/g, " ").trim();
 }
@@ -265,7 +296,7 @@ export const GuionSchema = z.object({
       }),
     )
     .min(3)
-    .max(20),
+    .max(60),
   hashtags: z.array(z.string().max(40)).max(8).default([]),
 });
 
@@ -279,8 +310,14 @@ export type PeticionGuion = {
   tema?: string;
   duracion: number;
   idioma?: string;
+  /** bolivia (por defecto), latam o eeuu. */
+  region?: string;
+  /** Modismos propios de la región; false = neutro. */
+  modismos?: boolean;
   /** false cuando el texto se lee en pantalla en vez de narrarse. */
   narrado?: boolean;
+  /** Para continuar una historia: parte anterior y número de esta parte. */
+  continuaDe?: { parte: number; resumen: string; ultimaFrase: string } | null;
   /** Gancho ya probado que hay que reutilizar tal cual. */
   ganchoFijo?: string | null;
   evitar?: (string | null)[];
@@ -292,43 +329,53 @@ function construirPrompt({
   duracion,
   ganchoFijo,
   narrado = true,
+  continuaDe,
   evitar = [],
 }: PeticionGuion) {
-  // ~2,6 palabras por segundo de narracion pausada; 5 s de margen por escena.
+  // ~2,6 palabras por segundo de narración pausada; escenas de unos 8 s.
   const palabras = Math.round(duracion * 2.6);
-  const escenas = Math.max(4, Math.min(12, Math.round(duracion / 6)));
+  const escenas = Math.max(4, Math.min(45, Math.round(duracion / 8)));
   const titulosPrevios = evitar.filter(Boolean).slice(0, 20) as string[];
 
   return [
-    `Escribe el guion de un video vertical de ${tipo.toLowerCase()} para redes sociales.`,
-    tema ? `Tema: ${tema}.` : "Tema: elige uno libremente, que sea universal y emotivo.",
-    `Duracion objetivo: ${duracion} segundos (unas ${palabras} palabras en total).`,
-    `Divide el guion en ${escenas} escenas de una o dos frases cada una.`,
+    continuaDe
+      ? `Escribe la PARTE ${continuaDe.parte + 1} de una historia por entregas para un vídeo vertical.`
+      : `Escribe el guion de un vídeo vertical de ${tipo.toLowerCase()} para redes sociales.`,
+    continuaDe
+      ? `Lo que pasó hasta ahora: ${continuaDe.resumen}\nÚltima frase de la parte anterior: "${continuaDe.ultimaFrase}".\n` +
+        "Continúa EXACTAMENTE desde ahí, sin repetir lo contado, y termina con un cierre que deje ganas de la siguiente parte."
+      : "",
+    tema ? `Tema: ${tema}.` : continuaDe ? "" : "Tema: elige uno libremente, que sea universal y emotivo.",
+    `Duración objetivo: ${duracion} segundos (unas ${palabras} palabras en total).`,
+    `Divide el guion en ${escenas} escenas de una a tres frases cada una.`,
     ganchoFijo
       ? `Usa EXACTAMENTE este gancho, sin cambiar ni una palabra: "${ganchoFijo}"`
       : "Escribe un gancho de una sola frase, de 12 palabras como maximo, que se lea en menos de 3 segundos. " +
         "Debe abrir un bucle (una pregunta sin responder, una afirmacion inesperada o una escena a medias). " +
         "Prohibido saludar, presentarse o decir 'en este video'.",
-    "El gancho va aparte y ademas encabeza el video; las escenas continuan desde el.",
+    continuaDe
+      ? "El gancho de esta parte debe recordar en una frase dónde quedó la historia y prometer lo que viene."
+      : "El gancho va aparte y además encabeza el vídeo; las escenas continúan desde él.",
     "La ultima escena debe cerrar con una idea memorable, sin pedir likes ni seguidores.",
     narrado
-      ? "No uses emojis, comillas tipograficas ni acotaciones de camara dentro del texto narrado."
-      : "El texto NO se narra: se lee en pantalla como subtitulo. Frases cortas, " +
+      ? "No uses emojis, comillas tipográficas ni acotaciones de cámara dentro del texto narrado."
+      : "El texto NO se narra: se lee en pantalla como subtítulo. Frases cortas, " +
         "como mucho 14 palabras por escena, sin emojis ni acotaciones.",
+    ORTOGRAFIA,
     titulosPrevios.length
-      ? `Evita repetir estos titulos ya publicados: ${titulosPrevios.join(" | ")}.`
+      ? `Evita repetir estos títulos ya publicados: ${titulosPrevios.join(" | ")}.`
       : "",
     "",
     "Devuelve exactamente este JSON:",
     "{",
-    '  "titulo": "titulo corto y concreto",',
+    '  "titulo": "título corto y concreto",',
     '  "gancho": "frase de enganche",',
     '  "escenas": [',
-    '    { "texto": "frase narrada", "keywords": ["palabra en ingles para buscar video de stock", "otra"] }',
+    '    { "texto": "frase narrada", "keywords": ["palabra en inglés para buscar vídeo de stock", "otra"] }',
     "  ],",
     '  "hashtags": ["sinAlmohadilla", "otro"]',
     "}",
-    "Las keywords deben estar en ingles, ser concretas y visuales (por ejemplo: 'rainy window', 'sunrise mountains').",
+    "Las keywords deben estar en inglés, ser concretas y visuales (por ejemplo: 'rainy window', 'sunrise mountains').",
   ]
     .filter(Boolean)
     .join("\n");
@@ -341,14 +388,26 @@ export async function generarGuion(peticion: PeticionGuion): Promise<Guion> {
   const prompt = construirPrompt(peticion);
 
   const idioma = peticion.idioma ?? "es";
+  const region = peticion.region ?? "bolivia";
+  const modismos = peticion.modismos ?? true;
   const crudo = await (motor === "claude"
-    ? textoConClaude(prompt, modelo, idioma)
+    ? textoConClaude(prompt, modelo, idioma, region, modismos)
     : motor === "openai"
-      ? textoConOpenAI(prompt, modelo, idioma)
+      ? textoConOpenAI(prompt, modelo, idioma, region, modismos)
       : motor === "gemini"
-        ? textoConGemini(prompt, modelo, idioma)
-        : textoConGroq(prompt, modelo, idioma));
+        ? textoConGemini(prompt, modelo, idioma, region, modismos)
+        : textoConGroq(prompt, modelo, idioma, region, modismos));
 
   if (!crudo) throw new Error(`El motor ${motor} (${modelo}) no devolvio contenido`);
   return GuionSchema.parse(extraerJSON(crudo));
+}
+
+/** Resumen breve y última frase de un guion, para pedir la parte siguiente. */
+export function contextoParaContinuar(guion: Guion, parte: number) {
+  const frases = guion.escenas.map((e) => e.texto);
+  return {
+    parte,
+    resumen: [guion.titulo, guion.gancho, ...frases].join(" ").slice(0, 1500),
+    ultimaFrase: frases.at(-1) ?? guion.gancho,
+  };
 }

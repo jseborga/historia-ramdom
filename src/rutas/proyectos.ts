@@ -221,11 +221,13 @@ export async function rutasProyectos(app: FastifyInstance) {
    */
   app.post("/api/proyectos/:id/narracion", async (req, reply) => {
     const { id } = idParam.parse(req.params);
-    const { estilo, texto, idioma } = z
+    const { estilo, texto, idioma, region, modismos } = z
       .object({
         estilo: z.enum(["plano", "expresivo", "guion"]).default("plano"),
         texto: z.string().max(20_000).optional(),
         idioma: z.enum(["es", "en"]).default("es"),
+        region: z.enum(["bolivia", "latam", "eeuu"]).default("bolivia"),
+        modismos: z.boolean().default(true),
       })
       .parse(req.body ?? {});
     const p = await db.proyecto.findUniqueOrThrow({ where: { id }, include: { historia: true } });
@@ -233,7 +235,7 @@ export async function rutasProyectos(app: FastifyInstance) {
     const fuente = texto?.trim() || (guion?.success ? guionComoNarracion(guion.data) : ((p.voz as VozPista | null)?.texto ?? ""));
     if (!fuente.trim()) return reply.code(409).send({ error: "No hay guion ni texto del que partir" });
     if (estilo === "guion") return { narracion: fuente };
-    return { narracion: await escribirNarracion(fuente, estilo, idioma) };
+    return { narracion: await escribirNarracion(fuente, estilo, idioma, null, region, modismos) };
   });
 
   /** Ensambla el proyecto entero con la narracion al mando. */

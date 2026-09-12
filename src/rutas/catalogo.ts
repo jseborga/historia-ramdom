@@ -7,6 +7,7 @@ import {
   VOZ_OPENAI_POR_DEFECTO,
   vocesLocalesDisponibles,
   mejorVozLocal,
+  GENERO_VOZ_IA,
 } from "../servicios/voz.js";
 import { listarMusica } from "../almacen.js";
 import { tiktokConfigurado } from "../servicios/tiktok.js";
@@ -51,6 +52,12 @@ export async function rutasCatalogo(app: FastifyInstance) {
       },
       reddit: { configurado: redditConfigurado() },
       idiomas: ["es", "en"],
+      regiones: [
+        { id: "bolivia", nombre: "Bolivia (con modismos bolivianos)" },
+        { id: "latam", nombre: "Latinoamérica (neutro)" },
+        { id: "eeuu", nombre: "EE. UU. (inglés)" },
+      ],
+      generosIA: GENERO_VOZ_IA,
       limites: { clipMB: env.MAX_CLIP_MB, videoMB: env.MAX_VIDEO_MB },
       retencionDias: env.RETENCION_DIAS,
     };

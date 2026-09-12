@@ -7,6 +7,7 @@ import {
   type Idioma,
   type ModoAudio,
   type ModoPublicacion,
+  type Region,
   type Voz,
 } from "../api";
 import { mensajeDe } from "../App";
@@ -17,6 +18,7 @@ import {
   SelectorModo,
   SelectorMotor,
   SelectorMusica,
+  SelectorRegion,
   SelectorVoz,
 } from "./comunes";
 import { SelectorClips } from "./SelectorClips";
@@ -31,6 +33,8 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
   );
   const [modelo, setModelo] = useState<string | null>(null);
   const [idioma, setIdioma] = useState<Idioma>("es");
+  const [region, setRegion] = useState<Region>("bolivia");
+  const [modismos, setModismos] = useState(true);
   const [voz, setVoz] = useState<Voz>(catalogo.vozPorDefecto);
   const [musica, setMusica] = useState<string | null>(null);
   const [modoAudio, setModoAudio] = useState<ModoAudio>("VOZ");
@@ -62,6 +66,8 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
           tema: tema || undefined,
           duracion,
           idioma,
+          region,
+          modismos,
           narrado: modoAudio === "VOZ",
         }),
       );
@@ -84,6 +90,8 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
         tema: tema || undefined,
         duracion,
         idioma,
+        region,
+        modismos,
         voz,
         modoAudio,
         segundosEscena,
@@ -161,11 +169,12 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
               id="duracion"
               type="number"
               min={15}
-              max={180}
+              max={350}
               value={duracion}
               onChange={(e) => setDuracion(Number(e.target.value))}
             />
           </div>
+          <SelectorRegion catalogo={catalogo} region={region} modismos={modismos} alCambiar={(r, m) => { setRegion(r); setModismos(m); }} />
           <SelectorMotor
             catalogo={catalogo}
             valor={motor}

@@ -2,7 +2,7 @@ import { stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { env, MAX_VIDEO_BYTES, MB } from "../env.js";
 import { ffmpeg } from "./ffmpeg.js";
-import { buscarPreset, filtroEscena, type Preset } from "./presets.js";
+import { buscarPreset, filtroEscena, MAX_DURACION_SEG, type Preset } from "./presets.js";
 import { crearASSProyecto, type Rotulo } from "./rotulos.js";
 import { descargarClip } from "../servicios/clips.js";
 import {
@@ -42,6 +42,12 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
     0.5,
   );
   const tVideo = duracionVideo(e.video);
+  if (total > MAX_DURACION_SEG + 0.5) {
+    throw new Error(
+      `El montaje dura ${total.toFixed(0)} s y el tope es ${MAX_DURACION_SEG} s. ` +
+        "Acórtalo o continúa la historia en otra parte.",
+    );
+  }
 
   // 1. Pista de video: cada clip con su recorte, duracion y efecto
   const partes: string[] = [];

@@ -12,11 +12,12 @@ import {
   type MusicaCapa,
   type Preset,
   type Proyecto,
+  type Region,
   type RotuloPista,
   type VozPista,
 } from "../api";
 import { mensajeDe } from "../App";
-import { SelectorVoz } from "./comunes";
+import { SelectorRegion, SelectorVoz } from "./comunes";
 import { Lienzo } from "./Lienzo";
 import { BuscadorClips } from "./BuscadorClips";
 import { LineaDeTiempo, type Sel } from "./LineaDeTiempo";
@@ -70,6 +71,8 @@ export function EditorMontaje({
   const [ok, setOk] = useState("");
   const [global, setGlobal] = useState<(EstiloTexto & { animacion: Animacion; lectura: Lectura }) | null>(null);
   const [reproducir, setReproducir] = useState({ n: 0 });
+  const [region, setRegion] = useState<Region>("bolivia");
+  const [modismos, setModismos] = useState(true);
 
   const cargar = useCallback(async () => {
     try {
@@ -240,7 +243,7 @@ export function EditorMontaje({
     setOcupado("narracion");
     setError("");
     try {
-      const { narracion } = await api.post<{ narracion: string }>(`/api/proyectos/${proyecto!.id}/narracion`, { estilo, texto: estilo === "guion" ? undefined : voz.texto || undefined });
+      const { narracion } = await api.post<{ narracion: string }>(`/api/proyectos/${proyecto!.id}/narracion`, { estilo, texto: estilo === "guion" ? undefined : voz.texto || undefined, region, modismos });
       actVoz({ texto: narracion, archivo: null, duracion: null, huella: null, tramos: [] });
       setOk(estilo === "guion" ? "Guion cargado como narracion." : `Narracion ${estilo} redactada. Genera la voz para medirla.`);
     } catch (err) { setError(mensajeDe(err)); } finally { setOcupado(""); }
@@ -451,6 +454,9 @@ export function EditorMontaje({
               </div>
               {voz.modo === "servidor" && (
                 <>
+                  <div className="campos" style={{ marginTop: 12 }}>
+                    <SelectorRegion catalogo={catalogo} region={region} modismos={modismos} alCambiar={(r, m) => { setRegion(r); setModismos(m); }} />
+                  </div>
                   <div className="pie" style={{ marginTop: 12, marginBottom: 4 }}>
                     <button onClick={() => escribirNarracion("plano")} disabled={ocupado === "narracion"}>Redactar narracion (texto plano)</button>
                     <button onClick={() => escribirNarracion("expresivo")} disabled={ocupado === "narracion"}>Redactar expresiva (marcas para Gemini)</button>
@@ -531,7 +537,10 @@ export function EditorMontaje({
               {preset && (
                 <>
                   <p className="suave" style={{ marginTop: 8 }}>{preset.nota}</p>
-                  <p className={total > preset.maxSegundos ? "aviso error" : "suave"}>Duracion total: {total.toFixed(1)} s (recomendado hasta {preset.maxSegundos} s)</p>
+                  <p className={total > 350 ? "aviso error" : "suave"}>
+                    Duracion total: {total.toFixed(1)} s · tope {Math.min(preset.maxSegundos, 350)} s
+                    {total > 350 ? " · pasa del tope: el render se negara. Acorta o continua la historia en otra parte." : ""}
+                  </p>
                 </>
               )}
               <h3 style={{ marginTop: 20 }}>Estilo para todos los rotulos</h3>

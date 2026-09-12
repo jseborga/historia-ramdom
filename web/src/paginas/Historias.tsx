@@ -178,7 +178,7 @@ export function Historias() {
             <div className="item" key={h.id}>
               <div className="fila">
                 <span className={`estado ${h.estado}`}>{h.estado}</span>
-                <strong>{h.titulo ?? "(sin titulo aun)"}</strong>
+                <strong>{h.parte > 1 ? `Parte ${h.parte} · ` : ""}{h.titulo ?? "(sin titulo aun)"}</strong>
                 <span className="suave">{new Date(h.creadaEn).toLocaleString()}</span>
               </div>
 
@@ -231,6 +231,18 @@ export function Historias() {
                 )}
                 <button onClick={() => copiarCreditos(h.id)}>Copiar creditos</button>
                 <button onClick={() => copiarGuion(h.id)}>Copiar guion</button>
+                {h.titulo && (
+                  <button
+                    onClick={() =>
+                      accion(
+                        () => api.post(`/api/historias/${h.id}/continuar`),
+                        `Parte ${h.parte + 1} encolada: retoma justo donde quedó esta.`,
+                      )
+                    }
+                  >
+                    Continuar (parte {h.parte + 1})
+                  </button>
+                )}
                 {h.titulo && (
                   <button
                     onClick={() =>

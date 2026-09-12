@@ -87,6 +87,12 @@ model Serie {
   cron            String // ej. "0 9 * * *" = todos los dias a las 9:00
   zonaHoraria     String          @default("America/Lima")
   idioma          String          @default("es")
+  /// Variante regional del texto: bolivia, latam o eeuu.
+  region          String          @default("bolivia")
+  /// Usar modismos propios de la región (o español neutro si es false).
+  modismos        Boolean         @default(true)
+  /// Historias por partes: cuántas partes seguidas produce cada ejecución.
+  partes          Int             @default(1)
   motor           String          @default("groq")
   modelo          String? // modelo concreto del motor; vacio = el del entorno
   voz             Json // { proveedor, modelo, nombre }
@@ -111,6 +117,10 @@ model Historia {
   gancho      Gancho?        @relation(fields: [ganchoId], references: [id], onDelete: SetNull)
   ganchoId    String?
   ganchoTexto String?
+  /// Parte N de una historia continuada; 1 si es única.
+  parte       Int            @default(1)
+  /// Historia anterior de la que esta es continuación.
+  continuaDeId String?
   estado      EstadoHistoria @default(GUION)
   titulo      String?
   guion       Json?

@@ -15,8 +15,12 @@ const SerieSchema = z.object({
   nombre: z.string().min(1).max(80),
   tipo: z.enum(["Reflexion", "Historia"]),
   temas: z.array(z.string().min(1).max(120)).max(50).default([]),
-  duracion: z.number().int().min(15).max(180).default(65),
+  duracion: z.number().int().min(15).max(350).default(65),
   idioma: z.enum(["es", "en"]).default("es"),
+  region: z.enum(["bolivia", "latam", "eeuu"]).default("bolivia"),
+  modismos: z.boolean().default(true),
+  /** Historias por partes: cada ejecución produce N partes seguidas. */
+  partes: z.number().int().min(1).max(6).default(1),
   cron,
   zonaHoraria: z.string().min(1).max(60).default("America/Lima"),
   motor: z.enum(MOTORES).default("groq"),

@@ -3,6 +3,9 @@
  * animaciones) se calcula sobre estas dimensiones, y la vista previa del editor
  * usa la misma relacion de aspecto.
  */
+/** Tope duro de cualquier vídeo que produce la app, en segundos. */
+export const MAX_DURACION_SEG = 350;
+
 export type Preset = {
   id: string;
   nombre: string;
@@ -21,8 +24,8 @@ export const PRESETS: Preset[] = [
     ancho: 1080,
     alto: 1920,
     fps: 30,
-    maxSegundos: 180,
-    nota: "Vertical 9:16. Los subtitulos se suben para que no los tape la interfaz.",
+    maxSegundos: MAX_DURACION_SEG,
+    nota: "Vertical 9:16. Los subtítulos se suben para que no los tape la interfaz.",
   },
   {
     id: "instagram_feed",
@@ -48,8 +51,8 @@ export const PRESETS: Preset[] = [
     ancho: 1920,
     alto: 1080,
     fps: 30,
-    maxSegundos: 600,
-    nota: "Horizontal clasico para YouTube o Facebook.",
+    maxSegundos: MAX_DURACION_SEG,
+    nota: "Horizontal clásico para YouTube o Facebook.",
   },
   {
     id: "facebook",

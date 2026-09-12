@@ -38,6 +38,10 @@ Implementa la guía de `docs/guia-original.md`.
   defecto la mejor disponible. La narración
   se genera frase a frase y se mide, así que los textos caen donde se leen.
   Gemini y OpenAI cuando se quiera más.
+- **Texto correcto, por país y por partes.** Los prompts exigen tildes, ñ y
+  signos de apertura; se elige región (Bolivia por defecto, Latinoamérica o
+  EE. UU.) con o sin modismos; tope de 350 s por vídeo y historias que
+  continúan por partes.
 - **Ensamblado con la narración al mando.** Voz medida → textos donde suenan →
   vídeo rellenado con clips largos al azar y un gancho de 4 s.
 - **Vista previa.** El MP4 se reproduce en la propia app antes de descargarlo, y

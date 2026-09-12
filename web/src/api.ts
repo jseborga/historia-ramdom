@@ -64,6 +64,8 @@ export type Catalogo = {
   tiktok: { configurado: boolean; cuentasConectadas: number; permisos: string[] };
   reddit: { configurado: boolean };
   idiomas: Idioma[];
+  regiones: { id: Region; nombre: string }[];
+  generosIA: Record<string, Genero>;
   limites: { clipMB: number; videoMB: number };
   retencionDias: number;
 };
@@ -167,13 +169,18 @@ export type ClipCandidato = {
   duracion?: number;
 };
 
+export type Genero = "masculino" | "femenino" | "desconocido";
+
 export type VozLocal = {
   id: string;
   nombre: string;
   motor: "espeak" | "mbrola" | "piper";
   idioma: "es" | "en";
   calidad: 1 | 2 | 3;
+  genero: Genero;
 };
+
+export type Region = "bolivia" | "latam" | "eeuu";
 
 export type Prueba = {
   id: string;
@@ -200,6 +207,9 @@ export type Serie = {
   temas: string[];
   duracion: number;
   idioma: Idioma;
+  region: Region;
+  modismos: boolean;
+  partes: number;
   cron: string;
   zonaHoraria: string;
   motor: string;
@@ -261,6 +271,8 @@ export type Historia = {
   serieId: string | null;
   estado: "GUION" | "CLIPS" | "VOZ" | "RENDER" | "LISTA" | "SUBIDA" | "MONTAJE" | "ERROR";
   titulo: string | null;
+  parte: number;
+  continuaDeId: string | null;
   ganchoTexto: string | null;
   metrica: Metrica | null;
   descripcion: string | null;

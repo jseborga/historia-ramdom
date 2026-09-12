@@ -1,4 +1,5 @@
-import type { Catalogo, ModoAudio, ModoPublicacion, Voz } from "../api";
+import { useState } from "react";
+import type { Catalogo, Genero, ModoAudio, ModoPublicacion, Region, Voz } from "../api";
 
 export function SelectorMotor({
   catalogo,
@@ -39,6 +40,41 @@ export function SelectorMotor({
   );
 }
 
+/** País o región del texto y si se piden modismos; Bolivia por defecto. */
+export function SelectorRegion({
+  catalogo,
+  region,
+  modismos,
+  alCambiar,
+}: {
+  catalogo: Catalogo;
+  region: Region;
+  modismos: boolean;
+  alCambiar: (region: Region, modismos: boolean) => void;
+}) {
+  return (
+    <>
+      <div>
+        <label htmlFor="region">País o región del texto</label>
+        <select id="region" value={region} onChange={(e) => alCambiar(e.target.value as Region, modismos)}>
+          {(catalogo.regiones ?? []).map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.nombre}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label htmlFor="modismos">Modismos</label>
+        <select id="modismos" value={modismos ? "si" : "no"} onChange={(e) => alCambiar(region, e.target.value === "si")}>
+          <option value="si">Usar modismos de la región</option>
+          <option value="no">Neutro, sin modismos</option>
+        </select>
+      </div>
+    </>
+  );
+}
+
 export function SelectorVoz({
   catalogo,
   valor,
@@ -48,10 +84,36 @@ export function SelectorVoz({
   valor: Voz;
   alCambiar: (v: Voz) => void;
 }) {
-  const nombres = catalogo.voces[valor.proveedor] ?? [];
-  const locales = catalogo.vocesLocales ?? [];
+  const [genero, setGenero] = useState<Genero | "todas">("todas");
+  const nombres = (catalogo.voces[valor.proveedor] ?? []).filter(
+    (n) => genero === "todas" || (catalogo.generosIA?.[n] ?? "desconocido") === genero,
+  );
+  const locales = (catalogo.vocesLocales ?? []).filter((v) => genero === "todas" || v.genero === genero);
   return (
     <>
+      <div>
+        <label htmlFor="generoVoz">Voz masculina o femenina</label>
+        <select
+          id="generoVoz"
+          value={genero}
+          onChange={(e) => {
+            const g = e.target.value as Genero | "todas";
+            setGenero(g);
+            // Si la voz actual no es de ese género, salta a la mejor que sí lo sea.
+            if (valor.proveedor === "local") {
+              const cand = (catalogo.vocesLocales ?? []).filter((v) => g === "todas" || v.genero === g).sort((a, b) => b.calidad - a.calidad)[0];
+              if (cand && cand.id !== valor.nombre) alCambiar({ ...valor, nombre: cand.id });
+            } else {
+              const cand = (catalogo.voces[valor.proveedor] ?? []).find((n) => g === "todas" || catalogo.generosIA?.[n] === g);
+              if (cand && cand !== valor.nombre) alCambiar({ ...valor, nombre: cand });
+            }
+          }}
+        >
+          <option value="todas">Cualquiera</option>
+          <option value="masculino">Masculina</option>
+          <option value="femenino">Femenina</option>
+        </select>
+      </div>
       <div>
         <label htmlFor="proveedorVoz">Proveedor de voz</label>
         <select

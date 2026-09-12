@@ -45,7 +45,7 @@ export const ClipPistaSchema = z.object({
   /** null = fondo de color liso. */
   clip: ClipSchema.nullable().default(null),
   color: hex.default("#111318"),
-  duracion: z.number().min(0.5).max(180).default(DURACION_CLIP),
+  duracion: z.number().min(0.5).max(350).default(DURACION_CLIP),
   /** Segundo del clip original por el que empieza (recorte de entrada). */
   recorte: z.number().min(0).max(3600).default(0),
   efecto: z.enum(["ninguno", "zoomLento", "fundido", "blancoYNegro", "vineta"]).default("ninguno"),

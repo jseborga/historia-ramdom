@@ -12,7 +12,7 @@ import {
   textoAGuion,
   INSTRUCCIONES_IA,
 } from "../servicios/guionTexto.js";
-import { cola, encolarHistoriaSuelta } from "../cola/cola.js";
+import { cola, encolarHistoriaSuelta, encolarContinuacion } from "../cola/cola.js";
 import { retrasoHasta } from "../cola/trabajos.js";
 
 const idParam = z.object({ id: z.string().uuid() });
@@ -29,7 +29,9 @@ const PeticionGuionSchema = z.object({
   tipo: z.enum(["Reflexion", "Historia"]),
   tema: z.string().max(200).optional(),
   idioma: z.enum(["es", "en"]).default("es"),
-  duracion: z.number().int().min(15).max(180).default(65),
+  region: z.enum(["bolivia", "latam", "eeuu"]).default("bolivia"),
+  modismos: z.boolean().default(true),
+  duracion: z.number().int().min(15).max(350).default(65),
   evitar: z.array(z.string().max(160)).max(20).default([]),
 });
 
@@ -78,6 +80,17 @@ export async function rutasHistorias(app: FastifyInstance) {
     }
   });
 
+  /**
+   * Continúa una historia en una parte nueva: el guion se escribe retomando
+   * justo donde quedó, con los mismos ajustes, y se produce igual que ella.
+   */
+  app.post("/api/historias/:id/continuar", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    await db.historia.findUniqueOrThrow({ where: { id } });
+    const job = await encolarContinuacion(id);
+    return reply.code(202).send({ encolada: true, jobId: job.id });
+  });
+
   app.get("/api/historias", async (req) => {
     const { serieId, limite } = z
       .object({
@@ -95,6 +108,8 @@ export async function rutasHistorias(app: FastifyInstance) {
         serieId: true,
         estado: true,
         titulo: true,
+        parte: true,
+        continuaDeId: true,
         ganchoTexto: true,
         metrica: { select: { vistas: true, likes: true, puntuacion: true, tiempoPromedioSeg: true } },
         descripcion: true,
@@ -141,6 +156,8 @@ export async function rutasHistorias(app: FastifyInstance) {
       tema: p.tema,
       duracion: p.duracion,
       idioma: p.idioma,
+      region: p.region,
+      modismos: p.modismos,
       motor: p.motor,
       modelo: p.modelo,
       voz: p.voz,
