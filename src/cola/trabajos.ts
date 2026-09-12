@@ -481,13 +481,12 @@ export async function limpiarArchivos() {
 /** Trabajo del editor: renderiza las tres pistas de un proyecto. */
 export async function renderizarProyectoTrabajo(proyectoId: string) {
   const { renderizarProyecto } = await import("../render/proyecto.js");
-  const { ProyectoSchema, desdeEscenasAntiguas, esModeloAntiguo, huellaVoz } = await import(
-    "../servicios/proyecto.js"
-  );
+  const { ProyectoSchema, desdeEscenasAntiguas, esModeloAntiguo, huellaVoz, creditosDeProyecto, descripcionDeProyecto } =
+    await import("../servicios/proyecto.js");
   const { generarNarracion, narracionExiste } = await import("../servicios/narracion.js");
   const { rutaSubidaSegura } = await import("../almacen.js");
 
-  const p = await db.proyecto.findUniqueOrThrow({ where: { id: proyectoId } });
+  const p = await db.proyecto.findUniqueOrThrow({ where: { id: proyectoId }, include: { historia: true } });
   const escenas = Array.isArray(p.escenas) ? p.escenas : [];
   const pistas = esModeloAntiguo(escenas)
     ? desdeEscenasAntiguas(escenas)
@@ -530,6 +529,15 @@ export async function renderizarProyectoTrabajo(proyectoId: string) {
         : rutaMusicaSegura(datos.musica.archivo)
       : undefined;
 
+    // Descripción para publicar: título, hashtags de la historia si la hay, y créditos.
+    const guion = p.historia ? GuionSchema.safeParse(p.historia.guion) : null;
+    const descripcion = descripcionDeProyecto(
+      p.nombre,
+      datos.video,
+      guion?.success ? guion.data.hashtags : [],
+      guion?.success ? guion.data.gancho : null,
+    );
+
     const { archivo, duracion } = await renderizarProyecto(dir, {
       formato: datos.formato,
       video: datos.video,
@@ -538,12 +546,14 @@ export async function renderizarProyectoTrabajo(proyectoId: string) {
       musica: datos.musica,
       rutaVoz,
       rutaMusica,
+      titulo: p.nombre,
+      creditos: creditosDeProyecto(datos.video),
     });
 
     const final = await moverAVideos(archivo, proyectoId);
     await db.proyecto.update({
       where: { id: proyectoId },
-      data: { archivo: final, duracionSeg: duracion, estado: "LISTO" },
+      data: { archivo: final, duracionSeg: duracion, estado: "LISTO", descripcion },
     });
     return proyectoId;
   } catch (err) {

@@ -5,7 +5,7 @@ import { EditorMontaje } from "./EditorMontaje";
 
 type Resumen = Pick<
   Proyecto,
-  "id" | "nombre" | "formato" | "estado" | "archivo" | "duracionSeg" | "error" | "editadoEn"
+  "id" | "nombre" | "formato" | "estado" | "archivo" | "descripcion" | "duracionSeg" | "error" | "editadoEn"
 >;
 
 export function Montaje({ catalogo }: { catalogo: Catalogo }) {
@@ -53,6 +53,24 @@ export function Montaje({ catalogo }: { catalogo: Catalogo }) {
       });
       setOk("Proyecto creado.");
       setAbierto(p.id);
+    } catch (err) {
+      setError(mensajeDe(err));
+    }
+  }
+
+  async function copiar(texto: string, que: string) {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setOk(`${que} copiada.`);
+    } catch {
+      setError("El navegador no dejo copiar; selecciona el texto a mano.");
+    }
+  }
+
+  async function copiarCreditos(id: string) {
+    try {
+      const { descripcion } = await api.get<{ descripcion: string }>(`/api/proyectos/${id}/creditos`);
+      await copiar(descripcion, "Descripcion con creditos");
     } catch (err) {
       setError(mensajeDe(err));
     }
@@ -127,6 +145,7 @@ export function Montaje({ catalogo }: { catalogo: Catalogo }) {
                 </span>
               </div>
               {p.error && <pre>{p.error}</pre>}
+              {p.descripcion && <pre>{p.descripcion}</pre>}
               {viendo === p.id && p.archivo && (
                 <video className="reproductor" src={`/api/proyectos/${p.id}/ver`} controls autoPlay />
               )}
@@ -142,6 +161,10 @@ export function Montaje({ catalogo }: { catalogo: Catalogo }) {
                     Descargar MP4
                   </a>
                 )}
+                <a className="boton" href={`/api/proyectos/${p.id}/creditos.txt`}>
+                  Descargar creditos (.txt)
+                </a>
+                <button onClick={() => copiarCreditos(p.id)}>Copiar descripcion</button>
                 <button onClick={() => borrar(p.id)}>Borrar</button>
               </div>
             </div>

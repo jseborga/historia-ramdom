@@ -88,13 +88,17 @@ export const EFECTOS: Efecto[] = ["ninguno", "zoomLento", "fundido", "blancoYNeg
 export function filtroEfecto(efecto: Efecto, p: Preset, d: number): string {
   const D = Math.max(d, 0.5).toFixed(3);
   switch (efecto) {
-    case "zoomLento":
-      // Recorta una ventana que se encoge un 12 % a lo largo de la escena y la
-      // vuelve a escalar al lienzo: un acercamiento lento tipo Ken Burns.
+    case "zoomLento": {
+      // Acercamiento lento tipo Ken Burns. Con `crop` no vale: sus expresiones
+      // de ancho y alto se evalúan una sola vez y no conocen `t`. `zoompan` sí
+      // avanza por fotograma (`in` = número de fotograma de entrada, d=1 = un
+      // fotograma de salida por cada uno de entrada).
+      const fotogramas = Math.max(1, Math.round(p.fps * Number(D)));
       return (
-        `crop=w=iw/(1+0.12*t/${D}):h=ih/(1+0.12*t/${D}):x=(iw-ow)/2:y=(ih-oh)/2,` +
-        `scale=${p.ancho}:${p.alto}`
+        `zoompan=z='min(1+0.12*in/${fotogramas},1.12)':` +
+        `x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${p.ancho}x${p.alto}:fps=${p.fps}`
       );
+    }
     case "fundido": {
       const f = Math.min(0.5, d / 3).toFixed(3);
       return `fade=t=in:st=0:d=${f},fade=t=out:st=${(d - Number(f)).toFixed(3)}:d=${f}`;

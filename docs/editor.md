@@ -257,7 +257,7 @@ Sobre el clip o el fondo de cada escena, ya encajado en el lienzo:
 
 | Efecto | En el render | En la vista previa |
 |---|---|---|
-| zoom lento | `crop` que se encoge un 12 % con el tiempo y vuelve a escalar (Ken Burns) | `transform: scale` animado |
+| zoom lento | `zoompan` que acerca un 12 % a lo largo de la escena (Ken Burns); `crop` no sirve porque sus expresiones no avanzan por fotograma | `transform: scale` animado |
 | fundido a negro | `fade` de entrada y salida de hasta 0,5 s | opacidad animada |
 | blanco y negro | `hue=s=0` | `filter: grayscale` |
 | viñeta | `vignette` | degradado radial superpuesto |
@@ -265,6 +265,24 @@ Sobre el clip o el fondo de cada escena, ya encajado en el lienzo:
 Uno por escena. El panel **Formato** tiene además un **estilo global** —letra,
 tamaño, color, contorno, animación, lectura y efecto— que se aplica a todas las
 escenas de golpe, respetando la posición de cada una.
+
+## Descargar el resultado y sus créditos
+
+Al acabar el render hay tres cosas, todas en la lista de **Montaje** (y las dos
+primeras también en la barra del editor):
+
+- **Descargar MP4** — el archivo conjunto: imagen, rótulos quemados, narración
+  y música en un solo `.mp4`. En el servidor vive en `DATA_DIR/videos/<id>.mp4`
+  (el volumen), y la limpieza diaria lo borra a los `RETENCION_DIAS`.
+- **Descargar créditos (.txt)** — la descripción para publicar: título (o el
+  gancho), hashtags de la historia si la hay, el aviso de contenido con IA y
+  los créditos de cada clip (autor, fuente, licencia y página), sin repetir.
+  Se baja con el mismo nombre que el MP4 más `-creditos.txt`.
+- **Copiar descripción** — lo mismo, al portapapeles, para pegarlo en TikTok.
+
+Además, **los créditos viajan dentro del MP4** como metadatos (`title` y
+`comment`): aunque se pierda el `.txt`, cualquier reproductor o `ffprobe` los
+muestra. La descripción queda guardada en el proyecto y se ve en la lista.
 
 ## Ver el resultado
 

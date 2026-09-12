@@ -149,6 +149,7 @@ export type Proyecto = {
   voz: VozPista;
   musica: MusicaCapa | null;
   archivo: string | null;
+  descripcion: string | null;
   duracionSeg: number | null;
   estado: "BORRADOR" | "RENDER" | "LISTO" | "ERROR";
   error: string | null;

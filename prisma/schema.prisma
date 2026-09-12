@@ -165,6 +165,8 @@ model Proyecto {
   /// Capa de musica: { archivo, volumen }
   musica     Json?
   archivo    String? // MP4 final dentro de DATA_DIR/videos
+  /// Título, hashtags y créditos de los clips, listo para pegar al publicar.
+  descripcion String?
   duracionSeg Float?
   estado     EstadoProyecto  @default(BORRADOR)
   error      String?

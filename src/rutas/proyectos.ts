@@ -20,6 +20,8 @@ import {
   textosDesdeNarracion,
   duracionVideo,
   duracionProyecto,
+  creditosDeProyecto,
+  descripcionDeProyecto,
   VOZ_IA_POR_DEFECTO,
   type ClipPista,
   type RotuloPista,
@@ -100,7 +102,7 @@ export async function rutasProyectos(app: FastifyInstance) {
       take: 100,
       select: {
         id: true, nombre: true, formato: true, estado: true, archivo: true,
-        duracionSeg: true, error: true, historiaId: true, editadoEn: true,
+        descripcion: true, duracionSeg: true, error: true, historiaId: true, editadoEn: true,
       },
     }),
   );
@@ -323,6 +325,37 @@ export async function rutasProyectos(app: FastifyInstance) {
     if (!pistasDe(p).video.length) return reply.code(409).send({ error: "El proyecto no tiene clips" });
     const job = await encolarProyecto(id);
     return reply.code(202).send({ encolada: true, jobId: job.id });
+  });
+
+  /**
+   * Créditos y descripción del proyecto. Si aún no se renderizó, se calculan
+   * de los clips actuales; el .txt se descarga con el mismo nombre que el MP4.
+   */
+  app.get("/api/proyectos/:id/creditos", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const p = await db.proyecto.findUnique({ where: { id }, include: { historia: true } });
+    if (!p) return reply.code(404).send({ error: "No encontrado" });
+    const { video } = pistasDe(p);
+    const guion = p.historia ? GuionSchema.safeParse(p.historia.guion) : null;
+    const descripcion =
+      p.descripcion ??
+      descripcionDeProyecto(p.nombre, video, guion?.success ? guion.data.hashtags : [], guion?.success ? guion.data.gancho : null);
+    return { descripcion, creditos: creditosDeProyecto(video) };
+  });
+
+  app.get("/api/proyectos/:id/creditos.txt", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const p = await db.proyecto.findUnique({ where: { id }, include: { historia: true } });
+    if (!p) return reply.code(404).send({ error: "No encontrado" });
+    const { video } = pistasDe(p);
+    const guion = p.historia ? GuionSchema.safeParse(p.historia.guion) : null;
+    const texto =
+      p.descripcion ??
+      descripcionDeProyecto(p.nombre, video, guion?.success ? guion.data.hashtags : [], guion?.success ? guion.data.gancho : null);
+    reply
+      .header("Content-Type", "text/plain; charset=utf-8")
+      .header("Content-Disposition", `attachment; filename="proyecto-${p.id.slice(0, 8)}-creditos.txt"`);
+    return reply.send(texto + "\n");
   });
 
   app.get("/api/proyectos/:id/ver", async (req, reply) => {

@@ -289,7 +289,10 @@ export function EditorMontaje({
           {ocupado === "clips" ? "Buscando clips..." : "Completar clips vacios"}
         </button>
         {proyecto.estado === "LISTO" && proyecto.archivo && (
-          <a className="boton" href={`/api/proyectos/${proyecto.id}/descargar`}>MP4 listo: descargar</a>
+          <>
+            <a className="boton" href={`/api/proyectos/${proyecto.id}/descargar`}>MP4 listo: descargar</a>
+            <a className="boton" href={`/api/proyectos/${proyecto.id}/creditos.txt`}>Creditos (.txt)</a>
+          </>
         )}
       </div>
 

@@ -27,6 +27,9 @@ export type EntradaRender = {
   rutaVoz?: string;
   /** Ruta absoluta de la pista de musica, si la hay. */
   rutaMusica?: string;
+  /** Título y créditos que viajan dentro del MP4 como metadatos. */
+  titulo?: string;
+  creditos?: string;
 };
 
 /**
@@ -128,6 +131,10 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
     "-filter_complex", filtro, "-map", "[v]", "-map", "[a]",
     "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", String(preset.fps),
     "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart",
+    // Los créditos van dentro del archivo: quien lo abra los tiene aunque
+    // se pierda el .txt. Los valores van como argumento, nunca por shell.
+    ...(e.titulo ? ["-metadata", `title=${e.titulo.slice(0, 200)}`] : []),
+    ...(e.creditos ? ["-metadata", `comment=${e.creditos.slice(0, 2000)}`] : []),
     "-t", total.toFixed(3), "final.mp4",
   );
   await ffmpeg(args, dir, 30 * 60_000);
