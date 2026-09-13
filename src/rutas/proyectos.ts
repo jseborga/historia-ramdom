@@ -274,13 +274,17 @@ export async function rutasProyectos(app: FastifyInstance) {
    */
   app.post("/api/proyectos/:id/voz", async (req, reply) => {
     const { id } = idParam.parse(req.params);
-    const { voz } = z.object({ voz: ProyectoSchema.shape.voz }).parse(req.body);
+    const { voz, forzar } = z
+      .object({ voz: ProyectoSchema.shape.voz, forzar: z.boolean().default(false) })
+      .parse(req.body);
     if (voz.modo !== "servidor") return reply.code(400).send({ error: "Elige 'voz del servidor'" });
-    const r = await generarNarracion(id, voz);
-    const nueva: VozPista = { ...voz, ...r };
+    // Sin `forzar`, pedir dos veces la misma narracion no gasta cuota: se
+    // devuelve el archivo que ya existe para ese texto y esa voz.
+    const { reutilizada, ...medidas } = await generarNarracion(id, voz, { forzar });
+    const nueva: VozPista = { ...voz, ...medidas };
     const p = await db.proyecto.findUniqueOrThrow({ where: { id } });
     await db.proyecto.update({ where: { id }, data: { voz: { ...(p.voz as object), ...nueva } } });
-    return nueva;
+    return { ...nueva, reutilizada };
   });
 
   /** La narracion para la vista previa, con Range. */

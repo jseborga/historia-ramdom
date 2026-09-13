@@ -176,6 +176,22 @@ Las marcas de tono (`[pausa]`, `[susurrando]`, `[con énfasis]`…) no se leen e
 alto: con Gemini se convierten en una indicación de estilo delante del texto, y
 con las demás voces se quitan.
 
+### Una petición de voz cada vez
+
+Las llamadas al sintetizador van **de una en una por proveedor**, encoladas, con
+un cuarto de segundo de respiro entre una y la siguiente: nunca hay dos
+peticiones en el aire a la vez, que es lo que disparaba los errores de cuota y
+dejaba archivos a medias. Los reintentos esperan su turno igual que la primera
+llamada.
+
+El audio se guarda con el nombre de **la huella de su texto y su voz**
+(`voz-<huella>.wav`, con un `.json` al lado donde van los tiempos de cada
+frase), y se publica renombrando el temporal: o está entero, o no está. Pedir
+dos veces la misma narración no gasta cuota —se devuelve el archivo que ya
+existe—, y si la API falla, el proyecto se queda con la narración anterior en
+vez de con medio archivo. Para volver a pedirla de verdad está el botón *Pedirla
+otra vez* (`{"forzar": true}` en `POST /api/proyectos/:id/voz`).
+
 ## Comprobaciones
 
 ```bash

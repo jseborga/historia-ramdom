@@ -201,13 +201,24 @@ export function EditorMontaje({
     try { await api.post(`/api/proyectos/${proyecto!.id}/render`); setOk("Render encolado. Esta pagina se actualiza sola."); await cargar(); }
     catch (err) { setError(mensajeDe(err)); }
   }
-  async function generarVozAhora() {
+  /**
+   * Pide la narracion al servidor. Sin `forzar`, si ya existe el audio de ese
+   * mismo texto con esa misma voz no se gasta otra peticion: se reutiliza.
+   */
+  async function generarVozAhora(forzar = false) {
     setOcupado("voz");
     setError("");
     try {
-      const nueva = await api.post<VozPista>(`/api/proyectos/${proyecto!.id}/voz`, { voz });
+      const { reutilizada, ...nueva } = await api.post<VozPista & { reutilizada?: boolean }>(
+        `/api/proyectos/${proyecto!.id}/voz`,
+        { voz, forzar },
+      );
       actVoz(nueva);
-      setOk(`Narracion generada: ${nueva.duracion?.toFixed(1)} s con una sola voz.`);
+      setOk(
+        reutilizada
+          ? `Ya estaba generada con este texto y esta voz: ${nueva.duracion?.toFixed(1)} s, sin pedir nada al proveedor.`
+          : `Narracion generada: ${nueva.duracion?.toFixed(1)} s con una sola voz.`,
+      );
     } catch (err) { setError(mensajeDe(err)); } finally { setOcupado(""); }
   }
   /** Rehace el videoclip entero: mismos tramos de la cancion, otros clips. */
@@ -555,14 +566,21 @@ export function EditorMontaje({
                     </div>
                   </div>
                   <div className="pie">
-                    <button className="primario" onClick={generarVozAhora} disabled={ocupado === "voz" || !voz.texto.trim()}>
+                    <button className="primario" onClick={() => generarVozAhora()} disabled={ocupado === "voz" || !voz.texto.trim()}>
                       {ocupado === "voz" ? "Generando..." : voz.archivo ? "Volver a generar la voz" : "Generar la voz ahora"}
                     </button>
+                    {voz.archivo && (
+                      <button onClick={() => generarVozAhora(true)} disabled={ocupado === "voz" || !voz.texto.trim()}>
+                        Pedirla otra vez (gasta cuota)
+                      </button>
+                    )}
                     <button onClick={ajustarClipsAVoz} disabled={!voz.duracion}>Ajustar clips a la voz</button>
                     <span className="suave">{voz.duracion ? `${voz.duracion.toFixed(1)} s generados` : "sin generar: se genera al renderizar"}</span>
                   </div>
                   <p className="suave">
                     Se genera frase a frase y se mide cada una: los textos pueden caer exactamente donde se leen.
+                    Las peticiones a la IA van de una en una y el audio se guarda con el nombre de su texto y su voz:
+                    dos clics seguidos no lanzan dos generaciones ni gastan cuota de mas.
                     Las marcas entre corchetes ([pausa], [susurrando], [con enfasis]) nunca se leen en alto: con Gemini se
                     convierten en una indicacion de tono para la voz, y con las voces locales simplemente se quitan.
                     {voz.tramos.length ? ` ${voz.tramos.length} frases medidas.` : ""}

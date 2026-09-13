@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { env } from "../env.js";
 import { leerJSON } from "../util/http.js";
+import { enFila } from "../util/fila.js";
 
 export const VozSchema = z.object({
   proveedor: z.enum(["local", "gemini", "openai"]),
@@ -341,7 +342,11 @@ export async function vozGemini(
     voz = VOZ_GEMINI_POR_DEFECTO.nombre;
   }
 
-  await conReintentos(async () => {
+  // Una sola peticion de voz a la vez: dos a la vez gastan cuota en paralelo,
+  // disparan el limite por minuto y no aceleran nada, porque el cuello de
+  // botella es el propio proveedor.
+  await conReintentos(() =>
+    enFila("voz:gemini", async () => {
     const elegido = await modeloVozGemini(modelo);
     try {
       await pedirVozGemini(elegido, voz, texto, destino);
@@ -361,7 +366,8 @@ export async function vozGemini(
       }
       await pedirVozGemini(alternativo, voz, texto, destino);
     }
-  });
+    }, { separacionMs: 250 }),
+  );
 }
 
 export async function vozOpenAI(
@@ -371,7 +377,8 @@ export async function vozOpenAI(
   voz = env.OPENAI_VOZ,
 ) {
   if (!env.OPENAI_API_KEY) throw new Error("Falta OPENAI_API_KEY");
-  await conReintentos(async () => {
+  await conReintentos(() =>
+    enFila("voz:openai", async () => {
     const res = await fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
       headers: {
@@ -389,7 +396,8 @@ export async function vozOpenAI(
     });
     if (!res.ok) throw new Error(`OpenAI TTS ${res.status}: ${await res.text()}`);
     await writeFile(destino, Buffer.from(await res.arrayBuffer()));
-  });
+    }, { separacionMs: 250 }),
+  );
 }
 
 /**

@@ -147,6 +147,28 @@ La comprobación de Ajustes no se conforma con que el modelo exista: **sintetiza
 una palabra de verdad** y mide el archivo, que es lo único que demuestra que la
 voz va a funcionar al renderizar.
 
+### Una petición cada vez, y el archivo atado a su texto
+
+Dos cosas que antes se pisaban y ahora no:
+
+- **Nunca hay dos peticiones a la vez.** Las llamadas al sintetizador se
+  encolan por proveedor (`voz:gemini`, `voz:openai`): la siguiente no sale
+  hasta que la anterior ha terminado, bien o mal, con 250 ms de respiro entre
+  ellas. Los reintentos por modelo caducado hacen cola igual. Además, cada
+  proyecto tiene su propia cola de narración: dos clics seguidos en *Generar la
+  voz* no lanzan dos tandas ni se pelean por el mismo archivo.
+- **El archivo lleva el nombre de su contenido.** `voz-<huella>.wav`, donde la
+  huella sale del texto y de la voz elegida, con un `voz-<huella>.wav.json` al
+  lado que guarda la duración y los tramos de cada frase. Se escribe en un
+  `.parcial` y solo al final se renombra, así que o está entero o no está: si
+  la API falla a mitad, el proyecto conserva la narración anterior.
+
+De ahí salen dos comportamientos visibles en el editor: pedir la narración que
+ya existe (mismo texto, misma voz) **no gasta cuota** —el aviso lo dice: «ya
+estaba generada… sin pedir nada al proveedor»— y para volver a sintetizarla de
+verdad hay un botón aparte, *Pedirla otra vez*. El render usa la misma cola, así
+que renderizar justo después de generar la voz tampoco vuelve a pedirla.
+
 ### Sincronía de los rótulos con voces de IA
 
 Con la voz local se sintetiza frase a frase, así que cada rótulo cae exactamente
@@ -209,7 +231,8 @@ La narración se genera **de una sola vez con una sola voz** (con IA se trocea
 por frases y se pega, todo a 48 kHz). Su duración real se mide del audio —con
 ffprobe, o leyendo la cabecera WAV si no está— y es lo que la línea de tiempo
 usa para sincronizar. Si el texto o la voz cambian, se regenera; la huella del
-par texto+voz decide cuándo.
+par texto+voz decide cuándo, y además da nombre al archivo (`voz-<huella>.wav`),
+que se publica de una pieza y se reutiliza mientras no cambie nada.
 
 Con voz, la música se agacha automáticamente cuando alguien habla; sin voz suena
 al 60 % como mínimo para que no quede vacío.
