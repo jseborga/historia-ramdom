@@ -93,6 +93,10 @@ model Serie {
   modismos        Boolean         @default(true)
   /// Historias por partes: cuántas partes seguidas produce cada ejecución.
   partes          Int             @default(1)
+  /// Bancos donde buscar imagen: pexels, pixabay, nasa. Vacío = los de la categoría.
+  bancos          String[]        @default([])
+  /// Medios admitidos: video, imagen. Vacío = lo que use la categoría.
+  medios          String[]        @default([])
   /// Categoría de historia: id fijo, "aleatoria" (una distinta cada vez) o vacío (tema libre).
   categoria       String?
   /// Subcategoría fija; vacía = una al azar dentro de la categoría.

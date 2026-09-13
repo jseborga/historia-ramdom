@@ -1,12 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { db } from "../db.js";
 import { generarKeywords, GuionSchema, criteriosVisuales } from "./guion.js";
-import { buscarClips, CLIP_LARGO, type ClipInfo } from "./clips.js";
+import { buscarClips, CLIP_LARGO, type ClipInfo, type OpcionesMedios } from "./clips.js";
+import { mediosDeCategoria } from "./categorias.js";
 import { generarNarracion } from "./narracion.js";
 import { mejorVozLocal } from "./voz.js";
 import {
   ProyectoSchema,
   ClipPistaSchema,
+  efectoDeClip,
   textosDesdeNarracion,
   huellaVoz,
   type ClipPista,
@@ -25,6 +27,8 @@ export type OpcionesEnsamblado = {
   animacion?: "fundido" | "resaltar" | "ninguna";
   /** Criterios de búsqueda EN INGLÉS del ambiente general (categoría, planteamiento). */
   criterios?: string[];
+  /** Dónde buscar y si entran fotos; vacío = lo que diga la categoría. */
+  medios?: OpcionesMedios;
 };
 
 const barajar = <T>(xs: T[]) => [...xs].sort(() => Math.random() - 0.5);
@@ -47,7 +51,9 @@ export function rellenarVideo(
   const meter = (c: ClipInfo, maximo: number) => {
     const real = c.duracion && c.duracion > 0 ? c.duracion : maximo;
     const duracion = Math.max(0.5, Math.min(real, maximo, total - cubierto));
-    video.push(ClipPistaSchema.parse({ id: randomUUID(), clip: c, duracion, efecto: video.length ? "ninguno" : "zoomLento" }));
+    video.push(
+      ClipPistaSchema.parse({ id: randomUUID(), clip: c, duracion, efecto: efectoDeClip(c, video.length) }),
+    );
     usados.add(c.id);
     cubierto += duracion;
   };
@@ -117,6 +123,10 @@ export async function ensamblarProyecto(proyectoId: string, opciones: OpcionesEn
   // Ademas de lo que dice cada frase, el ambiente del genero: los criterios
   // vienen de la categoria y del planteamiento de la historia, si los hay.
   const guionHistoria = p.historia ? GuionSchema.safeParse(p.historia.guion) : null;
+  // Dónde buscar: lo que pida quien llama y, si no, lo que use la categoría
+  // (la ciencia mira a la NASA; las ideas admiten fotos).
+  const medios: OpcionesMedios =
+    opciones.medios ?? mediosDeCategoria(guionHistoria?.success ? guionHistoria.data.categoria : null);
   const criterios = (opciones.criterios?.length
     ? opciones.criterios
     : guionHistoria?.success
@@ -124,9 +134,9 @@ export async function ensamblarProyecto(proyectoId: string, opciones: OpcionesEn
       : []
   ).slice(0, 6);
   const [gancho, ...resto] = await Promise.all([
-    buscarClips([...keywords[0], "cinematic"].slice(0, 2).join(" "), false),
-    ...keywords.slice(1).flatMap((ks) => ks.slice(0, 1).map((k) => buscarClips(k, largos))),
-    ...criterios.map((k) => buscarClips(k, largos)),
+    buscarClips([...keywords[0], "cinematic"].slice(0, 2).join(" "), { ...medios, largos: false }),
+    ...keywords.slice(1).flatMap((ks) => ks.slice(0, 1).map((k) => buscarClips(k, { ...medios, largos }))),
+    ...criterios.map((k) => buscarClips(k, { ...medios, largos })),
   ]);
   const conjunto = [...new Map(resto.flat().map((c) => [c.id, c])).values()];
   const video = rellenarVideo(gancho.length ? gancho : conjunto, conjunto.length ? conjunto : gancho, total, opciones.ganchoSeg ?? GANCHO_SEG);

@@ -5,6 +5,7 @@ import {
   type Catalogo,
   type Guion,
   type Idioma,
+  type Miniserie,
   type ModoAudio,
   type ModoPublicacion,
   type Premisa,
@@ -16,6 +17,7 @@ import {
   CampoFecha,
   CampoSegundos,
   SelectorAudio,
+  SelectorBancos,
   SelectorCategoria,
   SelectorModo,
   SelectorMotor,
@@ -42,6 +44,13 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
   const [subcategoria, setSubcategoria] = useState<string | null>(null);
   /** Planteamiento previo (título y lineamientos), editable antes de escribir. */
   const [premisa, setPremisa] = useState<Premisa | null>(null);
+  /** Miniserie planeada de golpe y capítulo que se está escribiendo. */
+  const [miniserie, setMiniserie] = useState<Miniserie | null>(null);
+  const [capitulos, setCapitulos] = useState(4);
+  const [capitulo, setCapitulo] = useState(1);
+  /** Dónde buscar imagen; vacío = lo que use la categoría. */
+  const [bancos, setBancos] = useState<string[]>([]);
+  const [medios, setMedios] = useState<string[]>([]);
   const [musicaLista, setMusicaLista] = useState<string[]>(catalogo.musica);
   const [voz, setVoz] = useState<Voz>(catalogo.vozPorDefecto);
   const [musica, setMusica] = useState<string | null>(null);
@@ -58,7 +67,10 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
   const [ok, setOk] = useState("");
 
   const tiktokListo = catalogo.tiktok.configurado && catalogo.tiktok.cuentasConectadas > 0;
-  const sinClips = !catalogo.clips.pexels && !catalogo.clips.pixabay;
+  // La NASA no pide clave, así que siempre queda algo donde buscar; sin las
+  // otras dos, eso sí, solo hay material de espacio y ciencia.
+  const soloNasa = !catalogo.clips.pexels && !catalogo.clips.pixabay;
+  const sinClips = soloNasa && !catalogo.clips.nasa;
 
   async function plantear() {
     setCargando("premisa");
@@ -79,7 +91,38 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
         }),
       );
       setGuion(null);
+      setMiniserie(null);
       setClipsElegidos({});
+    } catch (err) {
+      setError(mensajeDe(err));
+    } finally {
+      setCargando("");
+    }
+  }
+
+  /** Planea la miniserie entera: sinopsis y qué pasa en cada capítulo. */
+  async function planearMiniserie() {
+    setCargando("miniserie");
+    setError("");
+    setOk("");
+    try {
+      const plan = await api.post<Miniserie>("/api/miniserie", {
+        motor,
+        modelo,
+        tema: tema || undefined,
+        categoria,
+        subcategoria,
+        duracion,
+        idioma,
+        region,
+        modismos,
+        capitulos,
+      });
+      setMiniserie(plan);
+      setCapitulo(1);
+      setPremisa(null);
+      setGuion(null);
+      setOk(`Miniserie planeada: ${plan.capitulos.length} capítulos. Escribe el primero cuando quieras.`);
     } catch (err) {
       setError(mensajeDe(err));
     } finally {
@@ -101,7 +144,9 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
           tema: tema || undefined,
           categoria,
           subcategoria,
-          premisa,
+          premisa: miniserie ? null : premisa,
+          miniserie,
+          capitulo: miniserie ? capitulo : null,
           duracion,
           idioma,
           region,
@@ -132,7 +177,11 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
         modismos,
         categoria,
         subcategoria,
-        premisa: guion?.premisa ?? premisa,
+        premisa: miniserie ? null : (guion?.premisa ?? premisa),
+        miniserie,
+        capitulo: miniserie ? capitulo : null,
+        bancos,
+        medios,
         voz,
         modoAudio,
         segundosEscena,
@@ -169,6 +218,12 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
       {sinClips && (
         <p className="aviso error">
           No hay claves de Pexels ni de Pixabay: sin ellas no se pueden buscar clips.
+        </p>
+      )}
+      {!sinClips && soloNasa && (
+        <p className="aviso error">
+          Sin claves de Pexels ni de Pixabay solo se puede buscar en la NASA: sirve para ciencia y espacio,
+          no para el resto de temas.
         </p>
       )}
 
@@ -226,6 +281,12 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
             />
           </div>
           <SelectorRegion catalogo={catalogo} region={region} modismos={modismos} alCambiar={(r, m) => { setRegion(r); setModismos(m); }} />
+          <SelectorBancos
+            catalogo={catalogo}
+            bancos={bancos}
+            medios={medios}
+            alCambiar={(b, m) => { setBancos(b); setMedios(m); }}
+          />
           <SelectorMotor
             catalogo={catalogo}
             valor={motor}
@@ -239,7 +300,13 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
             {cargando === "premisa" ? "Planteando..." : "Plantear al azar (título y lineamientos)"}
           </button>
           <button onClick={escribirGuion} disabled={cargando !== ""}>
-            {cargando === "guion" ? "Escribiendo..." : premisa ? "Escribir guion con este planteamiento" : "Escribir guion"}
+            {cargando === "guion"
+              ? "Escribiendo..."
+              : miniserie
+                ? `Escribir el capítulo ${capitulo}`
+                : premisa
+                  ? "Escribir guion con este planteamiento"
+                  : "Escribir guion"}
           </button>
           <span className="suave">
             {categoria
@@ -247,7 +314,67 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
               : "Sin categoría se escribe directo, con tema libre."}
           </span>
         </div>
+        <div className="pie">
+          <button onClick={planearMiniserie} disabled={cargando !== ""}>
+            {cargando === "miniserie" ? "Planeando..." : "Planear miniserie (formato largo)"}
+          </button>
+          <input
+            type="number"
+            style={{ width: 80 }}
+            min={2}
+            max={12}
+            value={capitulos}
+            aria-label="Capítulos de la miniserie"
+            onChange={(e) => setCapitulos(Number(e.target.value) || 4)}
+          />
+          <span className="suave">
+            capítulos. Una sola historia repartida, cada capítulo con su corte final. Para capítulos largos
+            elige un formato de miniserie en el montaje y sube la duración.
+          </span>
+        </div>
       </section>
+
+      {miniserie && (
+        <section className="tarjeta">
+          <div className="fila" style={{ marginBottom: 8 }}>
+            <h2 style={{ margin: 0 }}>Miniserie · {miniserie.titulo}</h2>
+            <span className="estado">{nombreCategoria(catalogo, miniserie.categoria, miniserie.subcategoria)}</span>
+            <button onClick={planearMiniserie} disabled={cargando !== ""}>Otra al azar</button>
+            <button onClick={() => setMiniserie(null)}>Descartar</button>
+          </div>
+          <p className="suave">{miniserie.sinopsis}</p>
+          {miniserie.personajes.length > 0 && (
+            <p className="suave">Personajes: {miniserie.personajes.join(" · ")}</p>
+          )}
+          <div className="lista" style={{ marginTop: 8 }}>
+            {miniserie.capitulos.map((c) => (
+              <div className="item" key={c.numero}>
+                <div className="fila">
+                  <span className={`estado ${c.numero === capitulo ? "LISTA" : ""}`}>Cap. {c.numero}</span>
+                  <strong>{c.titulo}</strong>
+                </div>
+                <p className="suave">{c.resumen}</p>
+                {c.cliffhanger && <p className="suave">Corta en: {c.cliffhanger}</p>}
+                <div className="pie">
+                  <button
+                    onClick={() => {
+                      setCapitulo(c.numero);
+                      setGuion(null);
+                    }}
+                    disabled={cargando !== "" || c.numero === capitulo}
+                  >
+                    {c.numero === capitulo ? "Es el que toca" : "Escribir este"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="suave">
+            Escribe el capítulo elegido con el botón de arriba y prodúcelo como cualquier historia; después
+            pasa al siguiente. Cada capítulo recuerda en una frase dónde quedó el anterior.
+          </p>
+        </section>
+      )}
 
       {premisa && (
         <section className="tarjeta">
@@ -357,6 +484,27 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
               </div>
             ))}
           </div>
+          {(guion.ganchos ?? []).length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <label htmlFor="ganchos">
+                Ganchos para la descripción (uno por línea; el primero encabeza la publicación)
+              </label>
+              <textarea
+                id="ganchos"
+                value={(guion.ganchos ?? []).join("\n")}
+                onChange={(ev) =>
+                  setGuion({
+                    ...guion,
+                    ganchos: ev.target.value.split("\n").map((g) => g.trim()).filter(Boolean),
+                  })
+                }
+              />
+              <p className="suave">
+                No se narran: son el texto con el que se publica. Mueve el que prefieras a la primera línea
+                para probar cuál rinde.
+              </p>
+            </div>
+          )}
           {guion.hashtags.length > 0 && (
             <p className="suave" style={{ marginTop: 12 }}>
               Hashtags: {guion.hashtags.map((h) => `#${h}`).join(" ")}

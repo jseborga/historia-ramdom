@@ -13,6 +13,7 @@ import { mensajeDe } from "../App";
 import {
   CampoSegundos,
   SelectorAudio,
+  SelectorBancos,
   SelectorCategoria,
   SelectorModo,
   SelectorMotor,
@@ -50,6 +51,9 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
   const [partes, setPartes] = useState(1);
   const [categoria, setCategoria] = useState<string | null>(catalogo.categoriaAleatoria ?? "aleatoria");
   const [subcategoria, setSubcategoria] = useState<string | null>(null);
+  /** Dónde buscar imagen; vacío = lo que use la categoría. */
+  const [bancos, setBancos] = useState<string[]>([]);
+  const [medios, setMedios] = useState<string[]>([]);
   const [musicaLista, setMusicaLista] = useState<string[]>(catalogo.musica);
   const [musicaModo, setMusicaModo] = useState<"FIJA" | "ROTAR">("FIJA");
   const [modoAudio, setModoAudio] = useState<ModoAudio>("VOZ");
@@ -102,6 +106,8 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
           partes,
           categoria,
           subcategoria,
+          bancos,
+          medios,
           cron,
           zonaHoraria,
           motor,
@@ -204,6 +210,12 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
             categoria={categoria}
             subcategoria={subcategoria}
             alCambiar={(c, sc) => { setCategoria(c); setSubcategoria(sc); }}
+          />
+          <SelectorBancos
+            catalogo={catalogo}
+            bancos={bancos}
+            medios={medios}
+            alCambiar={(b, m) => { setBancos(b); setMedios(m); }}
           />
           <div>
             <label htmlFor="partes">Historia por partes</label>

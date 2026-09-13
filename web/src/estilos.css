@@ -81,6 +81,10 @@ textarea { min-height: 80px; resize: vertical; }
 
 .campos { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 .fila { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+/* Casilla con su texto al lado: las etiquetas son de bloque y los campos
+   ocupan todo el ancho, asi que una casilla suelta sale descolocada. */
+.casilla { display: inline-flex; align-items: center; gap: 6px; margin: 0; white-space: nowrap; }
+.casilla input { width: auto; margin: 0; }
 .pie { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
 
 .aviso { border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-bottom: 12px; }

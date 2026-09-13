@@ -14,6 +14,8 @@
  * prompt sin tildes hace que el modelo escriba sin tildes.
  */
 
+import type { Banco, TipoMedio } from "./clips.js";
+
 export type Subcategoria = {
   id: string;
   nombre: string;
@@ -59,7 +61,24 @@ export type Categoria = {
    * cuantos en cada planteamiento para que no salga siempre el mismo.
    */
   fuentes?: string[];
+  /**
+   * Dónde buscar la imagen de esta categoría. Vacío = donde siempre (Pexels y
+   * Pixabay). La ciencia busca además en la NASA, que es de dominio público y
+   * tiene el material de verdad: planetas, lanzamientos, la Tierra desde fuera.
+   */
+  bancos?: Banco[];
+  /**
+   * Qué medios admite. Vacío = solo vídeo. Con "imagen" entran fotos, que en
+   * el render se animan con Ken Burns en vez de quedarse quietas.
+   */
+  medios?: TipoMedio[];
 };
+
+/** Dónde buscar y qué admitir para una categoría; vacío = los valores de siempre. */
+export function mediosDeCategoria(id?: string | null): { bancos?: Banco[]; medios?: TipoMedio[] } {
+  const c = id ? CATEGORIAS.find((x) => x.id === id) : null;
+  return { bancos: c?.bancos, medios: c?.medios };
+}
 
 const sub = (id: string, nombre: string, pista: string): Subcategoria => ({ id, nombre, pista });
 
@@ -220,6 +239,10 @@ const FICCION: SinArea[] = [
     ],
     visual: ["space stars", "microscope lab", "wild animals", "old machinery", "science abstract"],
     hashtags: ["curiosidades", "sabiasque", "ciencia"],
+    // Los cuentos de ciencia salen mejor con material de la NASA que con
+    // animaciones genéricas de banco: es real, es suyo y es de dominio público.
+    bancos: ["nasa", "pexels", "pixabay"],
+    medios: ["video", "imagen"],
   },
   {
     id: "crimen",
@@ -284,6 +307,7 @@ const IDEAS: SinArea[] = [
     ],
     visual: ["old books library", "handwritten letter", "candle on desk night", "rain window reading", "dusty bookshelf", "typewriter close up"],
     hashtags: ["literatura", "libros", "clasicos"],
+    medios: ["video", "imagen"],
   },
   {
     id: "nobel",
@@ -324,6 +348,8 @@ const IDEAS: SinArea[] = [
     ],
     visual: ["gold medal close up", "old auditorium", "writer typewriter", "winter city europe", "archive photographs", "laboratory vintage"],
     hashtags: ["nobel", "literatura", "ideas"],
+    bancos: ["pexels", "pixabay", "nasa"],
+    medios: ["video", "imagen"],
   },
   {
     id: "filosofia",
@@ -371,6 +397,7 @@ const IDEAS: SinArea[] = [
     ],
     visual: ["ancient statue", "stone columns", "person thinking by window", "chess pieces", "sunrise mountains", "candle flame dark", "empty road horizon"],
     hashtags: ["filosofia", "pensamiento", "reflexion"],
+    medios: ["video", "imagen"],
   },
   {
     id: "politica",
@@ -409,6 +436,7 @@ const IDEAS: SinArea[] = [
     ],
     visual: ["parliament building", "crowd protest", "chess king piece", "old world map", "microphone podium", "city aerial night", "marble hall"],
     hashtags: ["poder", "politica", "historia"],
+    medios: ["video", "imagen"],
   },
   {
     id: "economia",
@@ -446,6 +474,7 @@ const IDEAS: SinArea[] = [
     ],
     visual: ["stock market screen", "coins stack", "shipping port containers", "empty supermarket shelf", "financial district", "printing money press"],
     hashtags: ["economia", "dinero", "finanzas"],
+    medios: ["video", "imagen"],
   },
   {
     id: "negocios",
@@ -482,6 +511,7 @@ const IDEAS: SinArea[] = [
     ],
     visual: ["office meeting", "warehouse boxes", "small shop owner", "business district morning", "handshake deal", "closed store sign"],
     hashtags: ["negocios", "emprender", "estrategia"],
+    medios: ["video", "imagen"],
   },
   {
     id: "estafas",

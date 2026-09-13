@@ -60,7 +60,10 @@ export type Catalogo = {
   vozGeminiPorDefecto: Voz;
   vozOpenAIPorDefecto: Voz;
   musica: string[];
-  clips: { pexels: boolean; pixabay: boolean };
+  clips: { pexels: boolean; pixabay: boolean; nasa?: boolean };
+  /** Bancos de imagen disponibles y qué medios admiten. */
+  bancos?: { id: string; nombre: string; nota: string; listo: boolean }[];
+  medios?: { id: string; nombre: string }[];
   tiktok: { configurado: boolean; cuentasConectadas: number; permisos: string[] };
   reddit: { configurado: boolean };
   idiomas: Idioma[];
@@ -120,7 +123,16 @@ export type Preset = {
 
 export type Posicion = "arriba" | "centro" | "abajo";
 export type Animacion = "ninguna" | "fundido" | "subir" | "zoom" | "resaltar";
-export type Efecto = "ninguno" | "zoomLento" | "fundido" | "blancoYNegro" | "vineta";
+export type Efecto =
+  | "ninguno"
+  | "zoomLento"
+  | "alejar"
+  | "paneoDerecha"
+  | "paneoIzquierda"
+  | "kenBurns"
+  | "fundido"
+  | "blancoYNegro"
+  | "vineta";
 
 export type EstiloTexto = {
   fuente: string;
@@ -273,7 +285,9 @@ export type Proyecto = {
 
 export type ClipCandidato = {
   id: string;
-  fuente: "pexels" | "pixabay";
+  fuente: "pexels" | "pixabay" | "nasa";
+  /** "imagen" = foto: en el render se anima para que parezca vídeo. */
+  tipo?: "video" | "imagen";
   autor: string;
   pagina: string;
   licencia: string;
@@ -334,11 +348,35 @@ export type Premisa = {
   subcategoriaNombre?: string;
 };
 
+/** Un capítulo de miniserie dentro del plan. */
+export type Capitulo = {
+  numero: number;
+  titulo: string;
+  resumen: string;
+  cliffhanger: string;
+};
+
+/** Miniserie planeada de golpe: la historia larga repartida en capítulos. */
+export type Miniserie = {
+  categoria: string;
+  subcategoria: string;
+  titulo: string;
+  sinopsis: string;
+  personajes: string[];
+  capitulos: Capitulo[];
+  keywords: string[];
+  hashtags: string[];
+  categoriaNombre?: string;
+  subcategoriaNombre?: string;
+};
+
 export type Guion = {
   titulo: string;
   gancho: string;
   escenas: { texto: string; keywords: string[] }[];
   hashtags: string[];
+  /** Ganchos virales para la descripción; el primero la encabeza. */
+  ganchos?: string[];
   categoria?: string | null;
   subcategoria?: string | null;
   premisa?: Premisa | null;
@@ -359,6 +397,9 @@ export type Serie = {
   partes: number;
   categoria: string | null;
   subcategoria: string | null;
+  /** Bancos de imagen elegidos; vacío = los de la categoría. */
+  bancos?: string[];
+  medios?: string[];
   cron: string;
   zonaHoraria: string;
   motor: string;
@@ -425,6 +466,8 @@ export type Historia = {
   parte: number;
   continuaDeId: string | null;
   ganchoTexto: string | null;
+  /** Ganchos virales de la descripción; el primero es el que se usó. */
+  ganchos?: string[];
   metrica: Metrica | null;
   descripcion: string | null;
   archivo: string | null;

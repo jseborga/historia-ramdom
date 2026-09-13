@@ -829,7 +829,14 @@ export async function rutasProyectos(app: FastifyInstance) {
     const musica = creditosMusica(p.musica);
     const descripcion =
       p.descripcion ??
-      descripcionDeProyecto(p.nombre, video, guion?.success ? guion.data.hashtags : [], guion?.success ? guion.data.gancho : null, musica);
+      descripcionDeProyecto(
+        p.nombre,
+        video,
+        guion?.success ? guion.data.hashtags : [],
+        guion?.success ? guion.data.gancho : null,
+        musica,
+        guion?.success ? guion.data.ganchos : [],
+      );
     return { descripcion, creditos: creditosDeProyecto(video, musica) };
   });
 
@@ -842,7 +849,14 @@ export async function rutasProyectos(app: FastifyInstance) {
     const musica = creditosMusica(p.musica);
     const descripcion =
       p.descripcion ??
-      descripcionDeProyecto(p.nombre, video, guion?.success ? guion.data.hashtags : [], guion?.success ? guion.data.gancho : null, musica);
+      descripcionDeProyecto(
+        p.nombre,
+        video,
+        guion?.success ? guion.data.hashtags : [],
+        guion?.success ? guion.data.gancho : null,
+        musica,
+        guion?.success ? guion.data.ganchos : [],
+      );
     // El .txt lleva la descripción corta para pegar y, debajo, la lista completa con enlaces.
     const texto = [descripcion, "", "Créditos completos:", creditosDeProyecto(video, musica)].join("\n");
     reply

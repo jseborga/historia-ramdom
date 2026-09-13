@@ -310,7 +310,10 @@ Sobre el clip o el fondo de cada escena, ya encajado en el lienzo:
 
 | Efecto | En el render | En la vista previa |
 |---|---|---|
-| zoom lento | `zoompan` que acerca un 12 % a lo largo de la escena (Ken Burns); `crop` no sirve porque sus expresiones no avanzan por fotograma | `transform: scale` animado |
+| acercar (zoom lento) | `zoompan` que acerca un 12 % a lo largo de la escena; `crop` no sirve porque sus expresiones no avanzan por fotograma | `transform: scale` animado |
+| alejar | `zoompan` del 112 % al 100 % | `scale` a la inversa |
+| paneo a la derecha / izquierda | `zoompan` con zoom fijo y la ventana recorriendo el ancho (`iw-iw/zoom`) | `scale` + `translateX` |
+| Ken Burns | zoom del 16 % y paneo en diagonal a la vez | `scale` + `translate` |
 | fundido a negro | `fade` de entrada y salida de hasta 0,5 s | opacidad animada |
 | blanco y negro | `hue=s=0` | `filter: grayscale` |
 | viñeta | `vignette` | degradado radial superpuesto |
@@ -318,6 +321,24 @@ Sobre el clip o el fondo de cada escena, ya encajado en el lienzo:
 Uno por escena. El panel **Formato** tiene además un **estilo global** —letra,
 tamaño, color, contorno, animación, lectura y efecto— que se aplica a todas las
 escenas de golpe, respetando la posición de cada una.
+
+### Las fotos siempre se mueven
+
+Un clip puede ser una **foto** (de Pexels, de Pixabay o de la NASA). Una foto
+quieta durante ocho segundos parece que se colgó el vídeo, así que se trata
+distinto:
+
+- Entra en ffmpeg como `-framerate <fps> -loop 1 -i foto.jpg -t <duración>`, no
+  como un vídeo.
+- Se amplía al **doble del lienzo** antes de moverla (`scale`+`crop` a 2×) para
+  que el zoom no la emborrone; `zoompan` recorta de ahí y baja al tamaño final.
+- Siempre lleva movimiento: si el efecto elegido no mueve nada (blanco y negro,
+  viñeta, ninguno) se le añade un **Ken Burns** debajo.
+- Las fotos seguidas reciben movimientos distintos (acercar, alejar, paneo…)
+  para que no se note el patrón.
+
+La vista previa aplica el mismo movimiento con CSS y muestra `<img>` en vez de
+`<video>`, así que lo que se ve antes de renderizar es lo que sale.
 
 ## Videoclips musicales
 

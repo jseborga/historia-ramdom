@@ -3,11 +3,11 @@ import { z } from "zod";
 import { db } from "../db.js";
 import { duracionAudio } from "../render/ffmpeg.js";
 import { energiaPorSegundo, mejoresMomentos, type Momento, type TramoLetra } from "../render/audio.js";
-import { MAX_DURACION_SEG } from "../render/presets.js";
+import { MAX_DURACION_SEG, movimientoPorIndice } from "../render/presets.js";
 import { env } from "../env.js";
 import { ESTILO_POR_DEFECTO } from "../render/rotulos.js";
 import { rutaSubidaSegura, rutaMusicaSegura } from "../almacen.js";
-import { buscarClips, CLIP_LARGO, type ClipInfo } from "./clips.js";
+import { buscarClips, CLIP_LARGO, type ClipInfo, type OpcionesMedios } from "./clips.js";
 import { extraerJSON, textoConMotor, esMotor, motorDisponible, ORTOGRAFIA, type Motor } from "./guion.js";
 import {
   ClipPistaSchema,
@@ -416,7 +416,7 @@ export function rellenarTramo(
           clip: c,
           duracion: largo,
           recorte: margen > 0.5 ? Math.random() * margen : 0,
-          efecto: salida.length % 3 === 0 ? "zoomLento" : "ninguno",
+          efecto: c.tipo === "imagen" ? movimientoPorIndice(salida.length) : salida.length % 3 === 0 ? "zoomLento" : "ninguno",
         }),
       );
       usados.add(c.id);
@@ -519,6 +519,8 @@ export type OpcionesVideoclip = {
   modelo?: string | null;
   /** Volver a analizar la letra aunque el proyecto ya tenga el analisis. */
   reanalizar?: boolean;
+  /** Dónde buscar la imagen y si entran fotos; vacío = vídeo de siempre. */
+  medios?: OpcionesMedios;
 };
 
 /** Segundos que puede durar un videoclip; nunca menos que el tope general. */
@@ -622,10 +624,11 @@ export async function montarVideoclip(proyectoId: string, opciones: OpcionesVide
 
   // Un solo viaje a las APIs de clips por criterio, sin repetir busquedas.
   const generales = letra.keywords.slice(0, 3);
+  const medios: OpcionesMedios = opciones.medios ?? {};
   const busquedas = new Map<string, Promise<ClipInfo[]>>();
   const pedir = (k: string) => {
     const clave = k.toLowerCase().trim();
-    if (!busquedas.has(clave)) busquedas.set(clave, buscarClips(clave, true).catch(() => []));
+    if (!busquedas.has(clave)) busquedas.set(clave, buscarClips(clave, { ...medios, largos: true }).catch(() => []));
     return busquedas.get(clave)!;
   };
   for (const s of secciones) for (const k of s.keywords) pedir(k);

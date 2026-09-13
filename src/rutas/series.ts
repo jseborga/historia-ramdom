@@ -4,7 +4,9 @@ import { db } from "../db.js";
 import { VozSchema } from "../servicios/voz.js";
 import { MOTORES } from "../servicios/guion.js";
 import { esCategoriaValida } from "../servicios/categorias.js";
+import { esBanco, esMedio } from "../servicios/clips.js";
 import { programarSerie, quitarSerie, generarAhora } from "../cola/cola.js";
+import { MAX_LARGO_SEG } from "../render/presets.js";
 
 /** Cinco campos separados por espacios: minuto hora dia mes dia-semana. */
 const cron = z
@@ -16,12 +18,16 @@ const SerieSchema = z.object({
   nombre: z.string().min(1).max(80),
   tipo: z.enum(["Reflexion", "Historia"]),
   temas: z.array(z.string().min(1).max(120)).max(50).default([]),
-  duracion: z.number().int().min(15).max(350).default(65),
+  duracion: z.number().int().min(15).max(MAX_LARGO_SEG).default(65),
   idioma: z.enum(["es", "en"]).default("es"),
   region: z.enum(["bolivia", "latam", "eeuu"]).default("bolivia"),
   modismos: z.boolean().default(true),
   /** Historias por partes: cada ejecución produce N partes seguidas. */
   partes: z.number().int().min(1).max(6).default(1),
+  /** Dónde buscar imagen: pexels, pixabay, nasa. Vacío = lo que use la categoría. */
+  bancos: z.array(z.string().max(20).refine(esBanco, "Banco desconocido")).max(3).default([]),
+  /** Medios admitidos: video, imagen. Vacío = lo que use la categoría. */
+  medios: z.array(z.string().max(20).refine(esMedio, "Medio desconocido")).max(2).default([]),
   /** Categoría fija, "aleatoria" (una distinta cada vez) o vacía (tema libre). */
   categoria: z.string().max(40).nullable().default(null).refine((v) => !v || esCategoriaValida(v), "Categoría desconocida"),
   /** Subcategoría fija; vacía = al azar dentro de la categoría. */

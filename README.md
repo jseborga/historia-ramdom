@@ -23,6 +23,11 @@ Implementa la guía de `docs/guia-original.md`.
 - **Dos áreas de contenido.** Historias de ficción por género, y **ideas**:
   literatura clásica, premios Nobel, filosofía, política y poder, economía,
   negocios y estafas contadas para reconocerlas.
+- **Miniseries.** Una historia larga planeada de golpe en capítulos, cada uno
+  con su corte final, y dos formatos largos (hasta 15 min) para publicarlos.
+- **Bancos de imagen a elegir.** Pexels, Pixabay y la **NASA** (dominio público,
+  sin clave, la buena para ciencia y espacio), con vídeo, fotos o las dos cosas;
+  las fotos se animan solas para que parezcan vídeo.
 - **Ganchos con puntuación.** El gancho es una escena propia con su rótulo; las
   métricas lo califican y los que funcionan se vuelven a usar solos.
 - **Servidor MCP.** Claude puede consultar el banco, ver qué rinde y encargar
@@ -296,17 +301,27 @@ y voz con OpenAI. Si dejas el campo vacío se usa el valor del entorno.
 
 Cada escena guarda el clip que usó (id, fuente, autor, página y licencia). La
 **descripción para publicar** es corta a propósito, porque en TikTok cada
-carácter cuenta: el gancho, hasta seis hashtags, los créditos agrupados por
-fuente en una sola línea (`Clips: Pexels (Ana, Luis) · Pixabay (Pedro)`), la
-música si es de Suno y el aviso de contenido creado con IA.
+carácter cuenta: el **gancho viral**, el gancho del vídeo, hasta seis hashtags,
+los créditos agrupados por fuente en una sola línea (`Clips: Pexels (Ana, Luis)
+· Pixabay (Pedro)`), la música si es de Suno y el aviso de contenido creado con
+IA.
 
 ```
+Nadie sabe a dónde va el tren de las 3:14
 Nadie te contó lo de la casa del fondo.
 #terror #casaembrujada #miedo
 Clips: Pexels (Ana, Luis) · Pixabay (Pedro)
 Música: Suno — https://suno.com/song/1f6a0b0e-…
 Contenido creado con IA.
 ```
+
+La primera línea es lo único que se ve antes del «ver más», así que ahí va un
+**gancho escrito para leer**, no el narrado. El guion genera tres, cada uno con
+un ángulo distinto (una pregunta que pica, un dato que descoloca, una promesa
+concreta), sin emojis y sin pedir like: el primero encabeza la descripción y los
+otros quedan guardados para probar cuál rinde. Se editan en el editor (*Ganchos
+para la descripción*, uno por línea) y en la lista de Historias aparecen como
+botones que los copian sueltos.
 
 La **lista completa** (un clip por línea con su enlace) sigue disponible para
 pegarla en un comentario o guardarla: *Copiar créditos* en Historias,
@@ -390,6 +405,71 @@ El guion guarda `categoria`, `subcategoria`, `premisa` y `keywords` (criterios
 generales de clips). El ensamblador del editor busca clips con esos criterios
 además de con lo que dice cada frase, así que un montaje de terror sale con
 pasillos oscuros aunque la narración hable de una llamada.
+
+## Miniseries y formato largo
+
+Una **miniserie** se planea entera antes de escribir nada: título, sinopsis,
+personajes y qué pasa en cada capítulo, con el corte en el que termina. Después
+cada capítulo se escribe por separado sabiendo dónde cortó el anterior —lo
+recuerda en una frase y sigue— y el último cierra la historia del todo, sin
+dejar nada abierto ni anunciar continuación.
+
+No es lo mismo que *continuar una historia*, donde cada parte se improvisa sobre
+la anterior: aquí el plan existe desde el principio, así que los capítulos no se
+contradicen ni repiten.
+
+- **Editor**: *Planear miniserie (formato largo)* con el número de capítulos
+  (2 a 12). El plan se ve entero, se elige qué capítulo toca y se escribe con el
+  botón de siempre; producir cada capítulo es como producir cualquier historia.
+- **Formatos largos**: *Vertical largo (9:16, miniserie)* y *YouTube largo
+  (16:9, miniserie)*, hasta **15 minutos** por vídeo; el resto sigue con el tope
+  de 350 s. Un vídeo largo pesa mucho: la calidad *ligera* (720p) es la que
+  tiene sentido ahí, y el estimador de tamaño avisa antes de renderizar.
+- **API**: `POST /api/miniserie` devuelve el plan; `POST /api/guion` y
+  `POST /api/historias` aceptan `miniserie` y `capitulo`.
+- **MCP**: `plantear_miniserie`, y `miniserie` + `capitulo` en `escribir_guion`
+  y `crear_historia`.
+
+## De dónde salen las imágenes
+
+Tres bancos, y se eligen a mano o los elige la categoría:
+
+| Banco | Qué tiene | Clave |
+|---|---|---|
+| **Pexels** | vídeos y fotos verticales de todo | `PEXELS_API_KEY` |
+| **Pixabay** | vídeos y fotos verticales de todo | `PIXABAY_API_KEY` |
+| **NASA** | espacio, planetas, misiones y la Tierra desde fuera; **dominio público** | ninguna |
+
+La NASA (images.nasa.gov) no pide clave y su material es de dominio público, así
+que los **cuentos de ciencia** la usan por defecto: la categoría *Ciencia y
+curiosidades* busca ahí antes que en los bancos genéricos, y admite fotos además
+de vídeos. Se acredita como «NASA/JPL (NASA, Dominio público (NASA))». Ojo: no
+todo su material es limpio, hay vídeos con rótulos o logotipos quemados; por eso
+conviene mirarlos en el buscador antes de dejarlos.
+
+Las categorías del área de ideas también admiten fotos (estatuas, libros,
+archivo), que es donde más las hay. En el resto manda lo de siempre: solo vídeo
+de Pexels y Pixabay.
+
+Se elige en tres sitios, y siempre gana lo que se marque a mano:
+
+- **Editor** y **Series**: *Dónde buscar la imagen* (casillas por banco) y *Qué
+  admitir* (vídeos, fotos). Vacío = lo que use la categoría.
+- **Montaje**: el buscador de clips lleva las mismas casillas más *incluir
+  fotos*, para elegir plano a plano.
+- **API**: `bancos` y `medios` en `POST /api/historias` y en las series;
+  `GET /api/clips?bancos=nasa&medios=video,imagen` para buscar.
+
+### Las fotos se mueven
+
+Una foto quieta en un vídeo vertical parece un fallo del reproductor, así que
+**toda foto se anima**: se amplía al doble del lienzo y se recorre con
+`zoompan`, de donde salen cinco movimientos —acercar, alejar, paneo a la
+derecha, paneo a la izquierda y Ken Burns (zoom y paneo a la vez)—. Las fotos
+seguidas reciben movimientos distintos para que no se note el truco, y si eliges
+un efecto que no mueve nada (blanco y negro, viñeta) se le pone un Ken Burns
+debajo. La vista previa del editor hace lo mismo con CSS, así que lo que se ve
+antes de renderizar es lo que sale.
 
 ## Editor de montaje
 

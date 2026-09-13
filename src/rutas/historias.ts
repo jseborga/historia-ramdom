@@ -4,17 +4,37 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { db } from "../db.js";
 import { rutaVideo } from "../almacen.js";
-import { generarGuion, generarPremisa, GuionSchema, PremisaSchema, MOTORES } from "../servicios/guion.js";
+import {
+  generarGuion,
+  generarPremisa,
+  generarMiniserie,
+  contextoDeCapitulo,
+  GuionSchema,
+  PremisaSchema,
+  MiniserieSchema,
+  MOTORES,
+  type ContextoCapitulo,
+} from "../servicios/guion.js";
 import { esCategoriaValida, buscarCategoria } from "../servicios/categorias.js";
 import { creditoMusica } from "../servicios/suno.js";
 import { VozSchema } from "../servicios/voz.js";
-import { buscarClips, creditosDe, type EscenaPreparada } from "../servicios/clips.js";
+import {
+  buscarClips,
+  creditosDe,
+  esBanco,
+  esMedio,
+  bancosDisponibles,
+  type Banco,
+  type EscenaPreparada,
+  type TipoMedio,
+} from "../servicios/clips.js";
 import {
   guionATexto,
   textoAGuion,
   INSTRUCCIONES_IA,
 } from "../servicios/guionTexto.js";
 import { cola, encolarHistoriaSuelta, encolarContinuacion } from "../cola/cola.js";
+import { MAX_LARGO_SEG } from "../render/presets.js";
 import { retrasoHasta } from "../cola/trabajos.js";
 
 const idParam = z.object({ id: z.string().uuid() });
@@ -35,6 +55,18 @@ export const CategoriaCampo = z
 
 export const SubcategoriaCampo = z.string().max(40).nullable().default(null);
 
+/** Bancos de imagen elegidos a mano; vacío = los que use la categoría. */
+export const BancosCampo = z
+  .array(z.string().max(20).refine(esBanco, "Banco desconocido"))
+  .max(3)
+  .default([]);
+
+/** Vídeo, foto o las dos; vacío = lo que use la categoría. */
+export const MediosCampo = z
+  .array(z.string().max(20).refine(esMedio, "Medio desconocido"))
+  .max(2)
+  .default([]);
+
 const PeticionGuionSchema = z.object({
   motor: z.enum(MOTORES).default("groq"),
   modelo: z.string().max(80).nullable().default(null),
@@ -44,21 +76,26 @@ const PeticionGuionSchema = z.object({
   subcategoria: SubcategoriaCampo,
   /** Planteamiento ya generado y revisado; si falta y hay categoría, se genera al vuelo. */
   premisa: PremisaSchema.nullable().default(null),
+  /** Miniserie ya planeada y el capítulo que toca escribir de ella. */
+  miniserie: MiniserieSchema.nullable().default(null),
+  capitulo: z.number().int().min(1).max(12).nullable().default(null),
   idioma: z.enum(["es", "en"]).default("es"),
   region: z.enum(["bolivia", "latam", "eeuu"]).default("bolivia"),
   modismos: z.boolean().default(true),
-  duracion: z.number().int().min(15).max(350).default(65),
+  duracion: z.number().int().min(15).max(MAX_LARGO_SEG).default(65),
   evitar: z.array(z.string().max(160)).max(20).default([]),
 });
 
 /** Clip elegido a mano: { "0": "pexels-123" }. La clave es el indice de escena. */
 const ClipsElegidosSchema = z
-  .record(z.string().regex(/^\d+$/), z.string().max(60))
+  .record(z.string().regex(/^\d+$/), z.string().max(200))
   .default({})
   .transform((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [Number(k), v])));
 
 const HistoriaSueltaSchema = PeticionGuionSchema.extend({
   voz: VozSchema,
+  bancos: BancosCampo,
+  medios: MediosCampo,
   modoAudio: z.enum(["VOZ", "MUSICA", "MUDO"]).default("VOZ"),
   segundosEscena: z.number().min(1).max(30).nullable().default(null),
   musica: z.string().max(120).nullable().default(null),
@@ -69,11 +106,38 @@ const HistoriaSueltaSchema = PeticionGuionSchema.extend({
   publicarEn: fechaFutura.nullable().default(null),
 });
 
+/** Convierte `miniserie` + `capitulo` en el contexto que entiende el guion. */
+function conCapitulo<T extends { miniserie?: unknown; capitulo?: number | null }>(
+  p: T,
+): Omit<T, "miniserie" | "capitulo"> & { capitulo: ContextoCapitulo | null } {
+  const { miniserie, capitulo, ...resto } = p;
+  const plan = miniserie ? MiniserieSchema.parse(miniserie) : null;
+  return { ...resto, capitulo: plan ? contextoDeCapitulo(plan, capitulo ?? 1) : null };
+}
+
 export async function rutasHistorias(app: FastifyInstance) {
   /** Vista previa del guion para el editor, sin gastar voz ni render. */
   app.post("/api/guion", async (req) => {
     const p = PeticionGuionSchema.parse(req.body);
-    return generarGuion(p);
+    return generarGuion(conCapitulo(p));
+  });
+
+  /**
+   * Planea una miniserie entera: título, sinopsis, personajes y qué pasa en
+   * cada capítulo, con su corte final. Después cada capítulo se escribe por
+   * separado pasando `miniserie` y `capitulo` a /api/guion o /api/historias.
+   */
+  app.post("/api/miniserie", async (req) => {
+    const p = PeticionGuionSchema.omit({ premisa: true, miniserie: true, capitulo: true, tipo: true })
+      .extend({ tipo: z.string().max(40).optional(), capitulos: z.number().int().min(2).max(12).default(4) })
+      .parse(req.body);
+    const plan = await generarMiniserie({ ...p, categoria: p.categoria ?? "aleatoria" });
+    const cat = buscarCategoria(plan.categoria);
+    return {
+      ...plan,
+      categoriaNombre: cat?.nombre ?? plan.categoria,
+      subcategoriaNombre: cat?.subcategorias.find((s) => s.id === plan.subcategoria)?.nombre ?? plan.subcategoria,
+    };
   });
 
   /**
@@ -131,7 +195,7 @@ export async function rutasHistorias(app: FastifyInstance) {
       })
       .parse(req.query);
 
-    return db.historia.findMany({
+    const historias = await db.historia.findMany({
       where: serieId ? { serieId } : {},
       orderBy: { creadaEn: "desc" },
       take: limite,
@@ -152,7 +216,16 @@ export async function rutasHistorias(app: FastifyInstance) {
         publicarEn: true,
         error: true,
         creadaEn: true,
+        guion: true,
       },
+    });
+
+    // Del guion solo viajan los ganchos de la descripción: son los que se
+    // prueban uno a uno para ver cuál rinde, y el guion entero pesa demasiado
+    // para una lista.
+    return historias.map(({ guion, ...h }) => {
+      const datos = GuionSchema.safeParse(guion);
+      return { ...h, ganchos: datos.success ? datos.data.ganchos : [] };
     });
   });
 
@@ -184,7 +257,7 @@ export async function rutasHistorias(app: FastifyInstance) {
 
   /** Encola una historia suelta (editor manual, sin serie). */
   app.post("/api/historias", async (req, reply) => {
-    const p = HistoriaSueltaSchema.parse(req.body);
+    const p = conCapitulo(HistoriaSueltaSchema.parse(req.body));
     const job = await encolarHistoriaSuelta({
       tipo: p.tipo,
       tema: p.tema,
@@ -195,6 +268,7 @@ export async function rutasHistorias(app: FastifyInstance) {
       categoria: p.categoria,
       subcategoria: p.subcategoria,
       premisa: p.premisa,
+      capitulo: p.capitulo,
       motor: p.motor,
       modelo: p.modelo,
       voz: p.voz,
@@ -207,6 +281,8 @@ export async function rutasHistorias(app: FastifyInstance) {
       clipsElegidos: p.clipsElegidos,
       publicarEn: p.publicarEn,
       evitarTitulos: p.evitar,
+      bancos: p.bancos,
+      medios: p.medios,
     });
     return reply.code(202).send({ encolada: true, jobId: job.id });
   });
@@ -240,8 +316,14 @@ export async function rutasHistorias(app: FastifyInstance) {
    * Sirve para elegir a mano antes de producir el video.
    */
   app.get("/api/clips", async (req) => {
-    const { keywords } = z
-      .object({ keywords: z.string().min(1).max(200) })
+    const { keywords, bancos, medios } = z
+      .object({
+        keywords: z.string().min(1).max(200),
+        /** Separados por coma: "pexels,nasa". Vacío = todos los disponibles. */
+        bancos: z.string().max(60).optional(),
+        /** "video", "imagen" o las dos. Vacío = solo vídeo. */
+        medios: z.string().max(40).optional(),
+      })
       .parse(req.query);
 
     const lista = keywords
@@ -250,7 +332,11 @@ export async function rutasHistorias(app: FastifyInstance) {
       .filter(Boolean)
       .slice(0, 3);
 
-    const resultados = await Promise.all(lista.map((k) => buscarClips(k)));
+    const opciones = {
+      bancos: (bancos ?? "").split(",").map((b) => b.trim()).filter(esBanco) as Banco[],
+      medios: (medios ?? "").split(",").map((m) => m.trim()).filter(esMedio) as TipoMedio[],
+    };
+    const resultados = await Promise.all(lista.map((k) => buscarClips(k, opciones)));
     // Sin repetir: la misma keyword en dos escenas puede traer los mismos.
     const unicos = new Map<string, (typeof resultados)[0][0]>();
     for (const clip of resultados.flat()) unicos.set(clip.id, clip);

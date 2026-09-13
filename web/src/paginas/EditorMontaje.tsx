@@ -32,7 +32,9 @@ const ANIMACIONES: [Animacion, string][] = [
   ["resaltar", "resaltar palabra a palabra"],
 ];
 const EFECTOS: [Efecto, string][] = [
-  ["ninguno", "ninguno"], ["zoomLento", "zoom lento"], ["fundido", "fundido a negro"],
+  ["ninguno", "ninguno"], ["zoomLento", "acercar (zoom lento)"], ["alejar", "alejar"],
+  ["paneoDerecha", "paneo a la derecha"], ["paneoIzquierda", "paneo a la izquierda"],
+  ["kenBurns", "Ken Burns (zoom y paneo)"], ["fundido", "fundido a negro"],
   ["blancoYNegro", "blanco y negro"], ["vineta", "vineta"],
 ];
 const LECTURAS: [Lectura, string][] = [
@@ -433,6 +435,12 @@ export function EditorMontaje({
                       <select id="ef" value={clipSel.efecto} onChange={(e) => actClip({ efecto: e.target.value as Efecto })}>
                         {EFECTOS.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
                       </select>
+                      {clipSel.clip?.tipo === "imagen" && (
+                        <p className="suave">
+                          Es una foto: siempre lleva movimiento. Si eliges uno sin movimiento se le pone Ken
+                          Burns debajo para que no quede quieta.
+                        </p>
+                      )}
                     </div>
                     {!clipSel.clip && (
                       <div>
@@ -450,10 +458,25 @@ export function EditorMontaje({
                     <button onClick={() => { const c = [...video]; c.splice(iClip + 1, 0, { ...clipSel, id: crypto.randomUUID() }); act({ video: c }); }}>Duplicar</button>
                     <button disabled={video.length <= 1} onClick={() => { act({ video: video.filter((c) => c.id !== clipSel.id) }); setSel({ tipo: "clip", id: video[Math.max(0, iClip - 1)]?.id }); }}>Quitar</button>
                   </div>
-                  {clipSel.clip && <p className="suave">{clipSel.clip.autor} · {clipSel.clip.fuente}</p>}
+                  {clipSel.clip && (
+                    <p className="suave">
+                      {clipSel.clip.autor} · {clipSel.clip.fuente}
+                      {clipSel.clip.tipo === "imagen" ? " · foto animada" : ""}
+                    </p>
+                  )}
                   {buscando && (
                     <BuscadorClips sugerencia={(textoSobre(iClip) || proyecto.nombre).split(" ").slice(0, 3).join(" ")}
-                      alElegir={(clip) => { actClip({ clip, recorte: 0, duracion: clip?.duracion ? Math.min(clip.duracion, clipSel.duracion) : clipSel.duracion }); setBuscando(false); }} />
+                      catalogo={catalogo}
+                      alElegir={(clip) => {
+                        actClip({
+                          clip,
+                          recorte: 0,
+                          // Una foto no tiene duración de origen: se queda la del hueco.
+                          duracion: clip?.duracion ? Math.min(clip.duracion, clipSel.duracion) : clipSel.duracion,
+                          efecto: clip?.tipo === "imagen" && clipSel.efecto === "ninguno" ? "kenBurns" : clipSel.efecto,
+                        });
+                        setBuscando(false);
+                      }} />
                   )}
                 </>
               )}

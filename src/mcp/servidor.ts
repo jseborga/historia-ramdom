@@ -106,6 +106,38 @@ const categoriaSchema = z
   .optional();
 const subcategoriaSchema = z.string().max(40).describe("Id de subcategoría; vacío = al azar dentro de la categoría").optional();
 
+const bancosSchema = z
+  .array(z.enum(["pexels", "pixabay", "nasa"]))
+  .describe("Dónde buscar imagen; vacío = lo que use la categoría (ciencia mira a la NASA)")
+  .optional();
+const mediosSchema = z
+  .array(z.enum(["video", "imagen"]))
+  .describe("Vídeo, foto o las dos; las fotos se animan con movimiento en el render")
+  .optional();
+
+const miniserieSchema = z
+  .object({
+    categoria: z.string().max(40),
+    subcategoria: z.string().max(40),
+    titulo: z.string().max(120),
+    sinopsis: z.string().max(900),
+    personajes: z.array(z.string().max(120)).max(6).optional(),
+    capitulos: z
+      .array(
+        z.object({
+          numero: z.number().int().min(1).max(12),
+          titulo: z.string().max(120),
+          resumen: z.string().max(600),
+          cliffhanger: z.string().max(300).optional(),
+        }),
+      )
+      .min(2)
+      .max(12),
+    keywords: z.array(z.string().max(40)).min(1).max(8),
+    hashtags: z.array(z.string().max(40)).max(8).optional(),
+  })
+  .describe("Plan devuelto por plantear_miniserie, tal cual");
+
 const premisaSchema = z
   .object({
     categoria: z.string().max(40),
@@ -148,7 +180,7 @@ servidor.registerTool(
       categoria: categoriaSchema,
       subcategoria: subcategoriaSchema,
       tema: z.string().max(200).optional(),
-      duracion: z.number().int().min(15).max(350).optional(),
+      duracion: z.number().int().min(15).max(900).optional(),
       idioma: z.enum(["es", "en"]).optional(),
       region: z.enum(["bolivia", "latam", "eeuu"]).optional(),
       modismos: z.boolean().optional(),
@@ -171,7 +203,9 @@ servidor.registerTool(
       categoria: categoriaSchema,
       subcategoria: subcategoriaSchema,
       premisa: premisaSchema.optional(),
-      duracion: z.number().int().min(15).max(350).optional(),
+      miniserie: miniserieSchema.optional(),
+      capitulo: z.number().int().min(1).max(12).describe("Qué capítulo de la miniserie escribir").optional(),
+      duracion: z.number().int().min(15).max(900).optional(),
       idioma: z.enum(["es", "en"]).optional(),
       region: z.enum(["bolivia", "latam", "eeuu"]).optional(),
       modismos: z.boolean().optional(),
@@ -181,6 +215,28 @@ servidor.registerTool(
   },
   async (args) =>
     texto(await llamar("/api/guion", { method: "POST", body: JSON.stringify(args) })),
+);
+
+servidor.registerTool(
+  "plantear_miniserie",
+  {
+    description:
+      "Planea una miniserie entera: título, sinopsis, personajes y qué pasa en cada capítulo con su corte final. Después, cada capítulo se escribe pasando `miniserie` y `capitulo` a escribir_guion o crear_historia. Para capítulos largos usa el formato vertical_largo o youtube_largo (hasta 900 s).",
+    inputSchema: {
+      categoria: categoriaSchema,
+      subcategoria: subcategoriaSchema,
+      tema: z.string().max(200).optional(),
+      capitulos: z.number().int().min(2).max(12).describe("Cuántos capítulos (4 por defecto)").optional(),
+      duracion: z.number().int().min(15).max(900).describe("Segundos por capítulo").optional(),
+      idioma: z.enum(["es", "en"]).optional(),
+      region: z.enum(["bolivia", "latam", "eeuu"]).optional(),
+      modismos: z.boolean().optional(),
+      motor: z.enum(["groq", "openai", "gemini", "claude"]).optional(),
+      modelo: z.string().max(80).optional(),
+    },
+  },
+  async (args) =>
+    texto(await llamar("/api/miniserie", { method: "POST", body: JSON.stringify(args) })),
 );
 
 servidor.registerTool(
@@ -194,12 +250,16 @@ servidor.registerTool(
       categoria: categoriaSchema,
       subcategoria: subcategoriaSchema,
       premisa: premisaSchema.optional(),
-      duracion: z.number().int().min(15).max(350).optional(),
+      duracion: z.number().int().min(15).max(900).optional(),
       idioma: z.enum(["es", "en"]).optional(),
       region: z.enum(["bolivia", "latam", "eeuu"]).optional(),
       modismos: z.boolean().optional(),
       motor: z.enum(["groq", "openai", "gemini", "claude"]).optional(),
       modelo: z.string().max(80).optional(),
+      miniserie: miniserieSchema.optional(),
+      capitulo: z.number().int().min(1).max(12).describe("Qué capítulo de la miniserie producir").optional(),
+      bancos: bancosSchema,
+      medios: mediosSchema,
       voz: vozSchema,
       musica: z.string().max(120).nullable().optional(),
       modoPublicacion: z.enum(["DESCARGA", "BORRADOR_TIKTOK", "DIRECTO_TIKTOK"]).optional(),

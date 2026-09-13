@@ -9,19 +9,37 @@ import { leerJSON } from "../util/http.js";
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 
 /**
- * Solo se descargan archivos de los CDN de Pexels y Pixabay. Asi una URL
- * manipulada no puede hacer que el servidor acceda a direcciones internas (SSRF).
+ * Solo se descargan archivos de los CDN de Pexels, Pixabay y la NASA. Asi una
+ * URL manipulada no puede hacer que el servidor acceda a direcciones internas
+ * (SSRF).
  */
 const HOSTS_PERMITIDOS = new Set([
   "videos.pexels.com",
+  "images.pexels.com",
   "player.vimeo.com",
   "cdn.pixabay.com",
   "pixabay.com",
+  "images-assets.nasa.gov",
 ]);
+
+/** De dónde pueden salir las imágenes y los vídeos. */
+export const BANCOS = ["pexels", "pixabay", "nasa"] as const;
+export type Banco = (typeof BANCOS)[number];
+export const esBanco = (v: string): v is Banco => (BANCOS as readonly string[]).includes(v);
+
+/**
+ * Vídeo o foto. Las fotos se animan en el render (Ken Burns): una imagen
+ * quieta en un vertical parece un error, con movimiento parece animación.
+ */
+export const MEDIOS = ["video", "imagen"] as const;
+export type TipoMedio = (typeof MEDIOS)[number];
+export const esMedio = (v: string): v is TipoMedio => (MEDIOS as readonly string[]).includes(v);
 
 export type ClipInfo = {
   id: string;
-  fuente: "pexels" | "pixabay";
+  fuente: Banco;
+  /** "imagen" = foto; en la línea de tiempo se anima para que no quede quieta. */
+  tipo: TipoMedio;
   autor: string;
   pagina: string;
   licencia: string;
@@ -32,8 +50,33 @@ export type ClipInfo = {
   duracion?: number;
 };
 
+/** Qué buscar y dónde. Vacío = lo de siempre: vídeo de Pexels y Pixabay. */
+export type OpcionesMedios = {
+  /** Bancos donde buscar; vacío = todos los que tengan clave. */
+  bancos?: Banco[];
+  /** Vídeo, foto o las dos cosas; vacío = solo vídeo. */
+  medios?: TipoMedio[];
+  /** Poner delante los clips de 30 s o más. */
+  largos?: boolean;
+};
+
 /** A partir de aqui un clip cuenta como "largo". */
 export const CLIP_LARGO = 30;
+
+/** La NASA no pide clave; los otros dos sí. */
+export const bancosDisponibles = (): Banco[] =>
+  [
+    env.PEXELS_API_KEY ? ("pexels" as const) : null,
+    env.PIXABAY_API_KEY ? ("pixabay" as const) : null,
+    "nasa" as const,
+  ].filter((b): b is Banco => b !== null);
+
+/** Extensión con la que se guarda: una foto con nombre `.mp4` confunde a ffmpeg. */
+export function extensionMedio(clip: Pick<ClipInfo, "tipo" | "url">) {
+  if (clip.tipo !== "imagen") return ".mp4";
+  const ext = new URL(clip.url).pathname.toLowerCase().match(/\.(jpe?g|png|webp)$/);
+  return ext ? `.${ext[1]}` : ".jpg";
+}
 
 export type EscenaPreparada = {
   texto: string;
@@ -131,6 +174,7 @@ async function buscarPexels(keyword: string, largos: boolean): Promise<Candidato
       info: {
         id: `pexels-${v.id}`,
         fuente: "pexels",
+        tipo: "video",
         autor: v.user?.name ?? "Pexels",
         pagina: v.url ?? "https://www.pexels.com",
         licencia: "Pexels License",
@@ -176,6 +220,7 @@ async function buscarPixabay(keyword: string): Promise<Candidato[]> {
       info: {
         id: `pixabay-${h.id}`,
         fuente: "pixabay",
+        tipo: "video",
         autor: h.user ?? "Pixabay",
         pagina: h.pageURL ?? "https://pixabay.com",
         licencia: "Pixabay Content License",
@@ -188,23 +233,210 @@ async function buscarPixabay(keyword: string): Promise<Candidato[]> {
   return salida;
 }
 
+/** Fotos de Pexels. Verticales, que es lo que pide el lienzo de 9:16. */
+async function buscarPexelsFotos(keyword: string): Promise<Candidato[]> {
+  if (!env.PEXELS_API_KEY) return [];
+  const url = new URL("https://api.pexels.com/v1/search");
+  url.search = new URLSearchParams({
+    query: keyword,
+    orientation: "portrait",
+    per_page: "15",
+  }).toString();
+
+  const res = await fetch(url, {
+    headers: { Authorization: env.PEXELS_API_KEY },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) throw new Error(`Pexels respondio ${res.status}`);
+  const data = await leerJSON(res);
+
+  const salida: Candidato[] = [];
+  for (const f of data.photos ?? []) {
+    const enlace = f.src?.large2x ?? f.src?.original ?? f.src?.large;
+    if (!enlace) continue;
+    salida.push({
+      alto: f.height ?? 0,
+      ancho: f.width ?? 0,
+      info: {
+        id: `pexels-foto-${f.id}`,
+        fuente: "pexels",
+        tipo: "imagen",
+        autor: f.photographer ?? "Pexels",
+        pagina: f.url ?? "https://www.pexels.com",
+        licencia: "Pexels License",
+        url: enlace,
+        imagen: f.src?.medium ?? enlace,
+      },
+    });
+  }
+  return salida;
+}
+
+/** Fotos de Pixabay. */
+async function buscarPixabayFotos(keyword: string): Promise<Candidato[]> {
+  if (!env.PIXABAY_API_KEY) return [];
+  const url = new URL("https://pixabay.com/api/");
+  url.search = new URLSearchParams({
+    key: env.PIXABAY_API_KEY,
+    q: keyword,
+    image_type: "photo",
+    orientation: "vertical",
+    per_page: "15",
+    safesearch: "true",
+  }).toString();
+
+  const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+  if (!res.ok) throw new Error(`Pixabay respondio ${res.status}`);
+  const data = await leerJSON(res);
+
+  const salida: Candidato[] = [];
+  for (const h of data.hits ?? []) {
+    const enlace = h.largeImageURL ?? h.webformatURL;
+    if (!enlace) continue;
+    salida.push({
+      alto: h.imageHeight ?? 0,
+      ancho: h.imageWidth ?? 0,
+      info: {
+        id: `pixabay-foto-${h.id}`,
+        fuente: "pixabay",
+        tipo: "imagen",
+        autor: h.user ?? "Pixabay",
+        pagina: h.pageURL ?? "https://pixabay.com",
+        licencia: "Pixabay Content License",
+        url: enlace,
+        imagen: h.previewURL ?? enlace,
+      },
+    });
+  }
+  return salida;
+}
+
 /**
- * Busca clips. Con `largos`, los de 30 s o mas van primero (y a Pexels se le
- * pide directamente que no mande cortos): sirve para cubrir narraciones
- * enteras sin cambiar de plano cada cuatro segundos.
+ * Imágenes y vídeos de la NASA (images.nasa.gov). No pide clave y su material
+ * es de dominio público: es la fuente natural de los cuentos de ciencia,
+ * espacio y planetas, donde Pexels solo ofrece animaciones genéricas.
+ *
+ * La búsqueda devuelve fichas, no archivos: el enlace real está en el
+ * `collection.json` de cada ficha, que hay que pedir aparte.
  */
-export async function buscarClips(keyword: string, largos = false): Promise<ClipInfo[]> {
-  const clave = `clips:${largos ? "largos:" : ""}${keyword.toLowerCase().trim()}`;
+const NASA_ITEMS = 6;
+
+/** Prioridad de tamaño: ni el original gigante ni la miniatura. */
+const ORDEN_NASA = {
+  video: ["~large.mp4", "~medium.mp4", "~mobile.mp4", "~small.mp4"],
+  imagen: ["~orig.jpg", "~large.jpg", "~medium.jpg", "~orig.png", "~small.jpg"],
+} as const;
+
+const aHttps = (u: string) => u.replace(/^http:/, "https:");
+
+async function archivoNasa(href: string, tipo: TipoMedio): Promise<string | null> {
+  const res = await fetch(aHttps(href), { signal: AbortSignal.timeout(20_000) });
+  if (!res.ok) return null;
+  const lista = (await res.json()) as unknown;
+  if (!Array.isArray(lista)) return null;
+  const archivos = lista.filter((x): x is string => typeof x === "string").map(aHttps);
+  for (const sufijo of ORDEN_NASA[tipo]) {
+    const encontrado = archivos.find((a) => a.toLowerCase().endsWith(sufijo));
+    if (encontrado) return encontrado;
+  }
+  return null;
+}
+
+/**
+ * Una búsqueda por tipo, no una mezclada: pidiendo "image,video" la NASA
+ * devuelve primero un muro de fotos y los vídeos no llegan nunca.
+ */
+async function buscarNasa(keyword: string, medios: TipoMedio[]): Promise<Candidato[]> {
+  const listas = await Promise.all(medios.map((m) => buscarNasaTipo(keyword, m).catch(() => [])));
+  // Intercalados: así el vídeo no se queda detrás de seis fotos.
+  const salida: Candidato[] = [];
+  for (let i = 0; i < NASA_ITEMS; i++) for (const lista of listas) if (lista[i]) salida.push(lista[i]);
+  return salida;
+}
+
+async function buscarNasaTipo(keyword: string, tipoPedido: TipoMedio): Promise<Candidato[]> {
+  const url = new URL("https://images-api.nasa.gov/search");
+  url.search = new URLSearchParams({
+    q: keyword,
+    media_type: tipoPedido === "imagen" ? "image" : "video",
+    page_size: "20",
+  }).toString();
+  const medios = [tipoPedido];
+
+  const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+  if (!res.ok) throw new Error(`NASA respondio ${res.status}`);
+  const data = await leerJSON(res);
+  const fichas = (data.collection?.items ?? []).slice(0, NASA_ITEMS);
+
+  const candidatos = await Promise.all(
+    fichas.map(async (ficha: { href?: string; links?: { href?: string }[]; data?: Record<string, string>[] }) => {
+      const d = ficha.data?.[0];
+      if (!d?.nasa_id || !ficha.href) return null;
+      const tipo: TipoMedio = d.media_type === "image" ? "imagen" : "video";
+      if (!medios.includes(tipo)) return null;
+      const enlace = await archivoNasa(ficha.href, tipo).catch(() => null);
+      if (!enlace) return null;
+      const muestra = ficha.links?.find((l) => l.href)?.href;
+      return {
+        // Sin dimensiones en la ficha: puntuación neutra, por detrás de un
+        // vertical de verdad y por delante de un horizontal cualquiera.
+        alto: 700,
+        ancho: 700,
+        info: {
+          id: `nasa-${d.nasa_id}`,
+          fuente: "nasa" as const,
+          tipo,
+          autor: d.center ? `NASA/${d.center}` : "NASA",
+          pagina: `https://images.nasa.gov/details/${encodeURIComponent(d.nasa_id)}`,
+          licencia: "Dominio público (NASA)",
+          url: enlace,
+          imagen: muestra ? aHttps(muestra) : undefined,
+        },
+      } satisfies Candidato;
+    }),
+  );
+  return candidatos.filter((c): c is Candidato => c !== null);
+}
+
+/**
+ * Busca material. Con `largos`, los clips de 30 s o mas van primero (y a
+ * Pexels se le pide directamente que no mande cortos): sirve para cubrir
+ * narraciones enteras sin cambiar de plano cada cuatro segundos. `bancos` y
+ * `medios` deciden dónde se busca y si entran fotos además de vídeos.
+ */
+export async function buscarClips(keyword: string, o: OpcionesMedios = {}): Promise<ClipInfo[]> {
+  const largos = o.largos ?? false;
+  const disponibles = bancosDisponibles();
+  const bancos = (o.bancos?.length ? o.bancos : disponibles).filter((b) => disponibles.includes(b));
+  const medios = o.medios?.length ? o.medios : (["video"] as TipoMedio[]);
+  const clave = `clips:v2:${bancos.join("+")}:${medios.join("+")}:${largos ? "largos:" : ""}${keyword
+    .toLowerCase()
+    .trim()}`;
+
   return buscarConCache(clave, async () => {
-    const [pexels, pixabay] = await Promise.all([
-      buscarPexels(keyword, largos).catch(() => []),
-      buscarPixabay(keyword).catch(() => []),
-    ]);
+    const tareas: Promise<Candidato[]>[] = [];
+    const conVideo = medios.includes("video");
+    const conImagen = medios.includes("imagen");
+    if (bancos.includes("pexels")) {
+      if (conVideo) tareas.push(buscarPexels(keyword, largos).catch(() => []));
+      if (conImagen) tareas.push(buscarPexelsFotos(keyword).catch(() => []));
+    }
+    if (bancos.includes("pixabay")) {
+      if (conVideo) tareas.push(buscarPixabay(keyword).catch(() => []));
+      if (conImagen) tareas.push(buscarPixabayFotos(keyword).catch(() => []));
+    }
+    if (bancos.includes("nasa")) tareas.push(buscarNasa(keyword, medios).catch(() => []));
+
+    const todos = (await Promise.all(tareas)).flat();
     const esLargo = (c: Candidato) => (c.info.duracion ?? 0) >= CLIP_LARGO;
-    return [...pexels, ...pixabay]
-      .sort((a, b) =>
-        largos && esLargo(a) !== esLargo(b) ? Number(esLargo(b)) - Number(esLargo(a)) : puntuar(b) - puntuar(a),
-      )
+    const esVideo = (c: Candidato) => c.info.tipo === "video";
+    return todos
+      .sort((a, b) => {
+        // Un vídeo manda sobre una foto: la foto se anima, pero no se mueve sola.
+        if (conVideo && conImagen && esVideo(a) !== esVideo(b)) return Number(esVideo(b)) - Number(esVideo(a));
+        if (largos && esLargo(a) !== esLargo(b)) return Number(esLargo(b)) - Number(esLargo(a));
+        return puntuar(b) - puntuar(a);
+      })
       .map((c) => c.info);
   });
 }
@@ -219,7 +451,7 @@ export async function elegirClips(
   usados: Set<string> = new Set(),
   /** Clip elegido a mano por escena: indice -> id de clip. */
   preseleccion: Record<number, string> = {},
-  largos = false,
+  medios: OpcionesMedios = {},
 ): Promise<(ClipInfo | null)[]> {
   const yaElegidos = new Set(usados);
   const salida: (ClipInfo | null)[] = [];
@@ -230,7 +462,7 @@ export async function elegirClips(
     let respaldo: ClipInfo | undefined;
 
     for (const keyword of escena.keywords) {
-      const candidatos = await buscarClips(keyword, largos);
+      const candidatos = await buscarClips(keyword, medios);
       respaldo ??= candidatos[0];
 
       // El id elegido a mano se resuelve contra la busqueda, no se acepta la
@@ -265,19 +497,21 @@ export async function elegirYDescargarClips(
   dir: string,
   usados: Set<string> = new Set(),
   preseleccion: Record<number, string> = {},
+  medios: OpcionesMedios = {},
 ): Promise<EscenaPreparada[]> {
-  const elegidos = await elegirClips(escenas, usados, preseleccion);
+  const elegidos = await elegirClips(escenas, usados, preseleccion, medios);
   const preparadas: EscenaPreparada[] = [];
 
   for (const [i, escena] of escenas.entries()) {
     const elegido = elegidos[i];
     if (!elegido) {
       throw new Error(
-        `Sin clips para la escena ${i + 1} (${escena.keywords.join(", ")}). ` +
-          "Revisa PEXELS_API_KEY / PIXABAY_API_KEY o cambia las keywords.",
+        `Sin material para la escena ${i + 1} (${escena.keywords.join(", ")}). ` +
+          "Revisa PEXELS_API_KEY / PIXABAY_API_KEY, prueba con otras keywords o " +
+          "amplía los bancos (la NASA no necesita clave) y admite fotos además de vídeos.",
       );
     }
-    const archivo = `clip${i}.mp4`;
+    const archivo = `clip${i}${extensionMedio(elegido)}`;
     await descargarClip(elegido.url, join(dir, archivo));
     preparadas.push({ texto: escena.texto, keywords: escena.keywords, clip: elegido, archivo });
   }
@@ -295,7 +529,7 @@ export function creditosDe(escenas: Pick<EscenaPreparada, "clip">[]): string {
 
 type ClipAcreditable = Pick<ClipInfo, "id" | "fuente" | "autor" | "pagina" | "licencia">;
 
-const NOMBRE_FUENTE: Record<ClipInfo["fuente"], string> = { pexels: "Pexels", pixabay: "Pixabay" };
+const NOMBRE_FUENTE: Record<Banco, string> = { pexels: "Pexels", pixabay: "Pixabay", nasa: "NASA" };
 
 const unicos = (clips: ClipAcreditable[]) => [...new Map(clips.map((c) => [c.id, c])).values()];
 
@@ -327,18 +561,29 @@ export function creditosCortos(clips: ClipAcreditable[]): string {
   return `Clips: ${partes.join(" · ")}`;
 }
 
-/** Une gancho, hashtags y créditos cortos en la descripción para publicar. */
+/**
+ * Une el gancho de la publicación, el del vídeo, los hashtags y los créditos
+ * cortos en la descripción para publicar.
+ *
+ * La primera línea es lo único que se ve antes del "ver más", así que va el
+ * gancho VIRAL —el que se escribe para leer, no para escuchar— y debajo el
+ * gancho narrado, que da el contexto.
+ */
 export function armarDescripcion(
   cabecera: string,
   hashtags: string[],
   clips: ClipAcreditable[],
   musica?: string | null,
+  ganchos: string[] = [],
 ): string {
   const etiquetas = [...new Set(hashtags.map((h) => h.replace(/^#/, "").trim()).filter(Boolean))]
     .slice(0, 6)
     .map((h) => `#${h}`)
     .join(" ");
-  return [cabecera.trim(), etiquetas, creditosCortos(clips), musica ?? "", "Contenido creado con IA."]
+  const viral = ganchos.map((g) => g.trim()).find(Boolean) ?? "";
+  // Si el gancho viral y el del vídeo dicen lo mismo, no se repite.
+  const parecidos = viral && cabecera.trim().toLowerCase() === viral.toLowerCase();
+  return [viral, parecidos ? "" : cabecera.trim(), etiquetas, creditosCortos(clips), musica ?? "", "Contenido creado con IA."]
     .filter(Boolean)
     .join("\n")
     .trim();
@@ -346,7 +591,7 @@ export function armarDescripcion(
 
 /** Descripcion lista para pegar en TikTok, con los creditos cortos de los clips. */
 export function crearDescripcion(
-  guion: { titulo: string; gancho?: string; hashtags?: string[] },
+  guion: { titulo: string; gancho?: string; hashtags?: string[]; ganchos?: string[] },
   escenas: EscenaPreparada[],
   musica?: string | null,
 ): string {
@@ -355,6 +600,7 @@ export function crearDescripcion(
     guion.hashtags ?? [],
     escenas.filter((e) => e?.clip).map((e) => e.clip),
     musica,
+    guion.ganchos ?? [],
   );
 }
 

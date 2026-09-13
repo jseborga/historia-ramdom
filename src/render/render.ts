@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import { env, MAX_VIDEO_BYTES, MB } from "../env.js";
 import { ffmpeg, duracion } from "./ffmpeg.js";
 import { crearASS, type Tramo } from "./subtitulos.js";
+import { PRESET_POR_DEFECTO, filtroEscena, entradaImagen, movimientoPorIndice } from "./presets.js";
 
 const VF =
   "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=30,format=yuv420p";
@@ -39,6 +40,8 @@ export type EscenaRender = {
   texto: string;
   /** nombre del clip dentro de `dir` */
   archivo: string;
+  /** El archivo es una foto: se anima con Ken Burns en vez de quedarse quieta. */
+  imagen?: boolean;
   /** nombre del audio dentro de `dir`; solo en modo VOZ */
   audio?: string;
   /** duracion impuesta cuando no hay audio que la marque */
@@ -91,20 +94,28 @@ export async function renderizar(
       d = e.duracion ?? duracionPorTexto(e.texto);
     }
 
-    // 2. Clip vertical con la duracion exacta de la escena
+    // 2. Clip vertical con la duracion exacta de la escena. Si la fuente es
+    //    una foto (la NASA da muchas), se le pone movimiento: un plano fijo
+    //    de ocho segundos en un vertical parece que se colgo el video.
     const v = `v${i}.mp4`;
     await ffmpeg(
-      [
-        "-stream_loop", "-1",
-        "-i", e.archivo,
-        "-t", d.toFixed(3),
-        "-vf", VF,
-        "-an",
-        "-c:v", "libx264",
-        "-preset", "veryfast",
-        "-crf", "20",
-        v,
-      ],
+      e.imagen
+        ? [
+            ...entradaImagen(PRESET_POR_DEFECTO, e.archivo, d),
+            "-vf", filtroEscena(PRESET_POR_DEFECTO, movimientoPorIndice(i), d, true),
+            "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", v,
+          ]
+        : [
+            "-stream_loop", "-1",
+            "-i", e.archivo,
+            "-t", d.toFixed(3),
+            "-vf", VF,
+            "-an",
+            "-c:v", "libx264",
+            "-preset", "veryfast",
+            "-crf", "20",
+            v,
+          ],
       dir,
     );
 

@@ -1,9 +1,20 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
-import { creditosLargos, armarDescripcion } from "./clips.js";
+import { creditosLargos, armarDescripcion, BANCOS, MEDIOS } from "./clips.js";
 import { VozSchema, VOZ_POR_DEFECTO } from "./voz.js";
 import { ESTILO_POR_DEFECTO, fragmentar, type EstiloTexto, type Lectura } from "../render/rotulos.js";
-import { PRESETS, PRESET_POR_DEFECTO } from "../render/presets.js";
+import { PRESETS, PRESET_POR_DEFECTO, EFECTOS, movimientoPorIndice, type Efecto } from "../render/presets.js";
+
+/** Los ids de efecto, para el esquema; la lista viva está en `presets.ts`. */
+const EFECTOS_ID = EFECTOS as [Efecto, ...Efecto[]];
+
+/**
+ * Efecto con el que entra un clip nuevo en la línea de tiempo. Las fotos
+ * SIEMPRE llevan movimiento —y uno distinto cada vez— para que no se note que
+ * son fotos; los vídeos se dejan quietos salvo el primero, que abre con zoom.
+ */
+export const efectoDeClip = (clip: { tipo?: string } | null, indice: number): Efecto =>
+  clip?.tipo === "imagen" ? movimientoPorIndice(indice) : indice === 0 ? "zoomLento" : "ninguno";
 import { esCalidad } from "../render/calidad.js";
 import type { ClipInfo } from "./clips.js";
 import type { Guion } from "./guion.js";
@@ -32,8 +43,12 @@ export const EstiloSchema = z.object({
 });
 
 export const ClipSchema = z.object({
-  id: z.string().max(60),
-  fuente: z.enum(["pexels", "pixabay"]),
+  // Los ids de la NASA son el nombre de la ficha ("nasa-Mars 2020 Perseverance
+  // - Surface Update..."), así que no caben en 60 caracteres.
+  id: z.string().max(200),
+  fuente: z.enum(BANCOS),
+  /** "imagen" = foto: en el render se anima para que parezca vídeo. */
+  tipo: z.enum(MEDIOS).default("video"),
   autor: z.string().max(120),
   pagina: z.string().max(400),
   licencia: z.string().max(80),
@@ -56,7 +71,7 @@ export const ClipPistaSchema = z.object({
   duracion: z.number().min(0.5).max(350).default(DURACION_CLIP),
   /** Segundo del clip original por el que empieza (recorte de entrada). */
   recorte: z.number().min(0).max(3600).default(0),
-  efecto: z.enum(["ninguno", "zoomLento", "fundido", "blancoYNegro", "vineta"]).default("ninguno"),
+  efecto: z.enum(EFECTOS_ID).default("ninguno"),
 });
 
 /** Un rotulo de la pista de textos, con su propio sitio en el tiempo. */
@@ -378,14 +393,18 @@ export function creditosDeProyecto(video: ClipPista[], musica?: string | null): 
   return [creditosLargos(clips), musica ?? ""].filter(Boolean).join("\n");
 }
 
-/** Descripción corta lista para pegar al publicar: gancho, hashtags y créditos en una línea. */
+/**
+ * Descripción corta lista para pegar al publicar: gancho viral, gancho del
+ * vídeo, hashtags y créditos en una línea.
+ */
 export function descripcionDeProyecto(
   nombre: string,
   video: ClipPista[],
   hashtags: string[] = [],
   gancho?: string | null,
   musica?: string | null,
+  ganchos: string[] = [],
 ): string {
   const clips = video.filter((c) => c.clip).map((c) => c.clip!);
-  return armarDescripcion(gancho?.trim() || nombre, hashtags, clips, musica);
+  return armarDescripcion(gancho?.trim() || nombre, hashtags, clips, musica, ganchos);
 }

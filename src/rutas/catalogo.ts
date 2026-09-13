@@ -67,7 +67,19 @@ export async function rutasCatalogo(app: FastifyInstance) {
       clips: {
         pexels: Boolean(env.PEXELS_API_KEY),
         pixabay: Boolean(env.PIXABAY_API_KEY),
+        /** La NASA no pide clave: siempre está. */
+        nasa: true,
       },
+      /** Bancos donde se puede buscar ahora mismo, con su nombre y su licencia. */
+      bancos: [
+        { id: "pexels", nombre: "Pexels", nota: "Vídeos y fotos libres, con autor.", listo: Boolean(env.PEXELS_API_KEY) },
+        { id: "pixabay", nombre: "Pixabay", nota: "Vídeos y fotos libres, con autor.", listo: Boolean(env.PIXABAY_API_KEY) },
+        { id: "nasa", nombre: "NASA", nota: "Espacio, planetas y misiones; dominio público y sin clave.", listo: true },
+      ],
+      medios: [
+        { id: "video", nombre: "Vídeos" },
+        { id: "imagen", nombre: "Fotos (se animan con movimiento)" },
+      ],
       tiktok: {
         configurado: tiktokConfigurado(),
         cuentasConectadas: cuentas,

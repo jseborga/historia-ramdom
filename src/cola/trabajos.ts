@@ -1,6 +1,14 @@
 import type { ModoPublicacion } from "@prisma/client";
 import { db } from "../db.js";
-import { generarGuion, GuionSchema, contextoParaContinuar, criteriosVisuales, type Guion, type Premisa } from "../servicios/guion.js";
+import {
+  generarGuion,
+  GuionSchema,
+  contextoParaContinuar,
+  criteriosVisuales,
+  type ContextoCapitulo,
+  type Guion,
+  type Premisa,
+} from "../servicios/guion.js";
 import { creditoMusica } from "../servicios/suno.js";
 import { esLetra, topeVideoclip, type OpcionesVideoclip } from "../servicios/videoclip.js";
 import { creditosDePartes, type FuenteCancion } from "../servicios/mezcla.js";
@@ -9,8 +17,12 @@ import {
   elegirClips,
   elegirYDescargarClips,
   crearDescripcion,
+  esBanco,
+  esMedio,
   type EscenaPreparada,
+  type OpcionesMedios,
 } from "../servicios/clips.js";
+import { mediosDeCategoria } from "../servicios/categorias.js";
 import { pistasDesdeGuion } from "../servicios/proyecto.js";
 import { VOZ_POR_DEFECTO } from "../servicios/voz.js";
 import {
@@ -48,6 +60,8 @@ export type OpcionesHistoria = {
   categoria?: string | null;
   subcategoria?: string | null;
   premisa?: Premisa | null;
+  /** Capítulo de una miniserie ya planeada, si la historia es uno de ellos. */
+  capitulo?: ContextoCapitulo | null;
   motor: string;
   /** Modelo concreto del motor; vacio = el configurado en el entorno. */
   modelo?: string | null;
@@ -70,7 +84,28 @@ export type OpcionesHistoria = {
   publicarEn?: string | null;
   evitarTitulos?: (string | null)[];
   clipsUsados?: string[];
+  /** Bancos donde buscar imagen; vacío = los de la categoría. */
+  bancos?: string[] | null;
+  /** Vídeo, foto o las dos; vacío = lo que use la categoría. */
+  medios?: string[] | null;
 };
+
+/**
+ * Dónde buscar la imagen: lo que se pidió a mano gana, y si no se pidió nada
+ * manda la categoría (la ciencia mira a la NASA y admite fotos).
+ */
+export function mediosDe(
+  o: { bancos?: string[] | null; medios?: string[] | null },
+  categoria?: string | null,
+): OpcionesMedios {
+  const porCategoria = mediosDeCategoria(categoria);
+  const bancos = (o.bancos ?? []).filter(esBanco);
+  const medios = (o.medios ?? []).filter(esMedio);
+  return {
+    bancos: bancos.length ? bancos : porCategoria.bancos,
+    medios: medios.length ? medios : porCategoria.medios,
+  };
+}
 
 /** Milisegundos que faltan hasta la fecha pedida (0 si ya paso o no hay). */
 export function retrasoHasta(fechaISO?: string | null) {
@@ -94,6 +129,8 @@ type AjustesSerie = {
   motor: string; modelo: string | null; voz: unknown; modoAudio: "VOZ" | "MUSICA" | "MUDO";
   segundosEscena: number | null; musica: string | null; musicaModo: "FIJA" | "ROTAR";
   modoPublicacion: ModoPublicacion; salida: "VIDEO" | "MONTAJE"; partes: number;
+  /** Dónde buscar imagen y qué medios admitir; vacío = lo de la categoría. */
+  bancos?: string[] | null; medios?: string[] | null;
 };
 
 /** Historias recientes de la serie: evitan repetir titulos, clips y musica. */
@@ -142,6 +179,7 @@ async function producir(historiaId: string, o: OpcionesHistoria) {
         categoria: o.categoria,
         subcategoria: o.subcategoria,
         premisa: o.premisa,
+        capitulo: o.capitulo,
       }));
 
     const gancho = await registrarGancho(guion.gancho, idioma);
@@ -168,6 +206,9 @@ async function producir(historiaId: string, o: OpcionesHistoria) {
       dir,
       new Set(o.clipsUsados ?? []),
       o.clipsElegidos ?? {},
+      // Dónde buscar: lo que pida la historia y, si no, lo que use su
+      // categoría (la ciencia mira a la NASA y admite fotos).
+      mediosDe(o, guion.categoria),
     );
     await db.historia.update({ where: { id: historiaId }, data: { escenas } });
 
@@ -189,6 +230,7 @@ async function producir(historiaId: string, o: OpcionesHistoria) {
       escenas.map((e, i) => ({
         texto: e.texto,
         archivo: e.archivo!,
+        imagen: e.clip?.tipo === "imagen",
         audio: e.audio,
         // Sin voz, la duracion la marca el texto, no el audio.
         duracion:
@@ -281,7 +323,7 @@ async function crearMontaje(
       { texto: guion.gancho, keywords: guion.escenas[0].keywords },
       ...guion.escenas,
     ];
-    const clips = await elegirClips(guionado, new Set(o.clipsUsados));
+    const clips = await elegirClips(guionado, new Set(o.clipsUsados), {}, mediosDe(serie, guion.categoria));
     const escenas: EscenaPreparada[] = guionado
       .map((e, i) => ({ texto: e.texto, keywords: e.keywords, clip: clips[i]! }))
       .filter((e) => e.clip);
@@ -415,6 +457,8 @@ async function producirParte(
     ganchoFijo: o.ganchoFijo,
     evitarTitulos: o.evitarTitulos,
     clipsUsados: o.clipsUsados,
+    bancos: base.bancos,
+    medios: base.medios,
   });
 }
 
@@ -429,7 +473,7 @@ export async function continuarHistoria(historiaId: string): Promise<string> {
     tipo: "Historia", duracion: 90, idioma: "es", region: "bolivia", modismos: true, motor: "groq", modelo: null,
     categoria: null, subcategoria: null,
     voz: VOZ_POR_DEFECTO, modoAudio: "VOZ", segundosEscena: null, musica: null, musicaModo: "FIJA",
-    modoPublicacion: "DESCARGA", salida: "MONTAJE", partes: 1,
+    modoPublicacion: "DESCARGA", salida: "MONTAJE", partes: 1, bancos: [], medios: [],
   };
   // La continuacion hereda la categoria concreta de la parte anterior: nunca
   // vuelve a sortear una ("aleatoria" es para historias nuevas).
@@ -569,7 +613,10 @@ async function prepararProyecto(proyectoId: string) {
   const letra = p.tipo === "MUSICA" ? esLetra(p.letra) : null;
   const hashtags = letra?.hashtags.length ? letra.hashtags : guion?.success ? guion.data.hashtags : [];
   const cabecera = letra?.titulo || (guion?.success ? guion.data.gancho : null);
-  const descripcion = descripcionDeProyecto(p.nombre, datos.video, hashtags, cabecera, musicaCredito);
+  const descripcion = descripcionDeProyecto(
+    p.nombre, datos.video, hashtags, cabecera, musicaCredito,
+    guion?.success ? guion.data.ganchos : [],
+  );
 
   return {
     p,

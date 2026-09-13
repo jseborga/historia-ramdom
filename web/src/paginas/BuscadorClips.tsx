@@ -1,13 +1,22 @@
 import { useState } from "react";
-import { api, type ClipCandidato } from "../api";
+import { api, type Catalogo, type ClipCandidato } from "../api";
 import { mensajeDe } from "../App";
 
-/** Busca clips por palabras libres y devuelve el elegido. */
+/** Todos los bancos si el catálogo no los trae (servidor antiguo). */
+const BANCOS_BASE = [
+  { id: "pexels", nombre: "Pexels", nota: "Vídeos y fotos libres.", listo: true },
+  { id: "pixabay", nombre: "Pixabay", nota: "Vídeos y fotos libres.", listo: true },
+  { id: "nasa", nombre: "NASA", nota: "Espacio y misiones; dominio público.", listo: true },
+];
+
+/** Busca clips y fotos por palabras libres y devuelve el elegido. */
 export function BuscadorClips({
   sugerencia,
+  catalogo,
   alElegir,
 }: {
   sugerencia: string;
+  catalogo?: Catalogo | null;
   alElegir: (clip: ClipCandidato | null) => void;
 }) {
   const [consulta, setConsulta] = useState(sugerencia);
@@ -15,21 +24,29 @@ export function BuscadorClips({
   const [viendo, setViendo] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
+  /** Bancos marcados; vacío = todos los que haya. */
+  const [bancos, setBancos] = useState<string[]>([]);
+  const [conFotos, setConFotos] = useState(false);
+  const disponibles = (catalogo?.bancos ?? BANCOS_BASE).filter((b) => b.listo);
 
   async function buscar() {
     if (!consulta.trim()) return;
     setCargando(true);
     setError("");
     try {
-      setLista(
-        await api.get<ClipCandidato[]>(`/api/clips?keywords=${encodeURIComponent(consulta)}`),
-      );
+      const parametros = new URLSearchParams({ keywords: consulta });
+      if (bancos.length) parametros.set("bancos", bancos.join(","));
+      parametros.set("medios", conFotos ? "video,imagen" : "video");
+      setLista(await api.get<ClipCandidato[]>(`/api/clips?${parametros}`));
     } catch (err) {
       setError(mensajeDe(err));
     } finally {
       setCargando(false);
     }
   }
+
+  const alternar = (v: string) =>
+    setBancos(bancos.includes(v) ? bancos.filter((b) => b !== v) : [...bancos, v]);
 
   return (
     <>
@@ -47,11 +64,31 @@ export function BuscadorClips({
         <button onClick={() => alElegir(null)}>Quitar clip</button>
       </div>
 
+      <div className="fila" style={{ flexWrap: "wrap", gap: 10, marginTop: 6 }}>
+        <span className="suave">Buscar en:</span>
+        {disponibles.map((b) => (
+          <label key={b.id} className="casilla suave" title={b.nota}>
+            <input
+              type="checkbox"
+              checked={bancos.length === 0 || bancos.includes(b.id)}
+              onChange={() => alternar(b.id)}
+            />{" "}
+            {b.nombre}
+          </label>
+        ))}
+        <label className="casilla suave" title="Las fotos se animan solas en el render">
+          <input type="checkbox" checked={conFotos} onChange={(e) => setConFotos(e.target.checked)} /> incluir
+          fotos
+        </label>
+      </div>
+
       <div className="rejilla">
         {lista.map((c) => (
           <div className="miniatura" key={c.id}>
-            {viendo === c.id ? (
+            {viendo === c.id && c.tipo !== "imagen" ? (
               <video src={c.url} controls muted autoPlay playsInline />
+            ) : c.tipo === "imagen" ? (
+              <img src={c.imagen ?? c.url} alt="" loading="lazy" />
             ) : c.imagen ? (
               <img src={c.imagen} alt="" loading="lazy" />
             ) : (
@@ -59,12 +96,15 @@ export function BuscadorClips({
             )}
             <div className="fila">
               <button onClick={() => alElegir(c)}>Usar</button>
-              <button onClick={() => setViendo(viendo === c.id ? null : c.id)}>
-                {viendo === c.id ? "Parar" : "Ver"}
-              </button>
+              {c.tipo !== "imagen" && (
+                <button onClick={() => setViendo(viendo === c.id ? null : c.id)}>
+                  {viendo === c.id ? "Parar" : "Ver"}
+                </button>
+              )}
             </div>
             <span className="suave">
               {c.autor} · {c.fuente}
+              {c.tipo === "imagen" ? " · foto (se anima)" : ""}
             </span>
           </div>
         ))}

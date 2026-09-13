@@ -146,14 +146,38 @@ export function Lienzo({
   );
 
   const progreso = clip ? local / clip.duracion : 0;
-  const estiloEfecto: React.CSSProperties =
-    clip?.efecto === "zoomLento"
-      ? { transform: `scale(${1 + 0.12 * progreso})`, transformOrigin: "center" }
-      : clip?.efecto === "fundido"
-        ? { opacity: progreso < 0.12 ? progreso / 0.12 : progreso > 0.88 ? (1 - progreso) / 0.12 : 1 }
-        : clip?.efecto === "blancoYNegro"
-          ? { filter: "grayscale(1)" }
-          : {};
+  const esFoto = clip?.clip?.tipo === "imagen";
+  // Una foto sin movimiento parece un fallo: en el render se le pone Ken Burns
+  // aunque el efecto elegido no mueva nada, y la vista previa hace lo mismo.
+  const movimiento =
+    clip && ["zoomLento", "alejar", "paneoDerecha", "paneoIzquierda", "kenBurns"].includes(clip.efecto)
+      ? clip.efecto
+      : esFoto
+        ? "kenBurns"
+        : "";
+  const desplazar = (p: number) => `${(-6 * p).toFixed(2)}%`;
+  const estiloMovimiento: React.CSSProperties =
+    movimiento === "zoomLento"
+      ? { transform: `scale(${1 + 0.12 * progreso})` }
+      : movimiento === "alejar"
+        ? { transform: `scale(${1.12 - 0.12 * progreso})` }
+        : movimiento === "paneoDerecha"
+          ? { transform: `scale(1.12) translateX(${desplazar(progreso)})` }
+          : movimiento === "paneoIzquierda"
+            ? { transform: `scale(1.12) translateX(${desplazar(1 - progreso)})` }
+            : movimiento === "kenBurns"
+              ? {
+                  transform: `scale(${1 + 0.16 * progreso}) translate(${desplazar(progreso)}, ${desplazar(progreso)})`,
+                }
+              : {};
+  const estiloEfecto: React.CSSProperties = {
+    ...estiloMovimiento,
+    transformOrigin: "center",
+    ...(clip?.efecto === "fundido"
+      ? { opacity: progreso < 0.12 ? progreso / 0.12 : progreso > 0.88 ? (1 - progreso) / 0.12 : 1 }
+      : {}),
+    ...(clip?.efecto === "blancoYNegro" ? { filter: "grayscale(1)" } : {}),
+  };
 
   return (
     <>
@@ -163,7 +187,9 @@ export function Lienzo({
         className="lienzo"
         style={{ aspectRatio: `${preset.ancho} / ${preset.alto}`, containerType: "size" }}
       >
-        {clip?.clip ? (
+        {clip?.clip && esFoto ? (
+          <img key={clip.id} className="capa" style={estiloEfecto} src={clip.clip.url} alt="" />
+        ) : clip?.clip ? (
           <video
             key={clip.id}
             ref={vid}

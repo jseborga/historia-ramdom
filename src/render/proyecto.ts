@@ -2,10 +2,10 @@ import { stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { env, MAX_VIDEO_BYTES, MB } from "../env.js";
 import { ffmpeg } from "./ffmpeg.js";
-import { buscarPreset, filtroEscena, MAX_DURACION_SEG, type Preset } from "./presets.js";
+import { buscarPreset, filtroEscena, entradaImagen, MAX_DURACION_SEG, type Preset } from "./presets.js";
 import { aplicarCalidad, perfilDe, estimar, techoBitrate, bppMedido } from "./calidad.js";
 import { crearASSProyecto, type Rotulo } from "./rotulos.js";
-import { descargarClip } from "../servicios/clips.js";
+import { descargarClip, extensionMedio } from "../servicios/clips.js";
 import {
   duracionVideo,
   duracionProyecto,
@@ -68,7 +68,9 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
     0.5,
   );
   const tVideo = duracionVideo(e.video);
-  const tope = Math.max(e.maxSegundos ?? MAX_DURACION_SEG, 1);
+  // El tope es el del formato (los largos admiten 15 min) y, por encima, el
+  // que traiga la entrada: un videoclip musical encadena canciones y va aparte.
+  const tope = Math.max(e.maxSegundos ?? 0, preset.maxSegundos, MAX_DURACION_SEG, 1);
   if (total > tope + 0.5) {
     throw new Error(
       `El montaje dura ${total.toFixed(0)} s y el tope es ${tope} s. ` +
@@ -84,17 +86,23 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
   const descargados = new Map<string, string>();
   for (const [i, c] of e.video.entries()) {
     const v = `v${i}.mp4`;
-    const vf = filtroEscena(lienzo, c.efecto, c.duracion);
+    const esFoto = c.clip?.tipo === "imagen";
+    const vf = filtroEscena(lienzo, c.efecto, c.duracion, esFoto);
     if (c.clip) {
       let origen = descargados.get(c.clip.url);
       if (!origen) {
-        origen = `fuente${descargados.size}.mp4`;
+        origen = `fuente${descargados.size}${extensionMedio(c.clip)}`;
         await descargarClip(c.clip.url, join(dir, origen));
         descargados.set(c.clip.url, origen);
       }
       await ffmpeg(
-        ["-stream_loop", "-1", "-i", origen, "-ss", c.recorte.toFixed(3), "-t", c.duracion.toFixed(3),
-         "-vf", vf, "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", v],
+        esFoto
+          ? // Una foto no tiene tiempo: se repite el fotograma a la cadencia
+            // del lienzo y el movimiento del filtro hace el resto.
+            [...entradaImagen(lienzo, origen, c.duracion),
+             "-vf", vf, "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", v]
+          : ["-stream_loop", "-1", "-i", origen, "-ss", c.recorte.toFixed(3), "-t", c.duracion.toFixed(3),
+             "-vf", vf, "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", v],
         dir,
       );
     } else {

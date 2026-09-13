@@ -572,3 +572,84 @@ export function SelectorModo({
     </div>
   );
 }
+
+/**
+ * De dónde salen las imágenes: Pexels, Pixabay y la NASA (dominio público, sin
+ * clave, la buena para ciencia y espacio), y si entran fotos además de vídeos.
+ * Vacío = lo que use la categoría de la historia.
+ */
+export function SelectorBancos({
+  catalogo,
+  bancos,
+  medios,
+  alCambiar,
+}: {
+  catalogo: Catalogo;
+  bancos: string[];
+  medios: string[];
+  alCambiar: (bancos: string[], medios: string[]) => void;
+}) {
+  const lista = catalogo.bancos ?? [];
+  const tipos = catalogo.medios ?? [];
+  if (!lista.length) return null;
+
+  const alternar = (xs: string[], v: string) => (xs.includes(v) ? xs.filter((x) => x !== v) : [...xs, v]);
+
+  return (
+    <>
+      <div>
+        <label>Dónde buscar la imagen</label>
+        <div className="fila" style={{ flexWrap: "wrap", gap: 10 }}>
+          {lista.map((b) => (
+            <label key={b.id} className="casilla suave" title={b.nota} style={{ opacity: b.listo ? 1 : 0.5 }}>
+              <input
+                type="checkbox"
+                disabled={!b.listo}
+                checked={bancos.includes(b.id)}
+                onChange={() => alCambiar(alternar(bancos, b.id), medios)}
+              />{" "}
+              {b.nombre}
+              {b.listo ? "" : " (sin clave)"}
+            </label>
+          ))}
+        </div>
+        <p className="suave">
+          {bancos.length ? "" : "Vacío = lo que use la categoría; la ciencia busca también en la NASA."}
+        </p>
+      </div>
+      <div>
+        <label>Qué admitir</label>
+        <div className="fila" style={{ flexWrap: "wrap", gap: 10 }}>
+          {tipos.map((m) => (
+            <label key={m.id} className="casilla suave">
+              <input
+                type="checkbox"
+                checked={medios.includes(m.id)}
+                onChange={() => alCambiar(bancos, alternar(medios, m.id))}
+              />{" "}
+              {m.nombre}
+            </label>
+          ))}
+        </div>
+        <p className="suave">
+          {medios.includes("imagen")
+            ? "Las fotos se animan solas (zoom y paneo), así que se ven como vídeo."
+            : "Vacío = solo vídeo."}
+        </p>
+      </div>
+    </>
+  );
+}
+
+/** Nombre legible de un efecto de imagen, para los selectores. */
+export const EFECTOS: [string, string][] = [
+  ["ninguno", "Ninguno"],
+  ["zoomLento", "Acercar (zoom lento)"],
+  ["alejar", "Alejar"],
+  ["paneoDerecha", "Paneo a la derecha"],
+  ["paneoIzquierda", "Paneo a la izquierda"],
+  ["kenBurns", "Ken Burns (zoom y paneo)"],
+  ["fundido", "Fundido de entrada y salida"],
+  ["blancoYNegro", "Blanco y negro"],
+  ["vineta", "Viñeta"],
+];

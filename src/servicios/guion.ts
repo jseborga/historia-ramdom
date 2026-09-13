@@ -324,6 +324,12 @@ export const GuionSchema = z.object({
     .min(3)
     .max(60),
   hashtags: z.array(z.string().max(40)).max(8).default([]),
+  /**
+   * Ganchos VIRALES para la descripción: los que se leen en el texto de la
+   * publicación, no los que se narran. El primero encabeza la descripción y
+   * los otros quedan como alternativas para probar cuál rinde.
+   */
+  ganchos: z.array(z.string().min(1).max(150)).max(4).default([]),
   /** Categoría y subcategoría con las que se planteó; vacías = tema libre. */
   categoria: z.string().max(40).nullable().default(null),
   subcategoria: z.string().max(40).nullable().default(null),
@@ -461,6 +467,140 @@ export async function generarPremisa(p: PeticionPremisa): Promise<Premisa> {
   });
 }
 
+/**
+ * Miniserie: una historia larga repartida en capítulos que se planean de
+ * golpe. No es lo mismo que continuar una historia (`continuaDe`), donde cada
+ * parte se improvisa sobre la anterior: aquí se sabe desde el principio cuántos
+ * capítulos hay, qué pasa en cada uno y dónde corta cada final.
+ */
+export const CapituloSchema = z.object({
+  numero: z.number().int().min(1).max(12),
+  titulo: z.string().min(1).max(120),
+  /** Qué pasa en este capítulo, en dos o tres frases. */
+  resumen: z.string().min(1).max(600),
+  /** Con qué corta; el último no lleva, porque cierra. */
+  cliffhanger: z.string().max(300).default(""),
+});
+
+export type Capitulo = z.infer<typeof CapituloSchema>;
+
+export const MiniserieSchema = z.object({
+  categoria: z.string().max(40),
+  subcategoria: z.string().max(40),
+  titulo: z.string().min(1).max(120),
+  /** De qué va la miniserie entera, en dos o tres frases. */
+  sinopsis: z.string().min(1).max(900),
+  personajes: z.array(z.string().min(1).max(120)).max(6).default([]),
+  capitulos: z.array(CapituloSchema).min(2).max(12),
+  keywords: z.array(z.string().min(1).max(40)).min(1).max(8),
+  hashtags: z.array(z.string().max(40)).max(8).default([]),
+});
+
+export type Miniserie = z.infer<typeof MiniserieSchema>;
+
+export type PeticionMiniserie = PeticionPremisa & {
+  /** Cuántos capítulos; entre 2 y 12. */
+  capitulos?: number;
+};
+
+/** Contexto de un capítulo concreto al escribir su guion. */
+export type ContextoCapitulo = {
+  numero: number;
+  total: number;
+  tituloSerie: string;
+  sinopsis: string;
+  titulo: string;
+  resumen: string;
+  cliffhanger: string;
+  /** Con qué cortó el capítulo anterior; vacío en el primero. */
+  anterior?: string;
+  personajes?: string[];
+};
+
+/**
+ * Planea la miniserie entera —título, sinopsis, personajes y qué pasa en cada
+ * capítulo— sin escribir ningún guion. Después, cada capítulo se escribe por
+ * separado con `generarGuion({ capitulo })`.
+ */
+export async function generarMiniserie(p: PeticionMiniserie): Promise<Miniserie> {
+  if (!esMotor(p.motor)) throw new Error(`Motor desconocido: ${p.motor}`);
+  const elegida = resolverCategoria(p.categoria || "aleatoria", p.subcategoria);
+  if (!elegida) throw new Error("No se pudo elegir una categoría");
+  const { categoria, subcategoria } = elegida;
+  const cuantos = Math.min(12, Math.max(2, Math.round(p.capitulos ?? 4)));
+  const idioma = p.idioma ?? "es";
+  const ideas = categoria.area === "ideas";
+  const reglas = (categoria.reglas ?? []).map((r) => `- ${r}`);
+
+  const prompt = [
+    `PLANEA una miniserie de ${cuantos} capítulos para vídeo vertical. No escribas todavía ningún guion.`,
+    `Categoría: ${categoria.nombre} › ${subcategoria.nombre} (${subcategoria.pista}).`,
+    `Tono: ${categoria.tono}`,
+    reglas.length ? ["Reglas de esta categoría, obligatorias:", ...reglas].join("\n") : "",
+    p.tema ? `Tema o punto de partida que hay que respetar: ${p.tema}.` : "",
+    ideas
+      ? `Cada capítulo es una idea que se sostiene sola, y juntos cuentan algo más grande. Puedes partir de: ${fuentesAlAzar(categoria).join(" | ")}.`
+      : `Es UNA historia repartida en capítulos, no ${cuantos} historias sueltas: los personajes y el conflicto son los mismos.`,
+    p.duracion ? `Cada capítulo dura unos ${p.duracion} segundos.` : "",
+    ideas ? "" : "Nada de personas reales identificables ni de marcas; los personajes son inventados.",
+    "Cada capítulo (menos el último) termina en un corte que obliga a ver el siguiente; el último cierra la historia del todo.",
+    ORTOGRAFIA,
+    "",
+    "Devuelve exactamente este JSON:",
+    "{",
+    '  "titulo": "título de la miniserie, corto",',
+    '  "sinopsis": "de qué va todo, en dos o tres frases",',
+    '  "personajes": ["nombre y un rasgo", "otro"],',
+    '  "capitulos": [',
+    `    { "numero": 1, "titulo": "título del capítulo", "resumen": "qué pasa en él, dos o tres frases", "cliffhanger": "con qué corta" }`,
+    "  ],",
+    '  "keywords": ["visual keyword in english", "another"],',
+    '  "hashtags": ["sinAlmohadilla", "otro"]',
+    "}",
+    `Tienen que ser exactamente ${cuantos} capítulos, numerados del 1 al ${cuantos}, y el último con "cliffhanger" vacío.`,
+    `Las keywords son de 3 a 6, EN INGLÉS, del ambiente de toda la miniserie (por ejemplo: ${categoria.visual
+      .slice(0, 3)
+      .map((v) => `'${v}'`)
+      .join(", ")}).`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const crudo = await textoConMotor(p.motor, prompt, p.modelo, idioma, p.region ?? "bolivia", p.modismos ?? true);
+  if (!crudo) throw new Error(`El motor ${p.motor} no devolvió contenido`);
+  const datos = extraerJSON(crudo) as Record<string, unknown>;
+  const plan = MiniserieSchema.parse({
+    ...datos,
+    categoria: categoria.id,
+    subcategoria: subcategoria.id,
+    hashtags: [...new Set([...(Array.isArray(datos.hashtags) ? datos.hashtags : []), ...categoria.hashtags])].slice(0, 8),
+  });
+  // Los modelos se saltan la numeración y el orden; se reordena aquí.
+  return {
+    ...plan,
+    capitulos: plan.capitulos
+      .slice(0, cuantos)
+      .map((c, i) => ({ ...c, numero: i + 1, cliffhanger: i === plan.capitulos.length - 1 ? "" : c.cliffhanger })),
+  };
+}
+
+/** El contexto que necesita el guion de un capítulo, sacado del plan. */
+export function contextoDeCapitulo(plan: Miniserie, numero: number): ContextoCapitulo {
+  const capitulo = plan.capitulos.find((c) => c.numero === numero) ?? plan.capitulos[0];
+  const anterior = plan.capitulos.find((c) => c.numero === capitulo.numero - 1);
+  return {
+    numero: capitulo.numero,
+    total: plan.capitulos.length,
+    tituloSerie: plan.titulo,
+    sinopsis: plan.sinopsis,
+    titulo: capitulo.titulo,
+    resumen: capitulo.resumen,
+    cliffhanger: capitulo.cliffhanger,
+    anterior: anterior ? anterior.cliffhanger || anterior.resumen : "",
+    personajes: plan.personajes,
+  };
+}
+
 /** Criterios de búsqueda de clips de una historia: los suyos y los de su categoría. */
 export function criteriosVisuales(guion: Pick<Guion, "keywords" | "categoria" | "premisa">): string[] {
   const cat = buscarCategoria(guion.categoria);
@@ -491,10 +631,12 @@ export type PeticionGuion = {
   subcategoria?: string | null;
   /** Planteamiento ya hecho (título, lineamientos, giro); si falta y hay categoría, se genera. */
   premisa?: Premisa | null;
+  /** Capítulo de una miniserie ya planeada; manda sobre el planteamiento suelto. */
+  capitulo?: ContextoCapitulo | null;
 };
 
 function construirPrompt(
-  { tipo, tema, duracion, ganchoFijo, narrado = true, continuaDe, evitar = [] }: PeticionGuion,
+  { tipo, tema, duracion, ganchoFijo, narrado = true, continuaDe, capitulo, evitar = [] }: PeticionGuion,
   plan?: { categoria: Categoria; subcategoria: Subcategoria; premisa: Premisa | null } | null,
 ) {
   // ~2,6 palabras por segundo de narración pausada; escenas de unos 8 s.
@@ -507,12 +649,31 @@ function construirPrompt(
   const ideas = plan?.categoria.area === "ideas";
 
   return [
-    continuaDe
-      ? `Escribe la PARTE ${continuaDe.parte + 1} de una historia por entregas para un vídeo vertical.`
-      : ideas
-        ? "Escribe el guion de un vídeo vertical de IDEAS para redes sociales: una idea grande explicada en poco tiempo, " +
-          "sin jerga y sin sonar a clase."
-        : `Escribe el guion de un vídeo vertical de ${tipo.toLowerCase()} para redes sociales.`,
+    capitulo
+      ? `Escribe el CAPÍTULO ${capitulo.numero} de ${capitulo.total} de la miniserie "${capitulo.tituloSerie}", para un vídeo vertical.`
+      : continuaDe
+        ? `Escribe la PARTE ${continuaDe.parte + 1} de una historia por entregas para un vídeo vertical.`
+        : ideas
+          ? "Escribe el guion de un vídeo vertical de IDEAS para redes sociales: una idea grande explicada en poco tiempo, " +
+            "sin jerga y sin sonar a clase."
+          : `Escribe el guion de un vídeo vertical de ${tipo.toLowerCase()} para redes sociales.`,
+    capitulo
+      ? [
+          `De qué va la miniserie: ${capitulo.sinopsis}`,
+          capitulo.personajes?.length ? `Personajes: ${capitulo.personajes.join("; ")}.` : "",
+          `Título de este capítulo: "${capitulo.titulo}". Úsalo tal cual.`,
+          `Lo que pasa en este capítulo: ${capitulo.resumen}`,
+          capitulo.numero > 1 && capitulo.anterior
+            ? `El capítulo anterior cortó así: ${capitulo.anterior}. Recuérdalo en UNA frase al principio y sigue desde ahí, sin repetir lo ya contado.`
+            : "Es el primer capítulo: presenta a quien haga falta y engancha desde la primera frase.",
+          capitulo.numero < capitulo.total
+            ? `Termina justo en este corte, sin resolverlo: ${capitulo.cliffhanger || "algo que obligue a ver el capítulo siguiente"}.`
+            : "Es el último capítulo: cierra la historia entera. Nada queda abierto y no se anuncia una continuación.",
+          "No cuentes lo que pasa en capítulos posteriores.",
+        ]
+          .filter(Boolean)
+          .join("\n")
+      : "",
     continuaDe
       ? `Lo que pasó hasta ahora: ${continuaDe.resumen}\nÚltima frase de la parte anterior: "${continuaDe.ultimaFrase}".\n` +
         "Continúa EXACTAMENTE desde ahí, sin repetir lo contado, y termina con un cierre que deje ganas de la siguiente parte."
@@ -580,8 +741,12 @@ function construirPrompt(
     '  "escenas": [',
     '    { "texto": "frase narrada", "keywords": ["palabra en inglés para buscar vídeo de stock", "otra"] }',
     "  ],",
+    '  "ganchos": ["gancho viral para la descripción", "otro distinto", "otro más"],',
     '  "hashtags": ["sinAlmohadilla", "otro"]',
     "}",
+    "Los ganchos NO se narran: son el texto con el que se publica el vídeo. Tres, de 90 caracteres como máximo, " +
+      "cada uno con un ángulo distinto (una pregunta que pica, un dato que descoloca, una promesa concreta). " +
+      "Sin emojis, sin hashtags dentro, sin pedir like ni seguir, sin 'mira hasta el final'.",
     "Las keywords deben estar en inglés, ser concretas y visuales (por ejemplo: 'rainy window', 'sunrise mountains').",
     plan
       ? `Las keywords de cada escena deben ir con el ambiente del género: ${[...new Set([...(plan.premisa?.keywords ?? []), ...plan.categoria.visual])].slice(0, 6).join(", ")}.`
@@ -603,7 +768,7 @@ export async function generarGuion(peticion: PeticionGuion): Promise<Guion> {
   // lineamientos y giro, y solo después se escribe. Una continuación hereda
   // el planteamiento de la parte anterior y no vuelve a plantear.
   let premisa = peticion.premisa ?? null;
-  if (!premisa && peticion.categoria && !peticion.continuaDe) {
+  if (!premisa && peticion.categoria && !peticion.continuaDe && !peticion.capitulo) {
     premisa = await generarPremisa({
       motor, modelo, categoria: peticion.categoria, subcategoria: peticion.subcategoria,
       tema: peticion.tema, duracion: peticion.duracion, idioma, region, modismos, evitar: peticion.evitar,
@@ -617,7 +782,8 @@ export async function generarGuion(peticion: PeticionGuion): Promise<Guion> {
   if (!crudo) throw new Error(`El motor ${motor} (${modelo}) no devolvio contenido`);
 
   const guion = GuionSchema.parse(extraerJSON(crudo));
-  if (premisa) guion.titulo = premisa.titulo;
+  if (peticion.capitulo) guion.titulo = peticion.capitulo.titulo;
+  else if (premisa) guion.titulo = premisa.titulo;
   return {
     ...guion,
     categoria: plan?.categoria.id ?? null,

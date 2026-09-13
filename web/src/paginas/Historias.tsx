@@ -206,6 +206,16 @@ export function Historias({ catalogo }: { catalogo?: Catalogo | null }) {
               )}
               {h.error && <pre>{h.error}</pre>}
               {h.descripcion && <pre>{h.descripcion}</pre>}
+              {(h.ganchos ?? []).length > 1 && (
+                <div className="pie">
+                  <span className="suave">Otros ganchos para la descripcion:</span>
+                  {(h.ganchos ?? []).slice(1).map((g) => (
+                    <button key={g} onClick={() => copiar(g, "Gancho")} title="Copiar este gancho">
+                      {g.length > 48 ? `${g.slice(0, 48)}...` : g}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {viendo === h.id && h.archivo && (
                 <video
