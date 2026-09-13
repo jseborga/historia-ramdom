@@ -265,6 +265,27 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
               onChange={(e) => setPremisa({ ...premisa, titulo: e.target.value })}
             />
           </div>
+          {(premisa.fuente !== undefined || premisa.idea !== undefined) &&
+            (premisa.fuente || premisa.idea) && (
+              <div className="campos" style={{ marginTop: 12 }}>
+                <div>
+                  <label htmlFor="premisaFuente">De dónde sale (obra, autor o corriente)</label>
+                  <input
+                    id="premisaFuente"
+                    value={premisa.fuente ?? ""}
+                    onChange={(e) => setPremisa({ ...premisa, fuente: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="premisaIdea">La idea, en una frase</label>
+                  <input
+                    id="premisaIdea"
+                    value={premisa.idea ?? ""}
+                    onChange={(e) => setPremisa({ ...premisa, idea: e.target.value })}
+                  />
+                </div>
+              </div>
+            )}
           <div style={{ marginTop: 12 }}>
             <label htmlFor="lineamientos">Lineamientos (uno por línea)</label>
             <textarea
@@ -277,7 +298,7 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
           </div>
           <div className="campos" style={{ marginTop: 12 }}>
             <div>
-              <label htmlFor="giro">Giro o remate final</label>
+              <label htmlFor="giro">{premisa.idea ? "Frase de cierre" : "Giro o remate final"}</label>
               <input id="giro" value={premisa.giro} onChange={(e) => setPremisa({ ...premisa, giro: e.target.value })} />
             </div>
             <div>

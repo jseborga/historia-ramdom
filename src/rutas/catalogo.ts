@@ -10,7 +10,7 @@ import {
   GENERO_VOZ_IA,
 } from "../servicios/voz.js";
 import { listarMusica } from "../almacen.js";
-import { catalogoCategorias, CATEGORIA_ALEATORIA } from "../servicios/categorias.js";
+import { catalogoCategorias, catalogoAreas, CATEGORIA_ALEATORIA } from "../servicios/categorias.js";
 import { PERFILES } from "../render/calidad.js";
 import { modelosVozGemini, modeloVozGemini } from "../servicios/voz.js";
 import { tiktokConfigurado } from "../servicios/tiktok.js";
@@ -84,6 +84,8 @@ export async function rutasCatalogo(app: FastifyInstance) {
       /** Categorías y subcategorías de historia; `aleatoria` sortea una cada vez. */
       categorias: catalogoCategorias(),
       categoriaAleatoria: CATEGORIA_ALEATORIA,
+      /** Las dos áreas (historias e ideas), cada una con su valor "al azar". */
+      areas: catalogoAreas(),
       /** Perfiles de compresión, con lo que cambia cada uno. */
       calidades: Object.values(PERFILES).map((c) => ({
         id: c.id,

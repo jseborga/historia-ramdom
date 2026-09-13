@@ -99,7 +99,10 @@ servidor.registerTool(
 const categoriaSchema = z
   .string()
   .max(40)
-  .describe('Id de categoría (ver listar_categorias), "aleatoria" para sortear una, o vacío para tema libre')
+  .describe(
+    'Id de categoría (ver listar_categorias), "aleatoria" para sortear una de cualquier área, ' +
+      '"aleatoria:ideas" o "aleatoria:ficcion" para sortear dentro de un área, o vacío para tema libre',
+  )
   .optional();
 const subcategoriaSchema = z.string().max(40).describe("Id de subcategoría; vacío = al azar dentro de la categoría").optional();
 
@@ -111,6 +114,8 @@ const premisaSchema = z
     lineamientos: z.array(z.string().max(200)).min(1).max(8),
     personajes: z.array(z.string().max(120)).max(5).optional(),
     giro: z.string().max(300).optional(),
+    fuente: z.string().max(200).optional(),
+    idea: z.string().max(400).optional(),
     keywords: z.array(z.string().max(40)).min(1).max(8),
     hashtags: z.array(z.string().max(40)).max(8).optional(),
   })
@@ -120,12 +125,17 @@ servidor.registerTool(
   "listar_categorias",
   {
     description:
-      "Categorías y subcategorías de historia (comedia, drama, terror, real, triunfo, engaño...) con su tono.",
+      "Categorías y subcategorías, en dos áreas: historias de ficción (comedia, drama, terror, real, triunfo, engaño...) " +
+      "e ideas (literatura clásica, premios Nobel, filosofía, política y poder, economía, negocios y estafas para reconocerlas).",
     inputSchema: {},
   },
   async () => {
-    const c = (await llamar("/api/catalogo")) as { categorias: unknown; categoriaAleatoria: string };
-    return texto({ categorias: c.categorias, aleatoria: c.categoriaAleatoria });
+    const c = (await llamar("/api/catalogo")) as {
+      categorias: unknown;
+      categoriaAleatoria: string;
+      areas?: unknown;
+    };
+    return texto({ categorias: c.categorias, areas: c.areas, aleatoria: c.categoriaAleatoria });
   },
 );
 
@@ -133,7 +143,7 @@ servidor.registerTool(
   "plantear_historia",
   {
     description:
-      "Antes de escribir: elige categoría y subcategoría (al azar si no se fijan) y genera título, lineamientos, giro y criterios de búsqueda de clips. El resultado se revisa y se pasa como `premisa` a escribir_guion o crear_historia.",
+      "Antes de escribir: elige categoría y subcategoría (al azar si no se fijan) y genera título, lineamientos, giro y criterios de búsqueda de clips. En el área de ideas devuelve además la fuente (obra, autor o corriente) y la idea central. El resultado se revisa y se pasa como `premisa` a escribir_guion o crear_historia.",
     inputSchema: {
       categoria: categoriaSchema,
       subcategoria: subcategoriaSchema,

@@ -20,6 +20,9 @@ Implementa la guía de `docs/guia-original.md`.
   se copian con un botón, sueltos o dentro de la descripción.
 - **Banco de historias.** Ideas pendientes que alimentan al programador, a mano
   o detectadas en Reddit.
+- **Dos áreas de contenido.** Historias de ficción por género, y **ideas**:
+  literatura clásica, premios Nobel, filosofía, política y poder, economía,
+  negocios y estafas contadas para reconocerlas.
 - **Ganchos con puntuación.** El gancho es una escena propia con su rótulo; las
   métricas lo califican y los que funcionan se vuelven a usar solos.
 - **Servidor MCP.** Claude puede consultar el banco, ver qué rinde y encargar
@@ -319,22 +322,63 @@ Solo después escribe el guion, obligado a respetar ese planteamiento. Así las
 historias no improvisan y los vídeos de fondo pegan con el género aunque la
 frase concreta no lo diga.
 
-Categorías: comedia, drama, terror, historia real, triunfo y superación, engaño
-y traición, misterio, romance, aventura, reflexión, ciencia y curiosidades y
-crimen; cada una con sus subcategorías (por ejemplo terror › casa embrujada,
-carretera de noche, leyenda urbana, tecnología, bosque, ritual). Están en
-`src/servicios/categorias.ts`, con el tono de cada género, palabras visuales en
-inglés para buscar clips y hashtags cortos. La lista llega al frontend en
-`GET /api/catalogo` (`categorias`).
+Las categorías van en **dos áreas**, porque no se escriben igual:
+
+**Historias** (ficción): comedia, drama, terror, historia real, triunfo y
+superación, engaño y traición, misterio, romance, aventura, reflexión, ciencia y
+curiosidades y crimen; cada una con sus subcategorías (por ejemplo terror › casa
+embrujada, carretera de noche, leyenda urbana, tecnología, bosque, ritual).
+
+**Ideas y pensamiento**: cortos de una idea grande, no de una trama inventada.
+
+| Categoría | De qué van | Líneas (subcategorías) |
+|---|---|---|
+| **Literatura clásica** | la idea que sostiene un libro, para quien no lo ha leído | clásicos universales, novela rusa, latinoamericana, tragedia griega y mito, distopías, poesía, personajes |
+| **Premios Nobel** | una idea o una vida premiada, y qué queda de ella | Nobel de Literatura, discursos de aceptación, Nobel latinoamericanos, Nobel de la Paz, Nobel de ciencia, los que dijeron que no |
+| **Filosofía** | una idea filosófica con un ejemplo de hoy | estoicismo, existencialismo, el absurdo, ética y dilemas, verdad y conocimiento, sospecha y crítica, pensamiento oriental, filosofía y tecnología |
+| **Política y poder** | cómo se consigue, se conserva y se pierde el poder | estrategia y Maquiavelo, propaganda, totalitarismo y libertad, democracia y sus grietas, revoluciones, caídas del poder, imperios |
+| **Economía** | precios, deudas, crisis e incentivos, sin jerga | burbujas y crisis, dinero e inflación, incentivos, desigualdad, trabajo y salarios, teoría de juegos, deuda |
+| **Negocios y estrategia** | una decisión de negocio y sus consecuencias | fracasos famosos, modelos de negocio, fundadores, competencia y monopolio, marketing y persuasión, precios, negocio pequeño |
+| **Trampas y estafas** | cómo funciona un engaño **para reconocerlo a tiempo** | pirámides y Ponzi, inversiones milagro, suplantación y phishing, estafa romántica, letra pequeña, ofertas de trabajo falsas, por qué caemos, trampas legales pero sucias |
+
+Un vídeo de ideas no se escribe como un cuento. El planteamiento pide además
+**de dónde sale la idea** (obra, autor, corriente o caso) y **cuál es**, en una
+frase; y el guion sigue una estructura fija: gancho, el problema con un ejemplo
+cotidiano, la idea y de quién es, la objeción más seria, qué cambia si te la
+tomas en serio y un cierre. Como mucho una cita textual breve y con su autor:
+el resto va parafraseado, porque los modelos inventan citas con demasiada
+facilidad.
+
+Cada categoría de ideas lleva sus **reglas**, que van al prompt tal cual y
+marcan el límite del género. Las de *Trampas y estafas* son las más estrictas a
+propósito: se cuenta desde quien lo sufre o desde quien lo destapa, nunca desde
+quien lo monta; está prohibido dar pasos, guiones o plantillas que sirvan para
+ejecutar el engaño; los nombres son inventados; y cada vídeo termina con la
+señal de alarma concreta y qué hacer. Es material para no caer, no un manual.
+En la misma línea, economía no da consejos de inversión, negocios no promete
+ingresos y política no habla de partidos ni gobiernos actuales.
+
+Para que el sorteo no saque siempre lo mismo, cada categoría de ideas tiene una
+lista de **fuentes** (de Epicteto a Byung-Chul Han, de la burbuja de los
+tulipanes a Kodak) y en cada planteamiento se barajan unas cuantas como punto de
+partida.
+
+Todo está en `src/servicios/categorias.ts`, con el tono de cada género, las
+reglas, las fuentes, palabras visuales en inglés para buscar clips y hashtags
+cortos. La lista llega al frontend en `GET /api/catalogo` (`categorias` y
+`areas`).
 
 Dónde se usa:
 
-- **Editor** (pestaña Crear): selector de categoría y subcategoría, botón
-  *Plantear al azar (título y lineamientos)* que muestra el planteamiento para
-  revisarlo o cambiarlo (título, lineamientos, giro, criterios de clips), y
-  después *Escribir guion con este planteamiento*. Sin categoría se escribe
-  directo, como antes.
-- **Series**: categoría fija, *al azar una distinta cada vez* o sin categoría.
+- **Editor** (pestaña Crear): selector de categoría y subcategoría agrupado por
+  área, con la pista de cada subcategoría debajo; botón *Plantear al azar
+  (título y lineamientos)* que muestra el planteamiento para revisarlo o
+  cambiarlo (título, lineamientos, giro, criterios de clips, y en ideas también
+  la fuente y la idea), y después *Escribir guion con este planteamiento*. Sin
+  categoría se escribe directo, como antes.
+- **Series**: categoría fija, *al azar una distinta cada vez* (de todo o solo
+  dentro de un área, con `aleatoria:ideas` o `aleatoria:ficcion`) o sin
+  categoría.
   Cada ejecución plantea y escribe; las partes siguientes de una historia
   heredan la categoría concreta de la primera y no vuelven a plantear.
 - **API**: `POST /api/premisa` devuelve el planteamiento; `POST /api/guion` y

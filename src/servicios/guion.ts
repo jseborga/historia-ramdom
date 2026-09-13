@@ -1,7 +1,13 @@
 import { z } from "zod";
 import { env } from "../env.js";
 import { leerJSON } from "../util/http.js";
-import { resolverCategoria, buscarCategoria, type Categoria, type Subcategoria } from "./categorias.js";
+import {
+  resolverCategoria,
+  buscarCategoria,
+  fuentesAlAzar,
+  type Categoria,
+  type Subcategoria,
+} from "./categorias.js";
 
 /**
  * Nombres de modelo por defecto. Los proveedores los renuevan a menudo, asi
@@ -343,6 +349,10 @@ export const PremisaSchema = z.object({
   personajes: z.array(z.string().min(1).max(120)).max(5).default([]),
   /** El giro o remate que se guarda para el final. */
   giro: z.string().max(300).default(""),
+  /** Solo en el área de ideas: la obra, el autor o la corriente de donde sale. */
+  fuente: z.string().max(200).default(""),
+  /** Solo en el área de ideas: la idea central, en una frase. */
+  idea: z.string().max(400).default(""),
   /** Criterios EN INGLÉS para buscar clips del ambiente general. */
   keywords: z.array(z.string().min(1).max(40)).min(1).max(8),
   hashtags: z.array(z.string().max(40)).max(8).default([]),
@@ -376,28 +386,67 @@ export async function generarPremisa(p: PeticionPremisa): Promise<Premisa> {
   const idioma = p.idioma ?? "es";
   const titulosPrevios = (p.evitar ?? []).filter(Boolean).slice(0, 20) as string[];
 
-  const prompt = [
-    "Antes de escribir un guion de vídeo vertical, PLANTEA la historia. No la escribas todavía.",
-    `Categoría: ${categoria.nombre}. Subcategoría: ${subcategoria.nombre} (${subcategoria.pista}).`,
-    `Tono del género: ${categoria.tono}`,
-    p.tema ? `Tema o punto de partida que hay que respetar: ${p.tema}.` : "Inventa una historia original y concreta, con un giro que no se vea venir.",
-    p.duracion ? `El vídeo durará unos ${p.duracion} segundos: la historia debe caber en ese tiempo.` : "",
-    "Nada de personas reales identificables ni de marcas; los personajes son inventados.",
-    titulosPrevios.length ? `Evita parecerse a estas historias ya hechas: ${titulosPrevios.join(" | ")}.` : "",
-    ORTOGRAFIA,
-    "",
-    "Devuelve exactamente este JSON:",
-    "{",
-    '  "titulo": "título corto y concreto, de 8 palabras como máximo",',
-    '  "lineamientos": ["regla 1 que la historia debe cumplir", "regla 2", "regla 3", "regla 4"],',
-    '  "personajes": ["nombre y un rasgo", "otro"],',
-    '  "giro": "el remate o giro que se guarda para el final, en una frase",',
-    '  "keywords": ["visual keyword in english", "another", "another"],',
-    '  "hashtags": ["sinAlmohadilla", "otro"]',
-    "}",
-    "Los lineamientos son de 3 a 6, cada uno una frase corta (dónde pasa, quién, qué está en juego, qué NO debe pasar).",
-    `Las keywords son de 3 a 6, EN INGLÉS, concretas y visuales, que describan el ambiente de toda la historia (por ejemplo: ${categoria.visual.slice(0, 3).map((v) => `'${v}'`).join(", ")}).`,
-  ]
+  const visuales = `Las keywords son de 3 a 6, EN INGLÉS, concretas y visuales, que describan el ambiente de todo el vídeo (por ejemplo: ${categoria.visual
+    .slice(0, 3)
+    .map((v) => `'${v}'`)
+    .join(", ")}).`;
+  const reglas = (categoria.reglas ?? []).map((r) => `- ${r}`);
+
+  // En el área de ideas no se inventa una trama: se elige de quién es la idea,
+  // cuál es y con qué ejemplo se baja a tierra.
+  const prompt = (
+    categoria.area === "ideas"
+      ? [
+          "Antes de escribir un guion de vídeo vertical de IDEAS, PLANTÉALO. No escribas el guion todavía.",
+          `Área: ideas y pensamiento. Categoría: ${categoria.nombre}. Línea: ${subcategoria.nombre} (${subcategoria.pista}).`,
+          `Tono: ${categoria.tono}`,
+          reglas.length ? ["Reglas de esta categoría, obligatorias:", ...reglas].join("\n") : "",
+          p.tema
+            ? `Tema o punto de partida que hay que respetar: ${p.tema}.`
+            : `Elige una idea concreta. Puedes partir de una de estas fuentes o de otra equivalente que conozcas bien: ${fuentesAlAzar(categoria).join(" | ")}.`,
+          p.duracion ? `El vídeo durará unos ${p.duracion} segundos: la idea tiene que caber ahí, con su ejemplo.` : "",
+          "No inventes obras, autores, citas ni datos. Si dudas de una cita, no la uses: explica la idea con tus palabras.",
+          titulosPrevios.length ? `Evita parecerse a estos vídeos ya hechos: ${titulosPrevios.join(" | ")}.` : "",
+          ORTOGRAFIA,
+          "",
+          "Devuelve exactamente este JSON:",
+          "{",
+          '  "titulo": "título corto y concreto, de 8 palabras como máximo",',
+          '  "fuente": "obra, autor, corriente o caso de donde sale la idea",',
+          '  "idea": "la idea central en una sola frase, con tus palabras",',
+          '  "lineamientos": ["regla 1 que el vídeo debe cumplir", "regla 2", "regla 3", "regla 4"],',
+          '  "giro": "la frase final que deja pensando, la que no se adelanta",',
+          '  "keywords": ["visual keyword in english", "another", "another"],',
+          '  "hashtags": ["sinAlmohadilla", "otro"]',
+          "}",
+          "Los lineamientos son de 3 a 6, frases cortas: qué problema cotidiano se plantea, qué ejemplo concreto se usa, " +
+            "qué objeción seria se reconoce y qué NO debe hacer el vídeo.",
+          visuales,
+        ]
+      : [
+          "Antes de escribir un guion de vídeo vertical, PLANTEA la historia. No la escribas todavía.",
+          `Categoría: ${categoria.nombre}. Subcategoría: ${subcategoria.nombre} (${subcategoria.pista}).`,
+          `Tono del género: ${categoria.tono}`,
+          reglas.length ? ["Reglas de esta categoría, obligatorias:", ...reglas].join("\n") : "",
+          p.tema ? `Tema o punto de partida que hay que respetar: ${p.tema}.` : "Inventa una historia original y concreta, con un giro que no se vea venir.",
+          p.duracion ? `El vídeo durará unos ${p.duracion} segundos: la historia debe caber en ese tiempo.` : "",
+          "Nada de personas reales identificables ni de marcas; los personajes son inventados.",
+          titulosPrevios.length ? `Evita parecerse a estas historias ya hechas: ${titulosPrevios.join(" | ")}.` : "",
+          ORTOGRAFIA,
+          "",
+          "Devuelve exactamente este JSON:",
+          "{",
+          '  "titulo": "título corto y concreto, de 8 palabras como máximo",',
+          '  "lineamientos": ["regla 1 que la historia debe cumplir", "regla 2", "regla 3", "regla 4"],',
+          '  "personajes": ["nombre y un rasgo", "otro"],',
+          '  "giro": "el remate o giro que se guarda para el final, en una frase",',
+          '  "keywords": ["visual keyword in english", "another", "another"],',
+          '  "hashtags": ["sinAlmohadilla", "otro"]',
+          "}",
+          "Los lineamientos son de 3 a 6, cada uno una frase corta (dónde pasa, quién, qué está en juego, qué NO debe pasar).",
+          visuales,
+        ]
+  )
     .filter(Boolean)
     .join("\n");
 
@@ -453,10 +502,17 @@ function construirPrompt(
   const escenas = Math.max(4, Math.min(45, Math.round(duracion / 8)));
   const titulosPrevios = evitar.filter(Boolean).slice(0, 20) as string[];
 
+  // Un vídeo de ideas no se escribe como un cuento: no hay trama que inventar,
+  // hay una idea de alguien que se explica, se ejemplifica y se discute.
+  const ideas = plan?.categoria.area === "ideas";
+
   return [
     continuaDe
       ? `Escribe la PARTE ${continuaDe.parte + 1} de una historia por entregas para un vídeo vertical.`
-      : `Escribe el guion de un vídeo vertical de ${tipo.toLowerCase()} para redes sociales.`,
+      : ideas
+        ? "Escribe el guion de un vídeo vertical de IDEAS para redes sociales: una idea grande explicada en poco tiempo, " +
+          "sin jerga y sin sonar a clase."
+        : `Escribe el guion de un vídeo vertical de ${tipo.toLowerCase()} para redes sociales.`,
     continuaDe
       ? `Lo que pasó hasta ahora: ${continuaDe.resumen}\nÚltima frase de la parte anterior: "${continuaDe.ultimaFrase}".\n` +
         "Continúa EXACTAMENTE desde ahí, sin repetir lo contado, y termina con un cierre que deje ganas de la siguiente parte."
@@ -464,13 +520,34 @@ function construirPrompt(
     plan
       ? `Categoría: ${plan.categoria.nombre} › ${plan.subcategoria.nombre} (${plan.subcategoria.pista}). Tono: ${plan.categoria.tono}`
       : "",
+    plan?.categoria.reglas?.length
+      ? ["Reglas de esta categoría, obligatorias:", ...plan.categoria.reglas.map((r) => `- ${r}`)].join("\n")
+      : "",
+    ideas
+      ? [
+          "Estructura del vídeo:",
+          "  1. Gancho: la pregunta incómoda o la afirmación que descoloca.",
+          "  2. El problema, con un ejemplo cotidiano y concreto (nada de abstracciones).",
+          "  3. La idea y de quién es: nómbralo con su obra o su corriente.",
+          "  4. La objeción o el contraejemplo más serio, reconocido sin trampa.",
+          "  5. Qué cambia si te la tomas en serio, en algo que pase mañana.",
+          "  6. Cierre memorable, sin moraleja de póster.",
+          "Como mucho UNA cita textual, breve, entre comillas y con su autor; el resto con tus palabras. No inventes citas.",
+        ].join("\n")
+      : "",
     plan?.premisa
       ? [
           `Título ya decidido: "${plan.premisa.titulo}". Úsalo tal cual.`,
-          "Lineamientos que la historia DEBE cumplir:",
+          ideas && plan.premisa.fuente ? `La idea sale de: ${plan.premisa.fuente}. Nómbralo en el vídeo.` : "",
+          ideas && plan.premisa.idea ? `Idea central que hay que sostener: ${plan.premisa.idea}` : "",
+          ideas ? "Lineamientos que el vídeo DEBE cumplir:" : "Lineamientos que la historia DEBE cumplir:",
           ...plan.premisa.lineamientos.map((l, i) => `  ${i + 1}. ${l}`),
-          plan.premisa.personajes.length ? `Personajes: ${plan.premisa.personajes.join("; ")}.` : "",
-          plan.premisa.giro ? `Giro o remate para el final (no lo adelantes): ${plan.premisa.giro}` : "",
+          !ideas && plan.premisa.personajes.length ? `Personajes: ${plan.premisa.personajes.join("; ")}.` : "",
+          plan.premisa.giro
+            ? ideas
+              ? `Frase de cierre hacia la que va todo (no la adelantes): ${plan.premisa.giro}`
+              : `Giro o remate para el final (no lo adelantes): ${plan.premisa.giro}`
+            : "",
         ].filter(Boolean).join("\n")
       : "",
     tema ? `Tema: ${tema}.` : continuaDe || plan ? "" : "Tema: elige uno libremente, que sea universal y emotivo.",
@@ -484,7 +561,9 @@ function construirPrompt(
     continuaDe
       ? "El gancho de esta parte debe recordar en una frase dónde quedó la historia y prometer lo que viene."
       : "El gancho va aparte y además encabeza el vídeo; las escenas continúan desde él.",
-    "La ultima escena debe cerrar con una idea memorable, sin pedir likes ni seguidores.",
+    ideas
+      ? "La última escena cierra con la idea que se queda; nada de pedir likes, seguidores ni 'comenta qué opinas'."
+      : "La ultima escena debe cerrar con una idea memorable, sin pedir likes ni seguidores.",
     narrado
       ? "No uses emojis, comillas tipográficas ni acotaciones de cámara dentro del texto narrado."
       : "El texto NO se narra: se lee en pantalla como subtítulo. Frases cortas, " +

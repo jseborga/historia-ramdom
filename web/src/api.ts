@@ -69,6 +69,7 @@ export type Catalogo = {
   calidades: { id: Calidad; nombre: string; nota: string; escala: number; fps: number | null }[];
   categorias: Categoria[];
   categoriaAleatoria: string;
+  areas?: Area[];
   limites: { clipMB: number; videoMB: number; videoclipSeg: number };
   retencionDias: number;
 };
@@ -307,9 +308,14 @@ export type Prueba = {
 export type Categoria = {
   id: string;
   nombre: string;
+  /** "ficcion" (historias) o "ideas" (libros, filosofía, poder, dinero...). */
+  area: string;
   tono: string;
-  subcategorias: { id: string; nombre: string }[];
+  subcategorias: { id: string; nombre: string; pista: string }[];
 };
+
+/** Las dos áreas de historia, con el valor que sortea dentro de cada una. */
+export type Area = { id: string; nombre: string; nota: string; aleatoria: string };
 
 /** Planteamiento previo: título y lineamientos antes de escribir la historia. */
 export type Premisa = {
@@ -319,6 +325,9 @@ export type Premisa = {
   lineamientos: string[];
   personajes: string[];
   giro: string;
+  /** Área de ideas: de dónde sale (obra, autor, corriente) y cuál es. */
+  fuente?: string;
+  idea?: string;
   keywords: string[];
   hashtags: string[];
   categoriaNombre?: string;

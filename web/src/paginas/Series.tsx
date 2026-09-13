@@ -258,7 +258,7 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
                 <strong>{s.nombre}</strong>
                 <span className="estado">{s.activa ? "activa" : "en pausa"}</span>
                 <span className="suave">
-                  {s.tipo}{s.categoria ? ` · ${s.categoria === (catalogo.categoriaAleatoria ?? "aleatoria") ? "categoría al azar" : nombreCategoria(catalogo, s.categoria, s.subcategoria)}` : ""} · {s.idioma}/{s.region}{s.modismos ? "" : " neutro"}{s.partes > 1 ? ` · ${s.partes} partes` : ""} · {s.salida === "MONTAJE" ? "montaje" : "video"} · {s.modoAudio} · {s.cron} ({s.zonaHoraria}) · {s.motor}
+                  {s.tipo}{s.categoria ? ` · ${nombreCategoria(catalogo, s.categoria, s.subcategoria)}` : ""} · {s.idioma}/{s.region}{s.modismos ? "" : " neutro"}{s.partes > 1 ? ` · ${s.partes} partes` : ""} · {s.salida === "MONTAJE" ? "montaje" : "video"} · {s.modoAudio} · {s.cron} ({s.zonaHoraria}) · {s.motor}
                   {s.modelo ? ` (${s.modelo})` : ""} · {s.duracion}s ·{" "}
                   {s._count?.historias ?? 0} historias
                 </span>

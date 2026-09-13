@@ -272,8 +272,10 @@ export function CampoSegundos({
 }
 
 /**
- * Categoría y subcategoría de la historia. "Al azar" sortea una distinta cada
- * vez; vacío deja el tema libre como siempre.
+ * Categoría y subcategoría de la historia, agrupadas por área: las historias
+ * de ficción de siempre y el área de ideas (libros, filosofía, poder, dinero y
+ * estafas). "Al azar" sortea una distinta cada vez —dentro del área si se
+ * elige la del área— y vacío deja el tema libre.
  */
 export function SelectorCategoria({
   catalogo,
@@ -287,7 +289,16 @@ export function SelectorCategoria({
   alCambiar: (categoria: string | null, subcategoria: string | null) => void;
 }) {
   const aleatoria = catalogo.categoriaAleatoria ?? "aleatoria";
-  const elegida = (catalogo.categorias ?? []).find((c) => c.id === categoria) ?? null;
+  const categorias = catalogo.categorias ?? [];
+  const areas = catalogo.areas ?? [];
+  const elegida = categorias.find((c) => c.id === categoria) ?? null;
+  const sub = elegida?.subcategorias.find((s) => s.id === subcategoria) ?? null;
+  // Sin áreas en el catálogo (servidor antiguo) se listan todas seguidas.
+  const grupos = areas.length
+    ? areas.map((a) => ({ ...a, categorias: categorias.filter((c) => c.area === a.id) }))
+    : [{ id: "", nombre: "", nota: "", aleatoria: "", categorias }];
+  const areaElegida = areas.find((a) => a.id === elegida?.area || a.aleatoria === categoria) ?? null;
+
   return (
     <>
       <div>
@@ -299,12 +310,26 @@ export function SelectorCategoria({
         >
           <option value="">Sin categoría (tema libre)</option>
           <option value={aleatoria}>Al azar, una distinta cada vez</option>
-          {(catalogo.categorias ?? []).map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nombre}
-            </option>
-          ))}
+          {grupos.map((g) =>
+            g.nombre ? (
+              <optgroup key={g.id} label={g.nombre}>
+                <option value={g.aleatoria}>Al azar dentro de {g.nombre.toLowerCase()}</option>
+                {g.categorias.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </optgroup>
+            ) : (
+              g.categorias.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre}
+                </option>
+              ))
+            ),
+          )}
         </select>
+        {areaElegida && <p className="suave">{areaElegida.nota}</p>}
       </div>
       {elegida && (
         <div>
@@ -321,16 +346,24 @@ export function SelectorCategoria({
               </option>
             ))}
           </select>
+          <p className="suave">{sub ? sub.pista : elegida.tono}</p>
         </div>
       )}
     </>
   );
 }
 
-/** Nombre legible de una categoría y su subcategoría, para listas y etiquetas. */
+/**
+ * Nombre legible de una categoría y su subcategoría, para listas y etiquetas.
+ * Entiende también los valores al azar: "aleatoria" y "aleatoria:ideas".
+ */
 export function nombreCategoria(catalogo: Catalogo | null | undefined, categoria: string | null, subcategoria: string | null) {
+  if (!categoria) return "";
+  if (categoria === (catalogo?.categoriaAleatoria ?? "aleatoria")) return "categoría al azar";
+  const area = catalogo?.areas?.find((a) => a.aleatoria === categoria);
+  if (area) return `al azar dentro de ${area.nombre.toLowerCase()}`;
   const c = catalogo?.categorias?.find((x) => x.id === categoria);
-  if (!c) return categoria ?? "";
+  if (!c) return categoria;
   const s = c.subcategorias.find((x) => x.id === subcategoria);
   return s ? `${c.nombre} › ${s.nombre}` : c.nombre;
 }
