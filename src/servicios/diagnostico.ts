@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { writeFile, unlink } from "node:fs/promises";
+import { writeFile, unlink, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { db } from "../db.js";
 import { env } from "../env.js";
@@ -8,7 +8,7 @@ import { rutaTrabajo } from "../almacen.js";
 import { MODELOS } from "./guion.js";
 import { redditConfigurado } from "./reddit.js";
 import { fuentesDisponibles } from "../render/fuentes.js";
-import { vocesLocalesDisponibles } from "./voz.js";
+import { vocesLocalesDisponibles, modelosVozGemini, modeloVozGemini, vozGemini } from "./voz.js";
 import { tiktokConfigurado } from "./tiktok.js";
 
 /**
@@ -49,10 +49,12 @@ async function medir(
   nombre: string,
   grupo: Prueba["grupo"],
   fn: () => Promise<string | typeof SIN_CONFIGURAR>,
+  /** Sintetizar voz tarda mas que listar modelos: algunas pruebas piden mas. */
+  limiteMs = LIMITE_MS,
 ): Promise<Prueba> {
   const inicio = Date.now();
   try {
-    const detalle = await conLimite(fn());
+    const detalle = await conLimite(fn(), limiteMs);
     return detalle === SIN_CONFIGURAR
       ? { id, nombre, grupo, estado: "sin_configurar", detalle: "Sin clave configurada", ms: 0 }
       : { id, nombre, grupo, estado: "ok", detalle, ms: Date.now() - inicio };
@@ -186,16 +188,26 @@ export async function diagnosticar(): Promise<Prueba[]> {
       return `${lista.length} voces · la mejor: ${mejor.nombre}`;
     }),
 
+    // No basta con que el modelo exista: se sintetiza una palabra de verdad,
+    // que es lo unico que demuestra que la voz va a funcionar al renderizar.
     medir("voz_gemini", "Voz de Google AI Studio", "Voz", async () => {
       if (!env.GEMINI_API_KEY) return SIN_CONFIGURAR;
-      const res = await pedir(
-        `https://generativelanguage.googleapis.com/v1beta/models/${env.GEMINI_MODELO_VOZ}`,
-        "Gemini TTS",
-        { headers: { "x-goog-api-key": env.GEMINI_API_KEY } },
-      );
-      await res.json();
-      return `${env.GEMINI_MODELO_VOZ} existe`;
-    }),
+      const disponibles = await modelosVozGemini(true);
+      if (!disponibles.length) {
+        throw new Error("La clave no tiene ningun modelo de voz (tts) disponible");
+      }
+      const elegido = await modeloVozGemini(env.GEMINI_MODELO_VOZ);
+      const prueba = join(rutaTrabajo(), `diagnostico-voz-${Date.now()}.wav`);
+      try {
+        await vozGemini("Hola.", prueba, elegido, env.GEMINI_VOZ);
+        const { size } = await stat(prueba);
+        if (size < 1000) throw new Error("El audio salio vacio");
+        const aviso = elegido === env.GEMINI_MODELO_VOZ ? "" : ` (GEMINI_MODELO_VOZ apunta a otro que no existe)`;
+        return `${elegido} sintetiza · ${(size / 1024).toFixed(0)} kB${aviso} · disponibles: ${disponibles.join(", ")}`;
+      } finally {
+        await unlink(prueba).catch(() => {});
+      }
+    }, 45_000),
 
     medir("voz_openai", "Voz de OpenAI", "Voz", async () => {
       if (!env.OPENAI_API_KEY) return SIN_CONFIGURAR;

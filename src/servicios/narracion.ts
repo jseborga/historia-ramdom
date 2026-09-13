@@ -13,18 +13,50 @@ const PAUSA = 0.28;
 
 export type Tramo = { texto: string; inicio: number; duracion: number };
 
-/** Con IA se agrupan frases hasta ~900 caracteres para no hacer cien llamadas. */
-function agrupar(frases: string[]): string[] {
-  const salida: string[] = [];
-  let actual = "";
+/** Un envio al sintetizador: su texto y las frases que lleva dentro. */
+type Trozo = { texto: string; frases: string[] };
+
+/**
+ * Con IA se agrupan frases hasta ~900 caracteres para no hacer cien llamadas,
+ * pero se recuerda QUE frases van en cada grupo: sin eso, todo el texto
+ * quedaria como un solo tramo y los rotulos perderian la sincronia.
+ */
+function agrupar(frases: string[]): Trozo[] {
+  const salida: Trozo[] = [];
+  let actual: Trozo | null = null;
   for (const f of frases) {
-    if ((actual + " " + f).length > MAX_TROZO && actual) {
-      salida.push(actual.trim());
-      actual = f;
-    } else actual = actual ? `${actual} ${f}` : f;
+    if (actual && (actual.texto + " " + f).length > MAX_TROZO) {
+      salida.push(actual);
+      actual = { texto: f, frases: [f] };
+    } else if (actual) {
+      actual = { texto: `${actual.texto} ${f}`, frases: [...actual.frases, f] };
+    } else {
+      actual = { texto: f, frases: [f] };
+    }
   }
-  if (actual.trim()) salida.push(actual.trim());
+  if (actual?.texto.trim()) salida.push(actual);
   return salida;
+}
+
+/**
+ * Reparte el tiempo medido de un envio entre sus frases, en proporcion a lo
+ * que cuesta leerlas. Con una frase por envio (voz local) es exacto; con
+ * varias es una aproximacion, pero mucho mejor que un unico rotulo enorme.
+ */
+function tramosDeTrozo(trozo: Trozo, inicio: number, duracion: number): Tramo[] {
+  const limpias = trozo.frases.map((f) => limpiarMarcas(f)).filter((f) => f);
+  if (limpias.length <= 1) {
+    return [{ texto: limpias[0] ?? limpiarMarcas(trozo.texto), inicio, duracion }];
+  }
+  const pesos = limpias.map((f) => Math.max(f.length, 1));
+  const total = pesos.reduce((a, b) => a + b, 0);
+  let t = inicio;
+  return limpias.map((texto, i) => {
+    const largo = (duracion * pesos[i]) / total;
+    const tramo = { texto, inicio: t, duracion: largo };
+    t += largo;
+    return tramo;
+  });
 }
 
 /**
@@ -40,13 +72,14 @@ export async function generarNarracion(proyectoId: string, voz: VozPista) {
   const config = voz.config ?? { proveedor: "local" as const, modelo: "espeak-ng", nombre: "es-419" };
   const trabajo = await crearCarpetaTrabajo(`voz-${proyectoId}`);
   const frases = fragmentar(voz.texto, "frases");
-  const trozos = config.proveedor === "local" ? frases : agrupar(frases);
+  const trozos: Trozo[] =
+    config.proveedor === "local" ? frases.map((f) => ({ texto: f, frases: [f] })) : agrupar(frases);
   const nombreFinal = "voz-servidor.wav";
 
   try {
     const generados: string[] = [];
     for (const [i, t] of trozos.entries()) {
-      const bruto = await generarVoz(config, t, trabajo, i);
+      const bruto = await generarVoz(config, t.texto, trabajo, i);
       if (config.proveedor === "local") {
         generados.push(join(trabajo, bruto));
       } else {
@@ -62,8 +95,8 @@ export async function generarNarracion(proyectoId: string, voz: VozPista) {
     try {
       // Sin ffmpeg: pegado en Node, con los inicios exactos de cada frase.
       const r = await concatenarWav(generados, join(dir, nombreFinal), PAUSA);
-      // Los rotulos no deben mostrar las marcas de tono: se quitan del texto del tramo.
-      tramos = trozos.map((texto, i) => ({ texto: limpiarMarcas(texto), inicio: r.inicios[i], duracion: r.duraciones[i] }));
+      // Los rotulos no deben mostrar las marcas de tono: se quitan del texto.
+      tramos = trozos.flatMap((t, i) => tramosDeTrozo(t, r.inicios[i], r.duraciones[i]));
       duracion = r.total;
     } catch {
       // Formatos distintos entre trozos (raro): lo pega ffmpeg y se miden aparte.
@@ -71,10 +104,10 @@ export async function generarNarracion(proyectoId: string, voz: VozPista) {
       await ffmpeg(["-f", "concat", "-safe", "0", "-i", "lista.txt", "-ar", "48000", "-ac", "2", join(dir, nombreFinal)], trabajo);
       const duraciones = await Promise.all(generados.map((g) => duracionAudio(g)));
       let t = 0;
-      tramos = trozos.map((texto, i) => {
-        const tr = { texto: limpiarMarcas(texto), inicio: t, duracion: duraciones[i] };
+      tramos = trozos.flatMap((trozo, i) => {
+        const partes = tramosDeTrozo(trozo, t, duraciones[i]);
         t += duraciones[i];
-        return tr;
+        return partes;
       });
       duracion = await duracionAudio(join(dir, nombreFinal));
     }

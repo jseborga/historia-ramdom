@@ -132,7 +132,80 @@ export const VOCES = {
   openai: ["coral", "alloy", "echo", "fable", "onyx", "nova", "shimmer", "sage"],
 } as const;
 
-const INSTRUCCION = "Voz calida, pausada y cercana, en espanol latinoamericano neutro.";
+const INSTRUCCION = "Narra en español latinoamericano neutro, con voz cálida, pausada y cercana";
+
+/**
+ * Las marcas entre corchetes ([pausa], [susurrando]...) no se pueden mandar
+ * dentro del texto: un modelo de voz las lee en alto o las ignora. Aqui se
+ * traducen a una indicacion de estilo que SI entiende, y el texto que se lee
+ * sale limpio.
+ */
+const TONOS: [RegExp, string][] = [
+  [/pausa|silencio/i, "marcando pausas donde el texto las pida"],
+  [/susurr/i, "en voz muy baja, casi un susurro"],
+  [/enfasis|énfasis|fuerte/i, "cargando el énfasis en las frases importantes"],
+  [/lent|despacio/i, "más despacio de lo normal"],
+  [/rapid|rápid|prisa/i, "algo más rápido de lo normal"],
+  [/alegre|content|divertid/i, "con tono alegre"],
+  [/serio|grave|solemn/i, "en tono serio"],
+  [/triste|melanc/i, "con tono melancólico"],
+  [/miedo|tens|suspens|misterio/i, "con tensión, como en una historia de suspenso"],
+  [/emocion|entusias|energ/i, "con entusiasmo"],
+  [/duda|pregunt/i, "con tono de duda"],
+];
+
+export function estiloDesdeMarcas(texto: string): { directiva: string; limpio: string } {
+  const marcas = [...texto.matchAll(/\[([^\]\n]{1,40})\]/g)].map((m) => m[1]);
+  const encontrados = new Set<string>();
+  for (const marca of marcas) {
+    for (const [patron, frase] of TONOS) if (patron.test(marca)) encontrados.add(frase);
+  }
+  return { directiva: [...encontrados].join(", "), limpio: limpiarMarcas(texto) };
+}
+
+/**
+ * Modelos de voz que de verdad tiene la clave configurada.
+ *
+ * Google renombra los modelos de sintesis cada pocos meses; si el del entorno
+ * ya no existe, la llamada devuelve 404 y el usuario solo ve "error al
+ * comunicarse". Preguntando a la API cuales hay, la app se arregla sola y,
+ * cuando no puede, dice exactamente que modelos existen.
+ */
+let cacheModelosVoz: { hasta: number; lista: string[] } | null = null;
+
+export async function modelosVozGemini(forzar = false): Promise<string[]> {
+  if (!env.GEMINI_API_KEY) return [];
+  if (!forzar && cacheModelosVoz && cacheModelosVoz.hasta > Date.now()) return cacheModelosVoz.lista;
+
+  const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", {
+    headers: { "x-goog-api-key": env.GEMINI_API_KEY },
+    signal: AbortSignal.timeout(30_000),
+  });
+  const data = await leerJSON(res);
+  if (!res.ok) throw new Error(`Gemini ${res.status}: ${data?.error?.message ?? "no se pudo listar los modelos"}`);
+
+  const lista: string[] = (data.models ?? [])
+    .map((m: { name?: string; supportedGenerationMethods?: string[] }) => ({
+      nombre: String(m.name ?? "").replace(/^models\//, ""),
+      metodos: m.supportedGenerationMethods ?? [],
+    }))
+    .filter((m: { nombre: string; metodos: string[] }) => /tts/i.test(m.nombre) && m.metodos.includes("generateContent"))
+    .map((m: { nombre: string }) => m.nombre);
+
+  cacheModelosVoz = { hasta: Date.now() + 10 * 60_000, lista };
+  return lista;
+}
+
+/** El modelo de voz a usar: el pedido si existe, y si no el mejor disponible. */
+export async function modeloVozGemini(preferido?: string | null, forzar = false): Promise<string> {
+  const pedido = (preferido ?? env.GEMINI_MODELO_VOZ).trim() || env.GEMINI_MODELO_VOZ;
+  const lista = await modelosVozGemini(forzar).catch(() => [] as string[]);
+  if (lista.includes(pedido)) return pedido;
+  // Sin lista (sin permiso para listar, o sin red) se prueba con el pedido.
+  if (!lista.length) return pedido;
+  // Los "flash" son los baratos y rápidos; es lo que quiere casi todo el mundo.
+  return lista.find((n) => /flash/i.test(n)) ?? lista[0];
+}
 
 function pcmAWav(pcm: Buffer, rate = 24000): Buffer {
   const cab = Buffer.alloc(44);
@@ -211,37 +284,83 @@ export function vozLocal(
   });
 }
 
+/** Una llamada de sintesis; devuelve el WAV ya escrito o lanza el error de la API. */
+async function pedirVozGemini(modelo: string, voz: string, texto: string, destino: string) {
+  // El estilo va delante como indicacion, igual que en los ejemplos de Google
+  // ("Say cheerfully: ..."), y el texto que se lee va limpio de corchetes.
+  const { directiva, limpio } = estiloDesdeMarcas(texto);
+  const instruccion = `${INSTRUCCION}${directiva ? `, ${directiva}` : ""}`;
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY! },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: `${instruccion}:\n${limpio}` }] }],
+        generationConfig: {
+          responseModalities: ["AUDIO"],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voz } } },
+        },
+      }),
+      signal: AbortSignal.timeout(120_000),
+    },
+  );
+  const data = await leerJSON(res);
+  if (!res.ok) {
+    const detalle = data?.error?.message ?? "";
+    const err = new Error(`Gemini TTS ${res.status}: ${detalle}`);
+    // Marca los fallos de "ese modelo no existe" para poder reintentar con otro.
+    (err as { modeloMal?: boolean }).modeloMal =
+      res.status === 404 || /not found|is not supported|no compatible/i.test(detalle);
+    throw err;
+  }
+
+  const candidato = data.candidates?.[0];
+  const parte = candidato?.content?.parts?.find((p: { inlineData?: { data?: string } }) => p.inlineData?.data);
+  if (!parte) {
+    const motivo = candidato?.finishReason ?? data?.promptFeedback?.blockReason ?? "sin detalle";
+    throw new Error(
+      `Gemini TTS no devolvio audio (${motivo}). ` +
+        "Suele pasar si el modelo elegido no es de voz o si el texto se bloqueo por contenido.",
+    );
+  }
+  const rate = Number(parte.inlineData.mimeType?.match(/rate=(\d+)/)?.[1]) || 24000;
+  await writeFile(destino, pcmAWav(Buffer.from(parte.inlineData.data, "base64"), rate));
+}
+
 export async function vozGemini(
   texto: string,
   destino: string,
-  modelo = VOZ_POR_DEFECTO.modelo,
-  voz = VOZ_POR_DEFECTO.nombre,
+  modelo = VOZ_GEMINI_POR_DEFECTO.modelo,
+  voz = VOZ_GEMINI_POR_DEFECTO.nombre,
 ) {
   if (!env.GEMINI_API_KEY) throw new Error("Falta GEMINI_API_KEY");
+  if (!VOCES.gemini.includes(voz as (typeof VOCES.gemini)[number])) {
+    // Una voz local colada en una configuracion de Gemini: se usa la de serie.
+    voz = VOZ_GEMINI_POR_DEFECTO.nombre;
+  }
+
   await conReintentos(async () => {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY! },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `${INSTRUCCION} Las indicaciones entre corchetes son de tono y no se leen. Narra: ${texto}` }] }],
-          generationConfig: {
-            responseModalities: ["AUDIO"],
-            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voz } } },
-          },
-        }),
-        signal: AbortSignal.timeout(120_000),
-      },
-    );
-    const data = await leerJSON(res);
-    if (!res.ok) throw new Error(`Gemini TTS ${res.status}: ${data?.error?.message ?? ""}`);
-    const parte = data.candidates?.[0]?.content?.parts?.find(
-      (p: { inlineData?: { data?: string } }) => p.inlineData?.data,
-    );
-    if (!parte) throw new Error("Gemini TTS no devolvio audio");
-    const rate = Number(parte.inlineData.mimeType?.match(/rate=(\d+)/)?.[1]) || 24000;
-    await writeFile(destino, pcmAWav(Buffer.from(parte.inlineData.data, "base64"), rate));
+    const elegido = await modeloVozGemini(modelo);
+    try {
+      await pedirVozGemini(elegido, voz, texto, destino);
+    } catch (err) {
+      if (!(err as { modeloMal?: boolean }).modeloMal) throw err;
+
+      // El modelo no vale: se vuelve a preguntar a la API y se prueba con otro.
+      const disponibles = await modelosVozGemini(true).catch(() => [] as string[]);
+      const alternativo = disponibles.find((n) => n !== elegido);
+      if (!alternativo) {
+        throw new Error(
+          `El modelo de voz "${elegido}" no existe para tu clave de Gemini. ` +
+            (disponibles.length
+              ? `Los que tienes son: ${disponibles.join(", ")}. Ponlo en GEMINI_MODELO_VOZ.`
+              : "Tu clave no tiene ningun modelo de voz (tts) disponible: revisa el proyecto de Google AI Studio."),
+        );
+      }
+      await pedirVozGemini(alternativo, voz, texto, destino);
+    }
   });
 }
 
@@ -277,13 +396,45 @@ export async function vozOpenAI(
  * Genera el audio de una escena dentro de `dir` y devuelve el nombre del archivo.
  * ffmpeg lee ambos formatos, asi que la extension cambia con el proveedor.
  */
+/**
+ * Arregla configuraciones incoherentes antes de llamar a nadie: un proyecto
+ * guardado con proveedor "gemini" y el modelo de la voz local pedia
+ * `models/espeak-ng:generateContent`, que solo puede devolver un 404.
+ */
+export function normalizarVoz(config: unknown): VozConfig {
+  const leido = VozSchema.safeParse(config);
+  // Una configuracion rota (de un proyecto viejo o de una edicion a mano) no
+  // debe tumbar el render con un volcado de validacion: se toma el proveedor
+  // si se entiende y el resto se rellena con lo de serie.
+  const voz: VozConfig = leido.success
+    ? leido.data
+    : (() => {
+        const p = (config as { proveedor?: string } | null)?.proveedor;
+        if (p === "gemini") return { ...VOZ_GEMINI_POR_DEFECTO };
+        if (p === "openai") return { ...VOZ_OPENAI_POR_DEFECTO };
+        return { ...VOZ_POR_DEFECTO };
+      })();
+
+  if (voz.proveedor === "local") return voz;
+
+  const porDefecto = voz.proveedor === "gemini" ? VOZ_GEMINI_POR_DEFECTO : VOZ_OPENAI_POR_DEFECTO;
+  const nombres: readonly string[] = VOCES[voz.proveedor];
+  // El modelo de una voz local (o vacio) no sirve para un proveedor de IA.
+  const modeloLocal = VOCES_LOCALES.some((v) => v.id === voz.modelo) || voz.modelo === "espeak-ng" || voz.modelo === "local";
+  return {
+    proveedor: voz.proveedor,
+    modelo: modeloLocal || !voz.modelo.trim() ? porDefecto.modelo : voz.modelo,
+    nombre: nombres.includes(voz.nombre) ? voz.nombre : porDefecto.nombre,
+  };
+}
+
 export async function generarVoz(
   config: unknown,
   texto: string,
   dir: string,
   indice: number,
 ): Promise<string> {
-  const voz = VozSchema.parse(config);
+  const voz = normalizarVoz(config);
   const nombre = voz.proveedor === "openai" ? `voz${indice}.mp3` : `voz${indice}.wav`;
   const destino = join(dir, nombre);
 

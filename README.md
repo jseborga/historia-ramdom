@@ -161,6 +161,21 @@ es, en este orden:
 
 El cifrado `enc:` es una capa extra barata, no un sustituto de los puntos 1 a 4.
 
+### Si la voz de Gemini falla
+
+Google renombra los modelos de síntesis cada pocos meses. La app pregunta a la
+API cuáles tiene tu clave y usa el que haya: si `GEMINI_MODELO_VOZ` apunta a uno
+que ya no existe, lo detecta y sigue con otro en vez de fallar. Cuando no hay
+ninguno, el mensaje dice qué modelos tienes disponibles.
+
+El selector de voz del editor lista esos modelos en lugar de pedirte el nombre a
+mano, y la comprobación de Ajustes **sintetiza una palabra de verdad** en lugar
+de limitarse a comprobar que el modelo existe.
+
+Las marcas de tono (`[pausa]`, `[susurrando]`, `[con énfasis]`…) no se leen en
+alto: con Gemini se convierten en una indicación de estilo delante del texto, y
+con las demás voces se quitan.
+
 ## Comprobaciones
 
 ```bash
@@ -249,7 +264,7 @@ configuran en el entorno y se pueden afinar sin tocar el código:
 | Variable | Para qué |
 |---|---|
 | `GEMINI_MODELO` | Historias con Google AI Studio |
-| `GEMINI_MODELO_VOZ` / `GEMINI_VOZ` | Voz con Google AI Studio |
+| `GEMINI_MODELO_VOZ` / `GEMINI_VOZ` | Voz con Google AI Studio (el modelo es una preferencia: si tu clave no lo tiene, se usa el que sí) |
 | `ANTHROPIC_MODELO`, `OPENAI_MODELO`, `GROQ_MODELO` | Historias con los otros motores |
 | `OPENAI_MODELO_VOZ` / `OPENAI_VOZ` | Voz con OpenAI |
 

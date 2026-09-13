@@ -120,10 +120,40 @@ En la pestaña Voz, tres botones:
 - **Redactar narración (texto plano):** la IA reescribe el guion como prosa
   corrida, bien puntuada, con ¡! y ¿? donde toca, sin marcas.
 - **Redactar expresiva (marcas para Gemini):** lo mismo, con indicaciones de
-  tono breves entre corchetes —`[pausa]`, `[susurrando]`, `[con énfasis]`—
-  que **Gemini TTS interpreta** y que las voces locales y OpenAI **ignoran**
-  (se quitan antes de leer, y no aparecen en los rótulos).
+  tono breves entre corchetes: `[pausa]`, `[susurrando]`, `[con énfasis]`,
+  `[más lento]`, `[alegre]`, `[serio]`…
 - **Cargar el guion tal cual:** sin pasar por la IA.
+
+Las marcas **nunca se leen en alto**. Con Gemini se traducen a una indicación
+de tono que va delante del texto («narra en voz muy baja, casi un susurro,
+marcando pausas…: …»), que es como esos modelos aceptan el estilo; el texto que
+se sintetiza va limpio. Con las voces locales y con OpenAI simplemente se
+quitan. Tampoco aparecen en los rótulos.
+
+### El modelo de voz de Gemini se detecta solo
+
+Google renombra sus modelos de síntesis cada pocos meses, y un nombre viejo
+solo devuelve 404 al generar. La app pregunta a la API qué modelos de voz tiene
+la clave (`GET /api/voz/modelos`), usa el de `GEMINI_MODELO_VOZ` si existe y, si
+no, el mejor disponible. Si un modelo falla con 404 a mitad de trabajo, vuelve
+a preguntar y reintenta con otro; cuando no hay ninguno, el error dice
+exactamente qué modelos tiene la clave.
+
+El selector de voz del editor muestra esa lista en vez de un campo de texto, y
+una configuración incoherente (proveedor Gemini con el modelo de la voz local,
+por ejemplo) se corrige sola antes de llamar a nadie.
+
+La comprobación de Ajustes no se conforma con que el modelo exista: **sintetiza
+una palabra de verdad** y mide el archivo, que es lo único que demuestra que la
+voz va a funcionar al renderizar.
+
+### Sincronía de los rótulos con voces de IA
+
+Con la voz local se sintetiza frase a frase, así que cada rótulo cae exactamente
+donde suena. Con Gemini y OpenAI las frases se agrupan (hasta ~900 caracteres)
+para no hacer cien llamadas; el tiempo medido de cada envío se reparte entre sus
+frases en proporción a lo que cuesta leerlas, de modo que sigue habiendo **un
+rótulo por frase** en vez de uno enorme para todo el bloque.
 
 ## Cómo funciona
 

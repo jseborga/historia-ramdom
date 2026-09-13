@@ -563,7 +563,8 @@ export function EditorMontaje({
                   </div>
                   <p className="suave">
                     Se genera frase a frase y se mide cada una: los textos pueden caer exactamente donde se leen.
-                    Las marcas entre corchetes ([pausa], [susurrando]) solo las interpreta Gemini; las voces locales las ignoran.
+                    Las marcas entre corchetes ([pausa], [susurrando], [con enfasis]) nunca se leen en alto: con Gemini se
+                    convierten en una indicacion de tono para la voz, y con las voces locales simplemente se quitan.
                     {voz.tramos.length ? ` ${voz.tramos.length} frases medidas.` : ""}
                   </p>
                 </>

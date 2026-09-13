@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, type Catalogo, type Genero, type ModoAudio, type ModoPublicacion, type Region, type Voz } from "../api";
 import { mensajeDe } from "../App";
 
@@ -76,6 +76,9 @@ export function SelectorRegion({
   );
 }
 
+/** Lo que de verdad tiene la clave de Gemini, preguntado a su API. */
+type ModelosVoz = { gemini: string[]; elegido: string | null; configurado: string; error?: string };
+
 export function SelectorVoz({
   catalogo,
   valor,
@@ -86,6 +89,30 @@ export function SelectorVoz({
   alCambiar: (v: Voz) => void;
 }) {
   const [genero, setGenero] = useState<Genero | "todas">("todas");
+  const [modelos, setModelos] = useState<ModelosVoz | null>(null);
+
+  // Google renombra los modelos de voz cada pocos meses: en vez de escribir el
+  // nombre a mano, se listan los que tiene la clave. Solo se pregunta cuando
+  // se elige Gemini, para no gastar llamadas de mas.
+  useEffect(() => {
+    if (valor.proveedor !== "gemini" || modelos) return;
+    let vivo = true;
+    api
+      .get<ModelosVoz>("/api/voz/modelos")
+      .then((r) => {
+        if (!vivo) return;
+        setModelos(r);
+        // Si el modelo guardado ya no existe, se cambia al que la API sí tiene.
+        if (r.gemini.length && !r.gemini.includes(valor.modelo) && r.elegido) {
+          alCambiar({ ...valor, modelo: r.elegido });
+        }
+      })
+      .catch(() => vivo && setModelos({ gemini: [], elegido: null, configurado: valor.modelo, error: "No se pudo consultar" }));
+    return () => {
+      vivo = false;
+    };
+  }, [valor.proveedor]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const nombres = (catalogo.voces[valor.proveedor] ?? []).filter(
     (n) => genero === "todas" || (catalogo.generosIA?.[n] ?? "desconocido") === genero,
   );
@@ -136,15 +163,39 @@ export function SelectorVoz({
           <option value="openai">OpenAI</option>
         </select>
       </div>
-      {valor.proveedor !== "local" && (
+      {valor.proveedor === "gemini" && modelos && modelos.gemini.length > 0 ? (
         <div>
-          <label htmlFor="modeloVoz">Modelo de voz</label>
-          <input
+          <label htmlFor="modeloVoz">Modelo de voz (los que tiene tu clave)</label>
+          <select
             id="modeloVoz"
-            value={valor.modelo}
+            value={modelos.gemini.includes(valor.modelo) ? valor.modelo : (modelos.elegido ?? "")}
             onChange={(e) => alCambiar({ ...valor, modelo: e.target.value })}
-          />
+          >
+            {modelos.gemini.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
         </div>
+      ) : (
+        valor.proveedor !== "local" && (
+          <div>
+            <label htmlFor="modeloVoz">Modelo de voz</label>
+            <input
+              id="modeloVoz"
+              value={valor.modelo}
+              onChange={(e) => alCambiar({ ...valor, modelo: e.target.value })}
+            />
+            {valor.proveedor === "gemini" && modelos && (
+              <p className="suave">
+                {modelos.error
+                  ? `No se pudo consultar los modelos de Gemini: ${modelos.error}`
+                  : "Tu clave de Gemini no tiene ningun modelo de voz (tts) disponible."}
+              </p>
+            )}
+          </div>
+        )
       )}
       <div>
         <label htmlFor="nombreVoz">Voz</label>
