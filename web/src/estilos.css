@@ -85,6 +85,10 @@ textarea { min-height: 80px; resize: vertical; }
    ocupan todo el ancho, asi que una casilla suelta sale descolocada. */
 .casilla { display: inline-flex; align-items: center; gap: 6px; margin: 0; white-space: nowrap; }
 .casilla input { width: auto; margin: 0; }
+/* El selector de color con ancho completo se ve como una raya: necesita alto. */
+input.color { height: 36px; padding: 2px; cursor: pointer; }
+/* Lo elegido para componer, marcado en la rejilla. */
+.miniatura.elegida { outline: 2px solid var(--acento); outline-offset: 2px; }
 .pie { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
 
 .aviso { border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-bottom: 12px; }

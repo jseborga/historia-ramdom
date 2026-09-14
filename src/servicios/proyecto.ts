@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
-import { creditosLargos, armarDescripcion, BANCOS, MEDIOS } from "./clips.js";
+import { creditosLargos, armarDescripcion, FUENTES, MEDIOS } from "./clips.js";
 import { VozSchema, VOZ_POR_DEFECTO } from "./voz.js";
 import { ESTILO_POR_DEFECTO, fragmentar, type EstiloTexto, type Lectura } from "../render/rotulos.js";
 import { PRESETS, PRESET_POR_DEFECTO, EFECTOS, movimientoPorIndice, type Efecto } from "../render/presets.js";
@@ -46,14 +46,29 @@ export const ClipSchema = z.object({
   // Los ids de la NASA son el nombre de la ficha ("nasa-Mars 2020 Perseverance
   // - Surface Update..."), así que no caben en 60 caracteres.
   id: z.string().max(200),
-  fuente: z.enum(BANCOS),
+  fuente: z.enum(FUENTES),
   /** "imagen" = foto: en el render se anima para que parezca vídeo. */
   tipo: z.enum(MEDIOS).default("video"),
   autor: z.string().max(120),
   pagina: z.string().max(400),
   licencia: z.string().max(80),
-  url: z.string().url().max(600),
-  imagen: z.string().url().max(600).optional(),
+  /**
+   * De dónde se saca. Los bancos dan una URL https; la biblioteca propia da
+   * la ruta de la app, que solo sirve para verlo en el editor (el render usa
+   * `archivo`).
+   */
+  url: z
+    .string()
+    .max(600)
+    .refine((v) => /^https:\/\//.test(v) || /^\/api\/medios\/[\w-]+\/ver$/.test(v), "Enlace no admitido"),
+  /** Nombre en la biblioteca de medios; si está, el render no descarga nada. */
+  archivo: z.string().max(200).optional(),
+  /** Muestra para el editor: enlace del banco o miniatura de la biblioteca. */
+  imagen: z
+    .string()
+    .max(600)
+    .refine((v) => /^https:\/\//.test(v) || /^\/api\/medios\/[\w-]+\/miniatura$/.test(v), "Enlace no admitido")
+    .optional(),
   /**
    * Duracion real del archivo en origen. Se guarda con el clip porque es el
    * tope de lo que se puede estirar en la linea de tiempo: sin ella, al
@@ -85,11 +100,36 @@ export const RotuloPistaSchema = z.object({
   lectura: z.enum(["todo", "frases", "bloques"]).default("frases"),
 });
 
-/** La narracion: un solo texto, una sola voz, colocada en `inicio`. */
+/** Quién habla en un diálogo: su nombre, su voz y el color de su rótulo. */
+export const HablanteSchema = z.object({
+  nombre: z.string().min(1).max(40),
+  /** Qué papel tiene en la conversación; solo para el prompt. */
+  papel: z.string().max(120).default(""),
+  config: VozSchema,
+  color: hex.default("#FFE500"),
+});
+
+export type Hablante = z.infer<typeof HablanteSchema>;
+
+/** Una intervención del diálogo: quién habla (índice) y qué dice. */
+export const IntervencionSchema = z.object({
+  hablante: z.number().int().min(0).max(2),
+  texto: z.string().min(1).max(1200),
+});
+
+/**
+ * La narracion: un texto leído por una voz, o un DIÁLOGO entre dos o tres, en
+ * cuyo caso cada intervención se sintetiza con la voz de quien habla y se
+ * pegan en orden.
+ */
 export const VozPistaSchema = z.object({
-  modo: z.enum(["ninguna", "servidor", "archivo"]).default("servidor"),
+  modo: z.enum(["ninguna", "servidor", "archivo", "dialogo"]).default("servidor"),
   texto: z.string().max(20_000).default(""),
   config: VozSchema.nullable().default(VOZ_POR_DEFECTO),
+  /** Solo en modo diálogo: quiénes hablan y con qué voz. */
+  hablantes: z.array(HablanteSchema).max(3).default([]),
+  /** Solo en modo diálogo: la conversación, en orden. */
+  dialogo: z.array(IntervencionSchema).max(120).default([]),
   /** Archivo dentro de la carpeta del proyecto: generado o subido. */
   archivo: z.string().max(200).nullable().default(null),
   duracion: z.number().min(0).nullable().default(null),
@@ -98,7 +138,15 @@ export const VozPistaSchema = z.object({
   huella: z.string().max(64).nullable().default(null),
   /** Frase a frase, con el tiempo REAL que ocupa cada una en el audio. */
   tramos: z
-    .array(z.object({ texto: z.string(), inicio: z.number(), duracion: z.number() }))
+    .array(
+      z.object({
+        texto: z.string(),
+        inicio: z.number(),
+        duracion: z.number(),
+        /** En un diálogo, quién dice esa frase. */
+        hablante: z.number().int().min(0).max(2).optional(),
+      }),
+    )
     .default([]),
 });
 
@@ -165,8 +213,21 @@ export const duracionProyecto = (p: Pick<ProyectoDatos, "video" | "textos" | "vo
   Math.max(duracionVideo(p.video), finVoz(p.voz), finTextos(p.textos));
 
 /** Identifica el par texto+voz con el que se genero la narracion. */
-export const huellaVoz = (voz: Pick<VozPista, "texto" | "config">) =>
-  createHash("sha1").update(JSON.stringify([voz.texto.trim(), voz.config])).digest("hex");
+/**
+ * Con qué texto y qué voz se generó la narración. En un diálogo entran también
+ * los hablantes y la conversación entera: cambiar una réplica o una voz tiene
+ * que obligar a regenerar.
+ */
+export const huellaVoz = (voz: Pick<VozPista, "texto" | "config"> & Partial<Pick<VozPista, "modo" | "hablantes" | "dialogo">>) =>
+  createHash("sha1")
+    .update(
+      JSON.stringify(
+        voz.modo === "dialogo"
+          ? ["dialogo", voz.hablantes ?? [], voz.dialogo ?? []]
+          : [voz.texto.trim(), voz.config],
+      ),
+    )
+    .digest("hex");
 
 // ---- Construccion ----
 
@@ -220,16 +281,20 @@ export function textosDesdeNarracion(
   base: Partial<RotuloPista> = {},
 ): RotuloPista[] {
   if (voz.modo !== "ninguna" && voz.tramos.length) {
-    return voz.tramos.map((t) =>
-      RotuloPistaSchema.parse({
+    return voz.tramos.map((t) => {
+      // En un diálogo, el rótulo dice quién habla y toma su color: sin eso,
+      // dos voces seguidas se leen como un monólogo.
+      const quien = t.hablante !== undefined ? voz.hablantes[t.hablante] : null;
+      return RotuloPistaSchema.parse({
         ...base,
         id: randomUUID(),
         inicio: voz.inicio + t.inicio,
         duracion: Math.max(t.duracion, 0.2),
-        texto: t.texto,
+        texto: quien ? `${quien.nombre}: ${t.texto}` : t.texto,
+        ...(quien ? { estilo: { ...(base.estilo ?? {}), color: quien.color } } : {}),
         lectura: lectura === "bloques" ? "bloques" : "todo",
-      }),
-    );
+      });
+    });
   }
   const frases = fragmentar(voz.texto, lectura === "todo" ? "frases" : lectura);
   const largo = voz.duracion && voz.modo !== "ninguna" ? voz.duracion : duracionSiNoHay;

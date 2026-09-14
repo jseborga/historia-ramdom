@@ -1,10 +1,14 @@
 import { mkdir, rm, rename, copyFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { env, DIR_VIDEOS, DIR_TRABAJO, DIR_MUSICA, DIR_PROYECTOS } from "./env.js";
+import { env, DIR_VIDEOS, DIR_TRABAJO, DIR_MUSICA, DIR_PROYECTOS, DIR_MEDIOS } from "./env.js";
 
 export const rutaVideos = () => join(env.DATA_DIR, DIR_VIDEOS);
 export const rutaTrabajo = () => join(env.DATA_DIR, DIR_TRABAJO);
 export const rutaMusica = () => join(env.DATA_DIR, DIR_MUSICA);
+/** Biblioteca de video y foto. */
+export const rutaMedios = () => join(env.DATA_DIR, DIR_MEDIOS);
+/** Miniaturas de la biblioteca, para que la rejilla no baje los originales. */
+export const rutaMiniaturas = () => join(rutaMedios(), "miniaturas");
 /** Archivos subidos de cada proyecto: voz y musica propias. */
 export const rutaProyecto = (id: string) => join(env.DATA_DIR, DIR_PROYECTOS, id);
 
@@ -15,6 +19,7 @@ export async function prepararCarpetas() {
   await mkdir(rutaVideos(), { recursive: true });
   await mkdir(rutaTrabajo(), { recursive: true });
   await mkdir(rutaMusica(), { recursive: true });
+  await mkdir(rutaMiniaturas(), { recursive: true });
   await mkdir(join(env.DATA_DIR, DIR_PROYECTOS), { recursive: true });
 }
 
@@ -95,6 +100,17 @@ export async function nombreMusicaLibre(titulo: string, extension: string) {
   // El sufijo va con guion: los parentesis no pasan `rutaMusicaSegura`.
   for (let i = 2; existentes.has(nombre); i++) nombre = `${base}-${i}.${extension}`;
   return nombre;
+}
+
+/**
+ * Ruta de un archivo de la biblioteca de medios. El nombre lo genera el
+ * servidor; esta comprobacion es la red por si alguna vez llega de fuera.
+ */
+export function rutaMedioSeguro(nombre: string) {
+  if (!/^[\w .-]+$/.test(nombre) || nombre.includes("..")) {
+    throw new Error("Nombre de medio invalido");
+  }
+  return join(rutaMedios(), nombre);
 }
 
 export function rutaMusicaSegura(nombre: string) {

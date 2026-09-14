@@ -8,12 +8,16 @@ import { Ajustes } from "./paginas/Ajustes";
 import { Banco } from "./paginas/Banco";
 import { Montaje } from "./paginas/Montaje";
 import { Musica } from "./paginas/Musica";
+import { Galeria } from "./paginas/Galeria";
+import { Dialogo } from "./paginas/Dialogo";
 
 const PESTANAS = [
   { ruta: "/", nombre: "Editor" },
   { ruta: "/series", nombre: "Series" },
   { ruta: "/historias", nombre: "Historias" },
   { ruta: "/montaje", nombre: "Montaje" },
+  { ruta: "/galeria", nombre: "Galeria" },
+  { ruta: "/dialogo", nombre: "Dialogo" },
   { ruta: "/musica", nombre: "Musica" },
   { ruta: "/banco", nombre: "Banco" },
   { ruta: "/ajustes", nombre: "Ajustes" },
@@ -84,6 +88,10 @@ export function App() {
           <Historias catalogo={catalogo} />
         ) : pestana.ruta === "/montaje" ? (
           <Montaje catalogo={catalogo} />
+        ) : pestana.ruta === "/galeria" ? (
+          <Galeria catalogo={catalogo} />
+        ) : pestana.ruta === "/dialogo" ? (
+          <Dialogo catalogo={catalogo} />
         ) : pestana.ruta === "/musica" ? (
           <Musica catalogo={catalogo} />
         ) : pestana.ruta === "/banco" ? (

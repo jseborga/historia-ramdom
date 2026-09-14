@@ -14,10 +14,13 @@ export function BuscadorClips({
   sugerencia,
   catalogo,
   alElegir,
+  alGuardar,
 }: {
   sugerencia: string;
   catalogo?: Catalogo | null;
   alElegir: (clip: ClipCandidato | null) => void;
+  /** Si se pasa, cada resultado ofrece guardarse en la galeria. */
+  alGuardar?: (clip: ClipCandidato, keywords: string) => void;
 }) {
   const [consulta, setConsulta] = useState(sugerencia);
   const [lista, setLista] = useState<ClipCandidato[]>([]);
@@ -96,6 +99,7 @@ export function BuscadorClips({
             )}
             <div className="fila">
               <button onClick={() => alElegir(c)}>Usar</button>
+              {alGuardar && <button onClick={() => alGuardar(c, consulta)}>Guardar</button>}
               {c.tipo !== "imagen" && (
                 <button onClick={() => setViendo(viendo === c.id ? null : c.id)}>
                   {viendo === c.id ? "Parar" : "Ver"}

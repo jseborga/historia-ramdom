@@ -28,6 +28,10 @@ Implementa la guía de `docs/guia-original.md`.
 - **Bancos de imagen a elegir.** Pexels, Pixabay y la **NASA** (dominio público,
   sin clave, la buena para ciencia y espacio), con vídeo, fotos o las dos cosas;
   las fotos se animan solas para que parezcan vídeo.
+- **Galería.** Biblioteca propia de vídeo y foto: se sube, se guarda de los
+  bancos y se compone un montaje con lo elegido, en el orden elegido.
+- **Diálogos.** Dos o tres voces distintas discutiendo un tema, con el rótulo
+  del que habla en su color.
 - **Ganchos con puntuación.** El gancho es una escena propia con su rótulo; las
   métricas lo califican y los que funcionan se vuelven a usar solos.
 - **Servidor MCP.** Claude puede consultar el banco, ver qué rinde y encargar
@@ -80,7 +84,7 @@ src/
 ├── db.ts                 cliente Prisma
 ├── almacen.ts            carpetas de /data, retención y limpieza
 ├── seguridad/            cifrado AES-256-GCM y login con argon2id
-├── servicios/            guion, voz, clips y TikTok
+├── servicios/            guion, voz, clips, medios y TikTok
 ├── render/               ffmpeg, subtítulos .ass y pipeline
 ├── cola/                 colas, programador y trabajos
 ├── rutas/                endpoints HTTP
@@ -470,6 +474,62 @@ seguidas reciben movimientos distintos para que no se note el truco, y si eliges
 un efecto que no mueve nada (blanco y negro, viñeta) se le pone un Ken Burns
 debajo. La vista previa del editor hace lo mismo con CSS, así que lo que se ve
 antes de renderizar es lo que sale.
+
+## Galería: vídeo y foto propios
+
+La pestaña **Galería** es el material, separado de las historias: se sube, se
+guarda de los bancos y se compone con ello.
+
+- **Subir**: vídeos (mp4, mov, m4v, webm) y fotos (jpg, png, webp), varios a la
+  vez. El nombre del archivo lo pone el servidor y el contenido se comprueba con
+  **ffprobe**: la extensión sola no prueba nada, y un `.mp4` que no es un vídeo
+  se rechaza y se borra.
+- **Guardar de los bancos**: el buscador (Pexels, Pixabay, NASA) lleva un botón
+  *Guardar* que se trae el archivo a la biblioteca con su autor y su licencia,
+  para que el crédito siga siendo correcto. Del navegador solo llega el id: el
+  enlace se resuelve en el servidor contra la misma búsqueda.
+- **Componer**: se eligen varios en el orden que se quiera —el número aparece en
+  cada uno— y se elige el formato y cuántos segundos dura cada foto. Sale un
+  **proyecto de montaje**, no un MP4: se abre en el editor de siempre, donde
+  están la duración de cada plano, los textos, la voz y la música.
+
+Las fotos entran con movimiento (acercar, alejar, paneo, Ken Burns, uno distinto
+por foto seguida) y los vídeos con su duración real, acotada a 12 s por plano
+para que no se coma el montaje. El material propio no lleva línea de créditos:
+lo guardado de un banco sí conserva la suya.
+
+El render de un clip de la biblioteca **no descarga nada**: el archivo ya está
+en disco y se copia a la carpeta de trabajo.
+
+## Diálogos: dos o tres voces sobre un tema
+
+La pestaña **Diálogo** hace conversaciones, no narraciones: dos o tres personas
+discutiendo un tema, cada una con **su propia voz**.
+
+1. **Quién habla.** De dos a tres voces, cada una con su nombre, su postura (o
+   se la inventa la IA), su voz —local, Gemini u OpenAI— y su color de rótulo.
+   Arrancan con voces distintas a propósito: dos voces iguales suenan a la misma
+   persona hablando sola, y si se repiten, se avisa.
+2. **Escribir el diálogo.** El modelo escribe la conversación con turnos cortos,
+   sin saludos ni presentaciones, empezando por el medio de la discusión, con
+   **desacuerdo real** y sin que nadie convenza del todo al otro. Se lee entera
+   y se corrige: cambiar quién dice qué, reordenar, reescribir o borrar
+   intervenciones. Corregir una réplica sale mucho más barato que rehacer el
+   vídeo.
+3. **Crear el vídeo.** Cada intervención se sintetiza con la voz de quien habla
+   (una petición cada vez, como toda la voz de la app), se pegan en orden con
+   algo más de aire entre turnos que entre frases, y el rótulo de cada una sale
+   con **el nombre y el color** de quien la dice. El resto es un montaje normal:
+   se abre en el editor y de ahí al render.
+
+La pista de voz guarda el diálogo entero (`modo: "dialogo"`, `hablantes`,
+`dialogo`), y la huella que decide si hay que regenerar cubre las réplicas y las
+voces: cambiar una coma obliga a rehacer el audio, y no cambiar nada no gasta
+cuota.
+
+- **API**: `POST /api/dialogo` escribe la conversación; `POST /api/dialogos` crea
+  y monta el proyecto; `POST /api/proyectos/:id/dialogo` cambia las réplicas o
+  las voces de uno ya creado y lo vuelve a montar.
 
 ## Editor de montaje
 

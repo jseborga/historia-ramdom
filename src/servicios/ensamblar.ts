@@ -95,11 +95,20 @@ export async function ensamblarProyecto(proyectoId: string, opciones: OpcionesEn
     include: { historia: { select: { guion: true } } },
   });
   const vozGuardada = (p.voz ?? {}) as Partial<VozPista>;
+  // Un diálogo ya trae sus intervenciones y su reparto de voces; una narración
+  // normal necesita texto.
+  const esDialogo = vozGuardada.modo === "dialogo" && (vozGuardada.dialogo?.length ?? 0) > 0;
   const texto = (vozGuardada.texto ?? "").trim();
-  if (!texto) throw new Error("La pista de voz no tiene texto: escribe o genera la narracion primero");
+  if (!esDialogo && !texto) {
+    throw new Error("La pista de voz no tiene texto: escribe o genera la narracion primero");
+  }
 
-  let voz: VozPista = ProyectoSchema.shape.voz.parse({ ...vozGuardada, modo: "servidor", texto });
-  if (!voz.config || voz.config.proveedor === "local") {
+  let voz: VozPista = ProyectoSchema.shape.voz.parse({
+    ...vozGuardada,
+    modo: esDialogo ? "dialogo" : "servidor",
+    texto,
+  });
+  if (!esDialogo && (!voz.config || voz.config.proveedor === "local")) {
     voz = { ...voz, config: { proveedor: "local", modelo: "local", nombre: voz.config?.nombre ?? (await mejorVozLocal("es")) } };
   }
 
@@ -112,7 +121,7 @@ export async function ensamblarProyecto(proyectoId: string, opciones: OpcionesEn
   const textos = textosDesdeNarracion(voz, total, opciones.lectura ?? "frases", {
     animacion: opciones.animacion ?? "fundido",
   });
-  if (textos[0]) {
+  if (textos[0] && !esDialogo) {
     textos[0] = { ...textos[0], animacion: "zoom", estilo: { ...textos[0].estilo, tamano: 84, color: "#FFE500", posicion: "centro", negrita: true } };
   }
 

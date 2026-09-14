@@ -194,3 +194,5 @@ export const DIR_VIDEOS = "videos";
 export const DIR_TRABAJO = "trabajo";
 export const DIR_MUSICA = "musica";
 export const DIR_PROYECTOS = "proyectos";
+/** Biblioteca de video y foto: lo subido y lo guardado de los bancos. */
+export const DIR_MEDIOS = "medios";

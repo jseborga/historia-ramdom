@@ -283,9 +283,40 @@ export type Proyecto = {
   fuentes?: Fuente[];
 };
 
+/** Un vídeo o una foto de la biblioteca. */
+export type Medio = {
+  id: string;
+  clase: "VIDEO" | "IMAGEN";
+  archivo: string;
+  nombre: string;
+  fuente: string;
+  autor: string | null;
+  pagina: string | null;
+  licencia: string | null;
+  duracion: number | null;
+  ancho: number | null;
+  alto: number | null;
+  bytes: number | null;
+  etiquetas: string[];
+  creadoEn: string;
+  /** El mismo medio ya convertido en clip para la línea de tiempo. */
+  clip: ClipCandidato;
+};
+
+/** Un diálogo escrito: quiénes hablan y qué dice cada uno. */
+export type GuionDialogo = {
+  titulo: string;
+  tema: string;
+  hablantes: { nombre: string; papel: string }[];
+  intervenciones: { hablante: number; texto: string }[];
+  keywords: string[];
+  hashtags: string[];
+  ganchos: string[];
+};
+
 export type ClipCandidato = {
   id: string;
-  fuente: "pexels" | "pixabay" | "nasa";
+  fuente: "pexels" | "pixabay" | "nasa" | "subido";
   /** "imagen" = foto: en el render se anima para que parezca vídeo. */
   tipo?: "video" | "imagen";
   autor: string;
@@ -295,6 +326,8 @@ export type ClipCandidato = {
   imagen?: string;
   /** Duracion real del archivo en origen, en segundos. */
   duracion?: number;
+  /** Nombre en la biblioteca: si está, sale del disco y no de un banco. */
+  archivo?: string;
 };
 
 export type Genero = "masculino" | "femenino" | "desconocido";

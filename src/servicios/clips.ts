@@ -35,9 +35,13 @@ export const MEDIOS = ["video", "imagen"] as const;
 export type TipoMedio = (typeof MEDIOS)[number];
 export const esMedio = (v: string): v is TipoMedio => (MEDIOS as readonly string[]).includes(v);
 
+/** Origen de un clip: un banco, o la biblioteca propia. */
+export const FUENTES = [...BANCOS, "subido"] as const;
+export type Fuente = (typeof FUENTES)[number];
+
 export type ClipInfo = {
   id: string;
-  fuente: Banco;
+  fuente: Fuente;
   /** "imagen" = foto; en la línea de tiempo se anima para que no quede quieta. */
   tipo: TipoMedio;
   autor: string;
@@ -48,6 +52,11 @@ export type ClipInfo = {
   imagen?: string;
   /** Duracion real del archivo en origen, en segundos. */
   duracion?: number;
+  /**
+   * Nombre en la biblioteca de medios. Si está, el render lee el archivo del
+   * disco en vez de descargar nada y `url` solo sirve para la vista previa.
+   */
+  archivo?: string;
 };
 
 /** Qué buscar y dónde. Vacío = lo de siempre: vídeo de Pexels y Pixabay. */
@@ -72,10 +81,12 @@ export const bancosDisponibles = (): Banco[] =>
   ].filter((b): b is Banco => b !== null);
 
 /** Extensión con la que se guarda: una foto con nombre `.mp4` confunde a ffmpeg. */
-export function extensionMedio(clip: Pick<ClipInfo, "tipo" | "url">) {
-  if (clip.tipo !== "imagen") return ".mp4";
-  const ext = new URL(clip.url).pathname.toLowerCase().match(/\.(jpe?g|png|webp)$/);
-  return ext ? `.${ext[1]}` : ".jpg";
+export function extensionMedio(clip: Pick<ClipInfo, "tipo" | "url" | "archivo">) {
+  // Lo de la biblioteca ya tiene extension buena en el nombre del archivo.
+  const nombre = clip.archivo ?? clip.url;
+  const ext = /\.([a-z0-9]+)$/i.exec(clip.archivo ? nombre : new URL(nombre).pathname);
+  if (clip.tipo === "imagen") return ext && /^(jpe?g|png|webp)$/i.test(ext[1]) ? `.${ext[1].toLowerCase()}` : ".jpg";
+  return ext && /^(mp4|mov|m4v|webm)$/i.test(ext[1]) ? `.${ext[1].toLowerCase()}` : ".mp4";
 }
 
 export type EscenaPreparada = {
@@ -529,13 +540,20 @@ export function creditosDe(escenas: Pick<EscenaPreparada, "clip">[]): string {
 
 type ClipAcreditable = Pick<ClipInfo, "id" | "fuente" | "autor" | "pagina" | "licencia">;
 
-const NOMBRE_FUENTE: Record<Banco, string> = { pexels: "Pexels", pixabay: "Pixabay", nasa: "NASA" };
+const NOMBRE_FUENTE: Record<Fuente, string> = {
+  pexels: "Pexels",
+  pixabay: "Pixabay",
+  nasa: "NASA",
+  subido: "propio",
+};
 
 const unicos = (clips: ClipAcreditable[]) => [...new Map(clips.map((c) => [c.id, c])).values()];
 
 /** Lista completa, un clip por línea con su enlace: para el .txt y los comentarios. */
 export function creditosLargos(clips: ClipAcreditable[]): string {
   return unicos(clips)
+    // El material propio no lleva crédito: no hay a quién acreditar.
+    .filter((c) => c.fuente !== "subido")
     .map((c) => `${c.autor} (${NOMBRE_FUENTE[c.fuente]}, ${c.licencia}) - ${c.pagina}`)
     .join("\n");
 }
@@ -545,8 +563,8 @@ export function creditosLargos(clips: ClipAcreditable[]): string {
  * Es lo que va en la descripción para publicar, donde cada carácter cuenta.
  */
 export function creditosCortos(clips: ClipAcreditable[]): string {
-  const porFuente = new Map<ClipInfo["fuente"], Set<string>>();
-  for (const c of unicos(clips)) {
+  const porFuente = new Map<Fuente, Set<string>>();
+  for (const c of unicos(clips).filter((c) => c.fuente !== "subido")) {
     const autores = porFuente.get(c.fuente) ?? new Set<string>();
     autores.add(c.autor.trim());
     porFuente.set(c.fuente, autores);

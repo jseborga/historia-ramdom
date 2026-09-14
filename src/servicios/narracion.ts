@@ -11,11 +11,21 @@ import { fragmentar } from "../render/rotulos.js";
 const MAX_TROZO = 900;
 /** Silencio entre frases al pegarlas. */
 const PAUSA = 0.28;
+/** Entre una intervención y la siguiente hace falta más aire que entre frases. */
+const PAUSA_DIALOGO = 0.45;
 
-export type Tramo = { texto: string; inicio: number; duracion: number };
+export type Tramo = { texto: string; inicio: number; duracion: number; hablante?: number };
 
-/** Un envio al sintetizador: su texto y las frases que lleva dentro. */
-type Trozo = { texto: string; frases: string[] };
+/** Marca los tramos de un trozo con quién los dice (solo en diálogos). */
+const conHablante = (tramos: Tramo[], trozo: { hablante?: number }): Tramo[] =>
+  trozo.hablante === undefined ? tramos : tramos.map((t) => ({ ...t, hablante: trozo.hablante }));
+
+/**
+ * Un envio al sintetizador: su texto, las frases que lleva dentro y con qué
+ * voz se lee. En una narración normal la voz es la misma para todos; en un
+ * diálogo, cada intervención trae la de quien habla.
+ */
+type Trozo = { texto: string; frases: string[]; config?: unknown; hablante?: number };
 
 /**
  * Con IA se agrupan frases hasta ~900 caracteres para no hacer cien llamadas,
@@ -83,8 +93,15 @@ export async function generarNarracion(
   voz: VozPista,
   opciones: { forzar?: boolean } = {},
 ) {
-  if (voz.modo !== "servidor") throw new Error("La narracion solo se genera en modo servidor");
-  if (!voz.texto.trim()) throw new Error("La narracion esta vacia");
+  if (voz.modo !== "servidor" && voz.modo !== "dialogo") {
+    throw new Error("La narracion solo se genera en modo servidor o dialogo");
+  }
+  if (voz.modo === "dialogo") {
+    if (!voz.hablantes.length) throw new Error("El dialogo no tiene voces");
+    if (!voz.dialogo.length) throw new Error("El dialogo esta vacio");
+  } else if (!voz.texto.trim()) {
+    throw new Error("La narracion esta vacia");
+  }
 
   const huella = huellaVoz(voz);
   const nombreFinal = nombreNarracion(huella);
@@ -124,9 +141,20 @@ async function generar(
 
   const config = voz.config ?? { proveedor: "local" as const, modelo: "espeak-ng", nombre: "es-419" };
   const trabajo = await crearCarpetaTrabajo(`voz-${proyectoId}`);
-  const frases = fragmentar(voz.texto, "frases");
-  const trozos: Trozo[] =
-    config.proveedor === "local" ? frases.map((f) => ({ texto: f, frases: [f] })) : agrupar(frases);
+  const esDialogo = voz.modo === "dialogo";
+  // En un diálogo cada intervención va aparte aunque sea corta: la voz cambia
+  // de una a otra, así que no se pueden agrupar. Dentro de cada una sí se
+  // reparten las frases para que los rótulos caigan donde suenan.
+  const trozos: Trozo[] = esDialogo
+    ? voz.dialogo.map((d) => ({
+        texto: d.texto,
+        frases: fragmentar(d.texto, "frases"),
+        config: voz.hablantes[d.hablante]?.config ?? config,
+        hablante: d.hablante,
+      }))
+    : config.proveedor === "local"
+      ? fragmentar(voz.texto, "frases").map((f) => ({ texto: f, frases: [f] }))
+      : agrupar(fragmentar(voz.texto, "frases"));
   // Se escribe aparte y solo al final se pone el nombre bueno: si algo falla a
   // mitad, el proyecto se queda con la narracion anterior, no con media.
   const parcial = join(dir, `${nombreFinal}.parcial`);
@@ -134,8 +162,11 @@ async function generar(
   try {
     const generados: string[] = [];
     for (const [i, t] of trozos.entries()) {
-      const bruto = await generarVoz(config, t.texto, trabajo, i);
-      if (config.proveedor === "local") {
+      const suya = (t.config ?? config) as { proveedor: string };
+      const bruto = await generarVoz(suya, t.texto, trabajo, i);
+      // Las voces locales ya dan WAV, pero cada una con su cadencia: en un
+      // diálogo se mezclan dos o tres y hay que igualarlas antes de pegarlas.
+      if (suya.proveedor === "local" && !esDialogo) {
         generados.push(join(trabajo, bruto));
       } else {
         // mp3 o wav de IA: todo a 48 kHz estereo para poder pegarlo
@@ -149,18 +180,23 @@ async function generar(
     let duracion: number;
     try {
       // Sin ffmpeg: pegado en Node, con los inicios exactos de cada frase.
-      const r = await concatenarWav(generados, parcial, PAUSA);
+      const r = await concatenarWav(generados, parcial, esDialogo ? PAUSA_DIALOGO : PAUSA);
       // Los rotulos no deben mostrar las marcas de tono: se quitan del texto.
-      tramos = trozos.flatMap((t, i) => tramosDeTrozo(t, r.inicios[i], r.duraciones[i]));
+      tramos = trozos.flatMap((t, i) => conHablante(tramosDeTrozo(t, r.inicios[i], r.duraciones[i]), t));
       duracion = r.total;
     } catch {
       // Formatos distintos entre trozos (raro): lo pega ffmpeg y se miden aparte.
       await writeFile(join(trabajo, "lista.txt"), generados.map((g) => `file '${g}'`).join("\n"));
-      await ffmpeg(["-f", "concat", "-safe", "0", "-i", "lista.txt", "-ar", "48000", "-ac", "2", parcial], trabajo);
+      // `-f wav` a la fuerza: el archivo se llama `.parcial` (se renombra al
+      // final) y ffmpeg no sabe adivinar el formato por la extensión.
+      await ffmpeg(
+        ["-f", "concat", "-safe", "0", "-i", "lista.txt", "-ar", "48000", "-ac", "2", "-f", "wav", parcial],
+        trabajo,
+      );
       const duraciones = await Promise.all(generados.map((g) => duracionAudio(g)));
       let t = 0;
       tramos = trozos.flatMap((trozo, i) => {
-        const partes = tramosDeTrozo(trozo, t, duraciones[i]);
+        const partes = conHablante(tramosDeTrozo(trozo, t, duraciones[i]), trozo);
         t += duraciones[i];
         return partes;
       });

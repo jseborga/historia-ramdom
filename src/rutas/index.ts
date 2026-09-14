@@ -6,6 +6,8 @@ import { rutasTikTok } from "./tiktok.js";
 import { rutasBanco } from "./banco.js";
 import { rutasProyectos } from "./proyectos.js";
 import { rutasMusica } from "./musica.js";
+import { rutasMedios } from "./medios.js";
+import { rutasDialogos } from "./dialogos.js";
 
 export async function registrarRutas(app: FastifyInstance) {
   await rutasCatalogo(app);
@@ -15,4 +17,6 @@ export async function registrarRutas(app: FastifyInstance) {
   await rutasBanco(app);
   await rutasProyectos(app);
   await rutasMusica(app);
+  await rutasMedios(app);
+  await rutasDialogos(app);
 }

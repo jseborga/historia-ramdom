@@ -219,9 +219,9 @@ hasta entonces.
 
 | Capa | Opciones |
 |---|---|
-| Imagen | Un clip por escena, o un fondo de color liso |
+| Imagen | Un clip por escena (de un banco o de la galería propia), una foto animada, o un fondo de color liso |
 | Texto | Uno por escena, con estilo y animación propios |
-| Voz | Ninguna · leída por el servidor con una sola voz (local por defecto, o IA) · un archivo que subes |
+| Voz | Ninguna · leída por el servidor con una sola voz (local por defecto, o IA) · **un diálogo a dos o tres voces** · un archivo que subes |
 | Música | Una pista de la biblioteca o una que subes, con su volumen |
 
 Cada capa se construye por separado y solo se juntan en el paso final, así que
@@ -236,6 +236,25 @@ que se publica de una pieza y se reutiliza mientras no cambie nada.
 
 Con voz, la música se agacha automáticamente cuando alguien habla; sin voz suena
 al 60 % como mínimo para que no quede vacío.
+
+### Diálogo: la voz con dos o tres hablantes
+
+En `modo: "dialogo"` la pista de voz guarda, además del texto seguido, **quiénes
+hablan** (`hablantes`: nombre, voz y color) y **la conversación** (`dialogo`:
+quién dice qué, en orden). Al generarla:
+
+- Cada intervención va aparte aunque sea corta —la voz cambia de una a otra, no
+  se pueden agrupar— y dentro de cada una las frases se reparten el tiempo
+  medido, para que los rótulos caigan donde suenan.
+- Entre turnos hay más silencio que entre frases (0,45 s frente a 0,28 s).
+- Todo se normaliza a 48 kHz estéreo antes de pegarlo: dos voces locales
+  distintas no tienen por qué venir con la misma cadencia.
+- Cada tramo recuerda **quién lo dice**, así que el rótulo sale como
+  `Nombre: frase` y con el color de esa voz.
+
+La huella que decide si hay que regenerar cubre las réplicas y las voces, no
+solo el texto: cambiar una coma obliga a rehacer el audio, y no cambiar nada no
+gasta cuota.
 
 ## Voz: la del servidor por defecto
 

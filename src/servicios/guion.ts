@@ -601,6 +601,114 @@ export function contextoDeCapitulo(plan: Miniserie, numero: number): ContextoCap
   };
 }
 
+/**
+ * Diálogo: dos o tres voces hablando de un tema, tipo pódcast corto. No es una
+ * historia con personajes: son posturas distintas sobre algo, y lo que engancha
+ * es el desacuerdo, no la información.
+ */
+export const GuionDialogoSchema = z.object({
+  titulo: z.string().min(1).max(120),
+  tema: z.string().max(300).default(""),
+  /** Quién habla, en el mismo orden que las voces elegidas. */
+  hablantes: z
+    .array(z.object({ nombre: z.string().min(1).max(40), papel: z.string().max(120).default("") }))
+    .min(2)
+    .max(3),
+  /** La conversación, en orden: quién habla (índice) y qué dice. */
+  intervenciones: z
+    .array(z.object({ hablante: z.number().int().min(0).max(2), texto: z.string().min(1).max(600) }))
+    .min(4)
+    .max(80),
+  keywords: z.array(z.string().min(1).max(40)).min(1).max(8),
+  hashtags: z.array(z.string().max(40)).max(8).default([]),
+  ganchos: z.array(z.string().min(1).max(150)).max(4).default([]),
+});
+
+export type GuionDialogo = z.infer<typeof GuionDialogoSchema>;
+
+export type PeticionDialogo = {
+  motor: string;
+  modelo?: string | null;
+  tema: string;
+  /** Nombres y papeles ya elegidos; el modelo los respeta. */
+  hablantes: { nombre: string; papel?: string }[];
+  duracion?: number;
+  idioma?: string;
+  region?: string;
+  modismos?: boolean;
+  categoria?: string | null;
+  subcategoria?: string | null;
+  /** Guion de partida para reescribirlo (por ejemplo, alargarlo). */
+  evitar?: (string | null)[];
+};
+
+/**
+ * Escribe la conversación. Cada intervención es corta —así suena a
+ * conversación y no a discurso— y el reparto de turnos no es alterno de
+ * manual: quien tiene algo que decir habla dos veces seguidas si toca.
+ */
+export async function generarDialogo(p: PeticionDialogo): Promise<GuionDialogo> {
+  if (!esMotor(p.motor)) throw new Error(`Motor desconocido: ${p.motor}`);
+  const hablantes = p.hablantes.slice(0, 3);
+  if (hablantes.length < 2) throw new Error("Un diálogo necesita al menos dos voces");
+  const idioma = p.idioma ?? "es";
+  const elegida = p.categoria ? resolverCategoria(p.categoria, p.subcategoria) : null;
+  const duracion = p.duracion ?? 90;
+  // ~2,6 palabras por segundo; una intervención ronda las 25 palabras.
+  const turnos = Math.max(6, Math.min(60, Math.round((duracion * 2.6) / 25)));
+
+  const prompt = [
+    `Escribe un DIÁLOGO para un vídeo vertical: ${hablantes.length} personas hablando sobre un tema.`,
+    `Tema: ${p.tema}`,
+    "Quiénes hablan (en este orden, y con estos nombres exactos):",
+    ...hablantes.map((h, i) => `  ${i}. ${h.nombre}${h.papel ? ` — ${h.papel}` : ""}`),
+    elegida ? `Tono del género: ${elegida.categoria.tono}` : "",
+    elegida?.categoria.reglas?.length
+      ? ["Reglas obligatorias:", ...elegida.categoria.reglas.map((r) => `- ${r}`)].join("\n")
+      : "",
+    `Unas ${turnos} intervenciones en total, para unos ${duracion} segundos.`,
+    "Cada intervención, de una a tres frases: es una conversación, no un discurso por turnos.",
+    "Que no sea alterno de manual: alguien puede hablar dos veces seguidas, interrumpirse o preguntar.",
+    "Tiene que haber desacuerdo real, con argumentos por los dos lados; nadie convence del todo al otro.",
+    "Nada de saludos, presentaciones ni 'hoy vamos a hablar de': se empieza por el medio de la discusión.",
+    "No inventes datos ni cifras; si hace falta un ejemplo, que sea cotidiano y comprobable.",
+    "Nada de emojis, acotaciones de escena ni indicaciones entre paréntesis: solo lo que se dice en voz alta.",
+    ORTOGRAFIA,
+    "",
+    "Devuelve exactamente este JSON:",
+    "{",
+    '  "titulo": "título corto del vídeo",',
+    '  "tema": "el tema en una frase",',
+    `  "hablantes": [${hablantes.map((h) => `{ "nombre": "${h.nombre}", "papel": "su postura en una frase" }`).join(", ")}],`,
+    '  "intervenciones": [ { "hablante": 0, "texto": "lo que dice" }, { "hablante": 1, "texto": "..." } ],',
+    '  "keywords": ["visual keyword in english", "another"],',
+    '  "ganchos": ["gancho viral para la descripcion", "otro"],',
+    '  "hashtags": ["sinAlmohadilla", "otro"]',
+    "}",
+    `El campo "hablante" es el número de la lista de arriba (0 a ${hablantes.length - 1}).`,
+    "Las keywords son de 3 a 6, EN INGLÉS, del ambiente del vídeo.",
+    "Los ganchos NO se dicen en voz alta: son el texto con el que se publica.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const crudo = await textoConMotor(p.motor, prompt, p.modelo, idioma, p.region ?? "bolivia", p.modismos ?? true);
+  if (!crudo) throw new Error(`El motor ${p.motor} no devolvió contenido`);
+  const datos = extraerJSON(crudo) as Record<string, unknown>;
+  const guion = GuionDialogoSchema.parse({ tema: p.tema, ...datos });
+
+  // Los nombres mandan los que eligió el usuario, y una intervención de un
+  // hablante que no existe se le asigna al primero en vez de tirar el guion.
+  return {
+    ...guion,
+    hablantes: hablantes.map((h, i) => ({ nombre: h.nombre, papel: guion.hablantes[i]?.papel ?? h.papel ?? "" })),
+    intervenciones: guion.intervenciones.map((x) => ({
+      ...x,
+      hablante: x.hablante < hablantes.length ? x.hablante : 0,
+    })),
+  };
+}
+
 /** Criterios de búsqueda de clips de una historia: los suyos y los de su categoría. */
 export function criteriosVisuales(guion: Pick<Guion, "keywords" | "categoria" | "premisa">): string[] {
   const cat = buscarCategoria(guion.categoria);

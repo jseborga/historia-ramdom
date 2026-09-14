@@ -1,4 +1,4 @@
-import { stat, writeFile } from "node:fs/promises";
+import { copyFile, stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { env, MAX_VIDEO_BYTES, MB } from "../env.js";
 import { ffmpeg } from "./ffmpeg.js";
@@ -6,6 +6,7 @@ import { buscarPreset, filtroEscena, entradaImagen, MAX_DURACION_SEG, type Prese
 import { aplicarCalidad, perfilDe, estimar, techoBitrate, bppMedido } from "./calidad.js";
 import { crearASSProyecto, type Rotulo } from "./rotulos.js";
 import { descargarClip, extensionMedio } from "../servicios/clips.js";
+import { rutaMedioSeguro } from "../almacen.js";
 import {
   duracionVideo,
   duracionProyecto,
@@ -89,11 +90,17 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
     const esFoto = c.clip?.tipo === "imagen";
     const vf = filtroEscena(lienzo, c.efecto, c.duracion, esFoto);
     if (c.clip) {
-      let origen = descargados.get(c.clip.url);
+      let origen = descargados.get(c.clip.archivo ?? c.clip.url);
       if (!origen) {
         origen = `fuente${descargados.size}${extensionMedio(c.clip)}`;
-        await descargarClip(c.clip.url, join(dir, origen));
-        descargados.set(c.clip.url, origen);
+        if (c.clip.archivo) {
+          // Material de la biblioteca: ya está en disco, se copia y no se
+          // descarga nada (ni hay enlace externo que valga).
+          await copyFile(rutaMedioSeguro(c.clip.archivo), join(dir, origen));
+        } else {
+          await descargarClip(c.clip.url, join(dir, origen));
+        }
+        descargados.set(c.clip.archivo ?? c.clip.url, origen);
       }
       await ffmpeg(
         esFoto

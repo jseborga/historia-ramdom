@@ -291,3 +291,34 @@ model TikTokCuenta {
   scopes          String
   creadaEn        DateTime @default(now())
 }
+
+/// Vídeo o foto de la biblioteca: lo que se sube y lo que se guarda de los bancos.
+enum ClaseMedio {
+  VIDEO
+  IMAGEN
+}
+
+/// Biblioteca de material propio y guardado, para componer vídeos sin volver a buscar.
+model Medio {
+  id        String     @id @default(uuid())
+  clase     ClaseMedio
+  /// Nombre del archivo dentro de DATA_DIR/medios; se genera en el servidor.
+  archivo   String     @unique
+  nombre    String
+  /// De dónde salió: subido, pexels, pixabay o nasa.
+  fuente    String     @default("subido")
+  autor     String?
+  pagina    String?
+  licencia  String?
+  /// Id en el banco de origen, para no guardar dos veces lo mismo.
+  externoId String?
+  duracion  Float?
+  ancho     Int?
+  alto      Int?
+  bytes     Float?
+  etiquetas String[]   @default([])
+  creadoEn  DateTime   @default(now())
+
+  @@index([clase, creadoEn])
+  @@index([externoId])
+}
