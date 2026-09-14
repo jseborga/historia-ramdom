@@ -13,7 +13,7 @@ import {
 } from "./presets.js";
 import { aplicarCalidad, perfilDe, estimar, techoBitrate, bppMedido } from "./calidad.js";
 import { crearASSProyecto, type Rotulo } from "./rotulos.js";
-import { descargarClip, extensionMedio } from "../servicios/clips.js";
+import { descargarDeClip, extensionMedio } from "../servicios/clips.js";
 import { rutaMedioSeguro } from "../almacen.js";
 import {
   duracionVideo,
@@ -190,7 +190,7 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
           // descarga nada (ni hay enlace externo que valga).
           await copyFile(rutaMedioSeguro(c.clip.archivo), join(dir, origen));
         } else {
-          await descargarClip(c.clip.url, join(dir, origen));
+          await descargarDeClip(c.clip, join(dir, origen));
         }
         descargados.set(c.clip.archivo ?? c.clip.url, origen);
       }

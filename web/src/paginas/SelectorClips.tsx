@@ -84,7 +84,7 @@ export function SelectorClips({
                         {viendo === c.id ? (
                           <video src={c.url} controls muted autoPlay playsInline />
                         ) : (
-                          <Muestra url={c.tipo === "imagen" ? (c.imagen ?? c.url) : c.imagen} />
+                          <Muestra url={c.imagen ?? c.url} respaldo={c.tipo === "imagen" ? c.url : undefined} />
                         )}
                         <div className="fila">
                           <button onClick={() => alElegir(i, c.id)}>

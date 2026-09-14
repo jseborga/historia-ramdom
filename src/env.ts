@@ -16,6 +16,7 @@ const CIFRABLES = [
   "GROQ_API_KEY",
   "PEXELS_API_KEY",
   "PIXABAY_API_KEY",
+  "OPENVERSE_TOKEN",
   "TIKTOK_CLIENT_KEY",
   "TIKTOK_CLIENT_SECRET",
   "REDDIT_CLIENT_ID",
@@ -123,6 +124,11 @@ const Env = z.object({
   // Clips
   PEXELS_API_KEY: z.string().optional(),
   PIXABAY_API_KEY: z.string().optional(),
+  /**
+   * Openverse funciona sin registrarse (20 peticiones por minuto, 200 al dia).
+   * Con un token de su API esos limites suben; no hace falta para empezar.
+   */
+  OPENVERSE_TOKEN: z.string().optional(),
 
   // TikTok (opcional)
   /**

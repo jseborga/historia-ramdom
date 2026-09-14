@@ -15,7 +15,15 @@ import {
   EXT_IMAGEN,
   EXT_VIDEO,
 } from "../servicios/medios.js";
-import { buscarClips, esBanco, esMedio, hostPermitido, type Banco, type TipoMedio } from "../servicios/clips.js";
+import {
+  buscarClips,
+  destinoAdmitido,
+  esBanco,
+  esMedio,
+  hostPermitido,
+  type Banco,
+  type TipoMedio,
+} from "../servicios/clips.js";
 import { ClipPistaSchema, ProyectoSchema, efectoDeClip, type ClipPista } from "../servicios/proyecto.js";
 import { buscarPreset } from "../render/presets.js";
 
@@ -82,6 +90,8 @@ const LIMITE_MUESTRAS = { max: 1200, timeWindow: "1 minute" };
 const IMAGENES_OK = /^image\/(jpeg|png|webp|gif)$/;
 /** Una miniatura no pesa megas; si pesa, algo raro pasa. */
 const MAX_MUESTRA = 12 * 1024 * 1024;
+/** Wikimedia y Archive contestan 400 a quien no se identifica. */
+const AGENTE_MUESTRAS = "estudio-voz-en-off/1.0 (https://github.com/jseborga/historia-ramdom)";
 
 export async function rutasMedios(app: FastifyInstance) {
   /**
@@ -103,19 +113,46 @@ export async function rutasMedios(app: FastifyInstance) {
     } catch {
       return reply.code(400).send({ error: "Direccion invalida" });
     }
-    if (!hostPermitido(destino)) return reply.code(403).send({ error: "Dominio no permitido" });
 
-    const res = await fetch(destino, { redirect: "error", signal: AbortSignal.timeout(20_000) }).catch(() => null);
-    if (!res?.ok) return reply.code(502).send({ error: "La fuente no devolvio la imagen" });
-    const tipo = res.headers.get("content-type") ?? "";
-    if (!IMAGENES_OK.test(tipo)) return reply.code(415).send({ error: "Eso no es una imagen" });
-    const datos = Buffer.from(await res.arrayBuffer());
-    if (datos.length > MAX_MUESTRA) return reply.code(413).send({ error: "Imagen demasiado grande" });
+    // Openverse indexa imagenes de medio Internet y Archive redirige a un
+    // servidor distinto en cada peticion: no hay lista de dominios que valga.
+    // Se aplica la misma regla que al descargar —https, nada que apunte a la
+    // red interna y solo imagenes— y se siguen las redirecciones revisando
+    // cada salto.
+    let actual = destino;
+    for (let saltos = 0; saltos < 3; saltos++) {
+      try {
+        await destinoAdmitido(actual, !hostPermitido(actual));
+      } catch (err) {
+        return reply.code(403).send({ error: err instanceof Error ? err.message : "Dominio no permitido" });
+      }
+      const res = await fetch(actual, {
+        redirect: "manual",
+        headers: { "User-Agent": AGENTE_MUESTRAS },
+        signal: AbortSignal.timeout(20_000),
+      }).catch(() => null);
+      if (!res) return reply.code(502).send({ error: "No se pudo pedir la imagen a la fuente" });
 
-    return reply
-      .header("Content-Type", tipo)
-      .header("Cache-Control", "public, max-age=86400")
-      .send(datos);
+      const siguiente = res.headers.get("location");
+      if (res.status >= 300 && res.status < 400 && siguiente) {
+        actual = new URL(siguiente, actual);
+        continue;
+      }
+      if (!res.ok) return reply.code(502).send({ error: `La fuente devolvio ${res.status}` });
+
+      // El tipo llega con parametros ("image/jpeg; charset=UTF-8"): se compara
+      // solo el tipo, que es lo que importa.
+      const tipo = (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+      if (!IMAGENES_OK.test(tipo)) return reply.code(415).send({ error: `Eso no es una imagen (${tipo})` });
+      const datos = Buffer.from(await res.arrayBuffer());
+      if (datos.length > MAX_MUESTRA) return reply.code(413).send({ error: "Imagen demasiado grande" });
+
+      return reply
+        .header("Content-Type", tipo)
+        .header("Cache-Control", "public, max-age=86400")
+        .send(datos);
+    }
+    return reply.code(502).send({ error: "Demasiadas redirecciones" });
   });
 
   /** La biblioteca, con filtro por clase y por texto. */

@@ -8,6 +8,9 @@ const BANCOS_BASE = [
   { id: "pexels", nombre: "Pexels", nota: "Vídeos y fotos libres.", listo: true },
   { id: "pixabay", nombre: "Pixabay", nota: "Vídeos y fotos libres.", listo: true },
   { id: "nasa", nombre: "NASA", nota: "Espacio y misiones; dominio público.", listo: true },
+  { id: "openverse", nombre: "Openverse", nota: "Fotos con licencia libre.", listo: true },
+  { id: "wikimedia", nombre: "Wikimedia Commons", nota: "Archivo histórico y artístico.", listo: true },
+  { id: "archive", nombre: "Internet Archive", nota: "Cine y noticiarios de dominio público.", listo: true },
 ];
 
 /** Busca clips y fotos por palabras libres y devuelve el elegido. */
@@ -105,7 +108,7 @@ export function BuscadorClips({
             {viendo === c.id && c.tipo !== "imagen" ? (
               <video src={c.url} controls muted autoPlay playsInline />
             ) : (
-              <Muestra url={c.tipo === "imagen" ? (c.imagen ?? c.url) : c.imagen} />
+              <Muestra url={c.imagen ?? c.url} respaldo={c.tipo === "imagen" ? c.url : undefined} />
             )}
             <div className="fila">
               <button onClick={() => alElegir(c)}>Usar</button>
@@ -119,6 +122,9 @@ export function BuscadorClips({
             <span className="suave">
               {c.autor} · {c.fuente}
               {c.tipo === "imagen" ? " · foto (se anima)" : ""}
+              {/* La licencia a la vista: CC BY-SA obliga a compartir igual el
+                  vídeo que salga, y eso conviene saberlo antes de usarla. */}
+              {c.licencia ? ` · ${c.licencia}` : ""}
             </span>
           </div>
         ))}

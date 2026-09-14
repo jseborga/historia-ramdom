@@ -60,7 +60,14 @@ export type Catalogo = {
   vozGeminiPorDefecto: Voz;
   vozOpenAIPorDefecto: Voz;
   musica: string[];
-  clips: { pexels: boolean; pixabay: boolean; nasa?: boolean };
+  clips: {
+    pexels: boolean;
+    pixabay: boolean;
+    nasa?: boolean;
+    openverse?: boolean;
+    wikimedia?: boolean;
+    archive?: boolean;
+  };
   /** Bancos de imagen disponibles y qué medios admiten. */
   bancos?: { id: string; nombre: string; nota: string; listo: boolean }[];
   medios?: { id: string; nombre: string }[];
@@ -339,7 +346,7 @@ export type Busqueda = {
 
 export type ClipCandidato = {
   id: string;
-  fuente: "pexels" | "pixabay" | "nasa" | "subido";
+  fuente: "pexels" | "pixabay" | "nasa" | "openverse" | "wikimedia" | "archive" | "subido";
   /** "imagen" = foto: en el render se anima para que parezca vídeo. */
   tipo?: "video" | "imagen";
   autor: string;

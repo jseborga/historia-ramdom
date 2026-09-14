@@ -5,6 +5,7 @@ import { pipeline } from "node:stream/promises";
 import { Redis } from "ioredis";
 import { env, MAX_CLIP_BYTES } from "../env.js";
 import { leerJSON } from "../util/http.js";
+import { buscarArchive, buscarOpenverse, buscarWikimedia } from "./bancosLibres.js";
 
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 
@@ -13,7 +14,16 @@ const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
  * URL manipulada no puede hacer que el servidor acceda a direcciones internas
  * (SSRF).
  */
-export const hostPermitido = (u: URL) => u.protocol === "https:" && HOSTS_PERMITIDOS.has(u.hostname);
+/**
+ * Dominios con subdominios variables: Internet Archive sirve desde
+ * `dn720003.ca.archive.org` y Wikimedia desde `upload.` o `thumb.`, asi que no
+ * se pueden listar uno a uno.
+ */
+const SUFIJOS_PERMITIDOS = [".archive.org", ".wikimedia.org", ".openverse.org"];
+
+export const hostPermitido = (u: URL) =>
+  u.protocol === "https:" &&
+  (HOSTS_PERMITIDOS.has(u.hostname) || SUFIJOS_PERMITIDOS.some((s) => u.hostname.endsWith(s)));
 
 const HOSTS_PERMITIDOS = new Set([
   "videos.pexels.com",
@@ -26,10 +36,14 @@ const HOSTS_PERMITIDOS = new Set([
   "videos.pixabay.com",
   "i.vimeocdn.com",
   "images-assets.nasa.gov",
+  "api.openverse.org",
+  "archive.org",
+  "commons.wikimedia.org",
+  "upload.wikimedia.org",
 ]);
 
 /** De dónde pueden salir las imágenes y los vídeos. */
-export const BANCOS = ["pexels", "pixabay", "nasa"] as const;
+export const BANCOS = ["pexels", "pixabay", "nasa", "openverse", "wikimedia", "archive"] as const;
 export type Banco = (typeof BANCOS)[number];
 export const esBanco = (v: string): v is Banco => (BANCOS as readonly string[]).includes(v);
 
@@ -78,13 +92,19 @@ export type OpcionesMedios = {
 /** A partir de aqui un clip cuenta como "largo". */
 export const CLIP_LARGO = 30;
 
-/** La NASA no pide clave; los otros dos sí. */
+/** Pexels y Pixabay piden clave; los otros cuatro son abiertos. */
 export const bancosDisponibles = (): Banco[] =>
   [
     env.PEXELS_API_KEY ? ("pexels" as const) : null,
     env.PIXABAY_API_KEY ? ("pixabay" as const) : null,
     "nasa" as const,
+    "openverse" as const,
+    "wikimedia" as const,
+    "archive" as const,
   ].filter((b): b is Banco => b !== null);
+
+/** Quien descarga: Wikimedia y Archive piden que la peticion se identifique. */
+const AGENTE_DESCARGA = "estudio-voz-en-off/1.0 (https://github.com/jseborga/historia-ramdom)";
 
 /** Extensión con la que se guarda: una foto con nombre `.mp4` confunde a ffmpeg. */
 export function extensionMedio(clip: Pick<ClipInfo, "tipo" | "url" | "archivo">) {
@@ -126,19 +146,85 @@ export async function buscarConCache<T>(
   return resultado;
 }
 
-export async function descargarClip(url: string, destino: string) {
+/**
+ * Bancos cuyos archivos viven en servidores de terceros (Openverse indexa
+ * Flickr, museos, archivos...): no hay lista de dominios que valga, así que se
+ * comprueba a mano que el destino sea público y que lo que llega sea una
+ * imagen.
+ */
+const ORIGEN_ABIERTO: Partial<Record<Fuente, boolean>> = { openverse: true };
+
+export const esOrigenAbierto = (fuente: Fuente) => Boolean(ORIGEN_ABIERTO[fuente]);
+
+/** Rangos que no salen a Internet: nadie de fuera debe poder apuntarnos ahí. */
+function esIpPrivada(ip: string) {
+  if (ip.includes(":")) {
+    const v6 = ip.toLowerCase();
+    // ::1 (loopback), fc00::/7 (privadas), fe80::/10 (enlace local).
+    return v6 === "::1" || /^f[cd]/.test(v6) || /^fe[89ab]/.test(v6) || v6.startsWith("::ffff:127.");
+  }
+  const [a, b] = ip.split(".").map(Number);
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 169 && b === 254) || // enlace local y metadatos de la nube
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 100 && b >= 64 && b <= 127) // CGNAT
+  );
+}
+
+/**
+ * ¿Se puede descargar de aquí? Los bancos conocidos van por su lista de
+ * dominios; los abiertos, por https + IP pública. La comprobación se repite en
+ * cada redirección, que es por donde se cuelan estas cosas.
+ */
+export async function destinoAdmitido(u: URL, abierto: boolean) {
+  if (u.protocol !== "https:") throw new Error(`Solo https: ${u.protocol}//${u.hostname}`);
+  if (!abierto) {
+    if (!hostPermitido(u)) throw new Error(`Dominio no permitido: ${u.hostname}`);
+    return;
+  }
+  const { lookup } = await import("node:dns/promises");
+  const direcciones = await lookup(u.hostname, { all: true }).catch(() => []);
+  if (!direcciones.length) throw new Error(`No se pudo resolver ${u.hostname}`);
+  if (direcciones.some((d) => esIpPrivada(d.address))) {
+    throw new Error(`Dominio que apunta a la red interna: ${u.hostname}`);
+  }
+}
+
+/** Descarga el archivo de un clip aplicando la política de su banco. */
+export const descargarDeClip = (clip: Pick<ClipInfo, "url" | "fuente" | "tipo">, destino: string) =>
+  descargarClip(clip.url, destino, { abierto: esOrigenAbierto(clip.fuente), tipo: clip.tipo });
+
+export async function descargarClip(
+  url: string,
+  destino: string,
+  o: { abierto?: boolean; tipo?: TipoMedio } = {},
+) {
   let actual = new URL(url);
   for (let saltos = 0; saltos < 4; saltos++) {
-    if (actual.protocol !== "https:" || !HOSTS_PERMITIDOS.has(actual.hostname)) {
-      throw new Error(`Dominio no permitido: ${actual.hostname}`);
-    }
-    const res = await fetch(actual, { redirect: "manual", signal: AbortSignal.timeout(90_000) });
+    await destinoAdmitido(actual, Boolean(o.abierto));
+    // Wikimedia y Archive responden 400 a quien no se identifica; los demas
+    // no se quejan, asi que la cabecera va siempre.
+    const res = await fetch(actual, {
+      redirect: "manual",
+      headers: { "User-Agent": AGENTE_DESCARGA },
+      signal: AbortSignal.timeout(90_000),
+    });
     const destinoRedir = res.headers.get("location");
     if (res.status >= 300 && res.status < 400 && destinoRedir) {
-      actual = new URL(destinoRedir, actual); // la redireccion tambien pasa por la lista blanca
+      actual = new URL(destinoRedir, actual); // la redireccion tambien pasa por la comprobacion
       continue;
     }
     if (!res.ok || !res.body) throw new Error(`Descarga fallida (${res.status})`);
+    // En origen abierto, lo que llega tiene que ser lo que se pidio: una
+    // pagina de error HTML no puede acabar guardada como si fuera una foto.
+    const tipo = (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+    if (o.abierto && !new RegExp(`^${o.tipo === "video" ? "video" : "image"}/`).test(tipo)) {
+      throw new Error(`El servidor devolvio ${tipo || "un tipo desconocido"} en vez de ${o.tipo ?? "imagen"}`);
+    }
     if (Number(res.headers.get("content-length") ?? 0) > MAX_CLIP_BYTES) {
       throw new Error(`Clip demasiado grande (limite ${env.MAX_CLIP_MB} MB, MAX_CLIP_MB)`);
     }
@@ -162,7 +248,7 @@ export async function descargarClip(url: string, destino: string) {
   throw new Error("Demasiadas redirecciones");
 }
 
-type Candidato = { info: ClipInfo; alto: number; ancho: number };
+export type Candidato = { info: ClipInfo; alto: number; ancho: number };
 
 /**
  * El porqué del fallo, no solo el número. Pixabay contesta en texto plano
@@ -503,6 +589,10 @@ export async function buscarConEstado(keyword: string, o: OpcionesMedios = {}): 
         );
       }
       if (bancos.includes("nasa")) porBanco.push(pedir("nasa", [buscarNasa(keyword, medios)]));
+      // Los tres abiertos: sin clave, con la licencia de cada pieza dentro.
+      if (bancos.includes("openverse")) porBanco.push(pedir("openverse", [buscarOpenverse(keyword, medios)]));
+      if (bancos.includes("wikimedia")) porBanco.push(pedir("wikimedia", [buscarWikimedia(keyword, medios)]));
+      if (bancos.includes("archive")) porBanco.push(pedir("archive", [buscarArchive(keyword, medios)]));
 
       const resultados = await Promise.all(porBanco);
       const todos = resultados.flatMap(([, cs]) => cs);
@@ -595,7 +685,7 @@ export async function elegirYDescargarClips(
       );
     }
     const archivo = `clip${i}${extensionMedio(elegido)}`;
-    await descargarClip(elegido.url, join(dir, archivo));
+    await descargarDeClip(elegido, join(dir, archivo));
     preparadas.push({ texto: escena.texto, keywords: escena.keywords, clip: elegido, archivo });
   }
 
@@ -616,6 +706,9 @@ const NOMBRE_FUENTE: Record<Fuente, string> = {
   pexels: "Pexels",
   pixabay: "Pixabay",
   nasa: "NASA",
+  openverse: "Openverse",
+  wikimedia: "Wikimedia Commons",
+  archive: "Internet Archive",
   subido: "propio",
 };
 

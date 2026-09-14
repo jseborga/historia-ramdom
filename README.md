@@ -462,6 +462,9 @@ Tres bancos, y se eligen a mano o los elige la categoría:
 | **Pexels** | vídeos y fotos verticales de todo | `PEXELS_API_KEY` |
 | **Pixabay** | vídeos y fotos verticales de todo | `PIXABAY_API_KEY` |
 | **NASA** | espacio, planetas, misiones y la Tierra desde fuera; **dominio público** | ninguna |
+| **Openverse** | cientos de millones de fotos con licencia libre (Flickr, museos, archivos) | ninguna |
+| **Wikimedia Commons** | retratos, cuadros, mapas, primeras ediciones y archivo histórico; también vídeo | ninguna |
+| **Internet Archive** | cine y noticiarios de dominio público: material de archivo de verdad | ninguna |
 
 La NASA (images.nasa.gov) no pide clave y su material es de dominio público, así
 que los **cuentos de ciencia** la usan por defecto: la categoría *Ciencia y
@@ -471,8 +474,44 @@ todo su material es limpio, hay vídeos con rótulos o logotipos quemados; por e
 conviene mirarlos en el buscador antes de dejarlos.
 
 Las categorías del área de ideas también admiten fotos (estatuas, libros,
-archivo), que es donde más las hay. En el resto manda lo de siempre: solo vídeo
-de Pexels y Pixabay.
+archivo), que es donde más las hay, y buscan en **Commons y Openverse** antes
+que en los bancos de vídeo comercial: un retrato de Marie Curie o un grabado de
+Goya está ahí, no en Pexels. *Historia real* y *crimen* miran además a
+**Internet Archive**, que es donde están los noticiarios.
+
+### Las licencias no son todas iguales
+
+Los tres bancos abiertos traen la licencia de cada pieza y la app la guarda y la
+acredita: `Andrea Luck (Wikimedia Commons, CC BY 2.0) - https://…`. Conviene
+mirarla antes de usar algo, porque no obligan a lo mismo:
+
+- **CC0 / dominio público**: sin condiciones. Es lo que da la NASA y buena parte
+  de Internet Archive.
+- **CC BY**: hay que acreditar, y la app ya lo hace.
+- **CC BY-SA**: además de acreditar, obliga a publicar **el vídeo resultante con
+  esa misma licencia**. Si eso no encaja con lo que vas a hacer, elige otra
+  pieza; la licencia se ve en cada resultado de la búsqueda.
+
+De Openverse solo se piden las que permiten **uso comercial y modificación**
+(`license_type=commercial,modification`): lo que sale de ahí se recorta, se
+anima y se publica, así que una "no comercial" no serviría.
+
+Openverse sin registrarse deja 20 peticiones por minuto y 200 al día; con la
+caché de un día llega de sobra para buscar a mano, y `OPENVERSE_TOKEN` sube ese
+límite si hace falta. Wikimedia e Internet Archive no piden nada, pero sí que la
+app se identifique, así que todas las peticiones y descargas van con su
+`User-Agent`.
+
+### Descargar de sitios que no están en la lista
+
+Los bancos conocidos sirven desde dominios fijos y ahí la lista blanca basta.
+Openverse es distinto: indexa Flickr, museos y archivos, así que el archivo
+final puede estar en cualquier sitio. Para esos casos la comprobación es otra:
+solo https, se resuelve el dominio y **se rechaza lo que apunte a la red
+interna** (127.x, 10.x, 172.16-31.x, 192.168.x, 169.254.x —los metadatos de la
+nube—, CGNAT y las equivalentes en IPv6), se revisa cada redirección igual, y lo
+que llega tiene que ser del tipo que se pidió: una página de error HTML no puede
+acabar guardada como si fuera una foto.
 
 Se elige en tres sitios, y siempre gana lo que se marque a mano:
 

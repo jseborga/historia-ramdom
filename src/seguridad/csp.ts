@@ -17,6 +17,13 @@ export const IMG_SRC = [
   // Pixabay sirve las muestras de sus entradas antiguas desde aquí.
   "https://i.vimeocdn.com",
   "https://images-assets.nasa.gov",
+  // Los tres bancos abiertos (sus muestras pasan por la app, pero si alguna
+  // vista usa el enlace directo tiene que poder cargarlo).
+  "https://api.openverse.org",
+  "https://upload.wikimedia.org",
+  "https://thumb.wikimedia.org",
+  "https://archive.org",
+  "https://*.archive.org",
 ];
 
 /**
@@ -32,6 +39,11 @@ export const MEDIA_SRC = [
   "https://videos.pixabay.com",
   "https://player.vimeo.com",
   "https://images-assets.nasa.gov",
+  // Vídeo de Wikimedia (webm) y de Internet Archive, que sirve desde
+  // subdominios distintos en cada descarga.
+  "https://upload.wikimedia.org",
+  "https://archive.org",
+  "https://*.archive.org",
 ];
 
 export const DIRECTIVAS_CSP = {

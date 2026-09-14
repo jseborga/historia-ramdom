@@ -6,7 +6,7 @@ import type { ClaseMedio } from "@prisma/client";
 import { db } from "../db.js";
 import { rutaMedios, rutaMedioSeguro, rutaMiniaturas } from "../almacen.js";
 import { ffmpeg } from "../render/ffmpeg.js";
-import { descargarClip, type ClipInfo } from "./clips.js";
+import { descargarDeClip, type ClipInfo } from "./clips.js";
 
 /**
  * La biblioteca: vídeo y foto propios o guardados de los bancos, para
@@ -142,7 +142,7 @@ export async function guardarDeBanco(clip: ClipInfo, etiquetas: string[] = []): 
   const extension = extensionDe(new URL(clip.url).pathname) || (clip.tipo === "imagen" ? "jpg" : "mp4");
   const archivo = nombreArchivo(extension);
   const destino = rutaMedioSeguro(archivo);
-  await descargarClip(clip.url, destino);
+  await descargarDeClip(clip, destino);
 
   let info: InfoMedio;
   try {

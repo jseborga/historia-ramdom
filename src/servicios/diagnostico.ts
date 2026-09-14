@@ -3,6 +3,7 @@ import { writeFile, unlink, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { db } from "../db.js";
 import { IMG_SRC, dominiosPermitidos } from "../seguridad/csp.js";
+import { buscarArchive, buscarOpenverse, buscarWikimedia } from "./bancosLibres.js";
 import { env } from "../env.js";
 import { conexion } from "../cola/conexion.js";
 import { rutaTrabajo } from "../almacen.js";
@@ -305,6 +306,30 @@ export async function diagnosticar(): Promise<Prueba[]> {
       const img = await pedir(muestra, "NASA (muestra)");
       const bytes = (await img.arrayBuffer()).byteLength;
       return `${fichas.length} fichas · muestra de ${Math.round(bytes / 1024)} kB desde ${new URL(muestra).hostname}`;
+    }),
+
+    /**
+     * Los tres bancos abiertos: sin clave, asi que aqui solo puede fallar la
+     * red o que hayan cambiado la API. Se busca de verdad y se mira que la
+     * primera ficha traiga enlace y licencia, que es lo que hace falta para
+     * poder usarla y acreditarla.
+     */
+    medir("openverse", "Openverse", "Clips", async () => {
+      const r = await buscarOpenverse("sky", ["imagen"]);
+      if (!r.length) return "Responde, pero sin resultados para 'sky'";
+      return `${r.length} fotos · la primera: ${r[0].info.licencia} de ${r[0].info.autor.slice(0, 30)}`;
+    }),
+
+    medir("wikimedia", "Wikimedia Commons", "Clips", async () => {
+      const r = await buscarWikimedia("sky", ["imagen"]);
+      if (!r.length) return "Responde, pero sin resultados para 'sky'";
+      return `${r.length} archivos · el primero: ${r[0].info.licencia}`;
+    }),
+
+    medir("archive", "Internet Archive", "Clips", async () => {
+      const r = await buscarArchive("space", ["video"]);
+      if (!r.length) return "Responde, pero sin video con licencia para 'space'";
+      return `${r.length} items · el primero: ${r[0].info.licencia}`;
     }),
 
     // ---- Publicacion ----

@@ -694,10 +694,31 @@ export const EFECTOS: [string, string][] = [
  * usuario sin saber si el banco no trajo nada, si la imagen se cayo o si el
  * servidor la bloqueo.
  */
-export function Muestra({ url, alt = "" }: { url?: string | null; alt?: string }) {
-  const [fallo, setFallo] = useState(false);
-  if (!url || fallo) {
-    return <div className="sinImagen">{fallo ? "no se pudo cargar la muestra" : "sin muestra"}</div>;
+export function Muestra({
+  url,
+  respaldo,
+  alt = "",
+}: {
+  url?: string | null;
+  /** Si la miniatura del banco falla, se prueba con esta (el original). */
+  respaldo?: string | null;
+  alt?: string;
+}) {
+  const [intento, setIntento] = useState(0);
+  const fuentes = [url, respaldo].filter((u): u is string => Boolean(u));
+  const actual = fuentes[intento];
+  if (!actual) {
+    return (
+      <div className="sinImagen">{fuentes.length ? "no se pudo cargar la muestra" : "sin muestra"}</div>
+    );
   }
-  return <img src={urlMuestra(url)} alt={alt} loading="lazy" onError={() => setFallo(true)} />;
+  return (
+    <img
+      key={actual}
+      src={urlMuestra(actual)}
+      alt={alt}
+      loading="lazy"
+      onError={() => setIntento(intento + 1)}
+    />
+  );
 }

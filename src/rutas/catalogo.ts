@@ -67,14 +67,35 @@ export async function rutasCatalogo(app: FastifyInstance) {
       clips: {
         pexels: Boolean(env.PEXELS_API_KEY),
         pixabay: Boolean(env.PIXABAY_API_KEY),
-        /** La NASA no pide clave: siempre está. */
+        /** Los cuatro abiertos no piden clave: siempre están. */
         nasa: true,
+        openverse: true,
+        wikimedia: true,
+        archive: true,
       },
       /** Bancos donde se puede buscar ahora mismo, con su nombre y su licencia. */
       bancos: [
         { id: "pexels", nombre: "Pexels", nota: "Vídeos y fotos libres, con autor.", listo: Boolean(env.PEXELS_API_KEY) },
         { id: "pixabay", nombre: "Pixabay", nota: "Vídeos y fotos libres, con autor.", listo: Boolean(env.PIXABAY_API_KEY) },
         { id: "nasa", nombre: "NASA", nota: "Espacio, planetas y misiones; dominio público y sin clave.", listo: true },
+        {
+          id: "openverse",
+          nombre: "Openverse",
+          nota: "Cientos de millones de fotos con licencia libre (solo uso comercial y modificable). Sin clave.",
+          listo: true,
+        },
+        {
+          id: "wikimedia",
+          nombre: "Wikimedia Commons",
+          nota: "Retratos, cuadros, mapas y archivo histórico; también vídeo. Sin clave.",
+          listo: true,
+        },
+        {
+          id: "archive",
+          nombre: "Internet Archive",
+          nota: "Cine y noticiarios de dominio público, material de archivo real. Sin clave.",
+          listo: true,
+        },
       ],
       medios: [
         { id: "video", nombre: "Vídeos" },

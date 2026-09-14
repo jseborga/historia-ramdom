@@ -144,6 +144,9 @@ const FICCION: SinArea[] = [
     ],
     visual: ["newspaper archive", "city aerial", "documents on desk", "old footage street", "ocean waves"],
     hashtags: ["historiareal", "casosreales", "sabiasque"],
+    // Un caso real pide material de archivo real: noticiarios y fotos de época.
+    bancos: ["archive", "wikimedia", "pexels", "pixabay"],
+    medios: ["video", "imagen"],
   },
   {
     id: "triunfo",
@@ -241,7 +244,7 @@ const FICCION: SinArea[] = [
     hashtags: ["curiosidades", "sabiasque", "ciencia"],
     // Los cuentos de ciencia salen mejor con material de la NASA que con
     // animaciones genéricas de banco: es real, es suyo y es de dominio público.
-    bancos: ["nasa", "pexels", "pixabay"],
+    bancos: ["nasa", "wikimedia", "pexels", "pixabay"],
     medios: ["video", "imagen"],
   },
   {
@@ -307,6 +310,8 @@ const IDEAS: SinArea[] = [
     ],
     visual: ["old books library", "handwritten letter", "candle on desk night", "rain window reading", "dusty bookshelf", "typewriter close up"],
     hashtags: ["literatura", "libros", "clasicos"],
+    // Cuadros, grabados, primeras ediciones y retratos: Commons y Openverse.
+    bancos: ["wikimedia", "openverse", "pexels", "pixabay"],
     medios: ["video", "imagen"],
   },
   {
@@ -348,7 +353,9 @@ const IDEAS: SinArea[] = [
     ],
     visual: ["gold medal close up", "old auditorium", "writer typewriter", "winter city europe", "archive photographs", "laboratory vintage"],
     hashtags: ["nobel", "literatura", "ideas"],
-    bancos: ["pexels", "pixabay", "nasa"],
+    // Los retratos y las fotos de archivo de los premiados están en Commons,
+    // no en un banco de vídeo comercial.
+    bancos: ["wikimedia", "openverse", "pexels", "pixabay"],
     medios: ["video", "imagen"],
   },
   {
@@ -397,6 +404,8 @@ const IDEAS: SinArea[] = [
     ],
     visual: ["ancient statue", "stone columns", "person thinking by window", "chess pieces", "sunrise mountains", "candle flame dark", "empty road horizon"],
     hashtags: ["filosofia", "pensamiento", "reflexion"],
+    // Cuadros, grabados, primeras ediciones y retratos: Commons y Openverse.
+    bancos: ["wikimedia", "openverse", "pexels", "pixabay"],
     medios: ["video", "imagen"],
   },
   {
@@ -436,6 +445,8 @@ const IDEAS: SinArea[] = [
     ],
     visual: ["parliament building", "crowd protest", "chess king piece", "old world map", "microphone podium", "city aerial night", "marble hall"],
     hashtags: ["poder", "politica", "historia"],
+    // Cuadros, grabados, primeras ediciones y retratos: Commons y Openverse.
+    bancos: ["wikimedia", "openverse", "pexels", "pixabay"],
     medios: ["video", "imagen"],
   },
   {
@@ -474,6 +485,7 @@ const IDEAS: SinArea[] = [
     ],
     visual: ["stock market screen", "coins stack", "shipping port containers", "empty supermarket shelf", "financial district", "printing money press"],
     hashtags: ["economia", "dinero", "finanzas"],
+    bancos: ["pexels", "pixabay", "wikimedia", "openverse"],
     medios: ["video", "imagen"],
   },
   {
@@ -511,6 +523,7 @@ const IDEAS: SinArea[] = [
     ],
     visual: ["office meeting", "warehouse boxes", "small shop owner", "business district morning", "handshake deal", "closed store sign"],
     hashtags: ["negocios", "emprender", "estrategia"],
+    bancos: ["pexels", "pixabay", "wikimedia", "openverse"],
     medios: ["video", "imagen"],
   },
   {

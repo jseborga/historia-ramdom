@@ -175,7 +175,7 @@ export function Galeria({ catalogo }: { catalogo: Catalogo }) {
         </div>
         <div className="pie">
           <button onClick={() => setBuscando(!buscando)}>
-            {buscando ? "Cerrar la busqueda" : "Buscar en los bancos (Pexels, Pixabay, NASA)"}
+            {buscando ? "Cerrar la busqueda" : "Buscar en los bancos (Pexels, Pixabay, NASA, Openverse, Commons, Archive)"}
           </button>
           <span className="suave">{ocupado === "subir" ? "Subiendo..." : `${medios.length} en la galeria`}</span>
         </div>
