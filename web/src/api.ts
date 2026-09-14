@@ -330,6 +330,50 @@ export type GuionDialogo = {
   avisoMotor?: string;
 };
 
+/** Un producto de Amazon: lo que se ensena y con que enlace se publica. */
+export type Producto = {
+  asin: string;
+  mercado: string;
+  titulo: string;
+  marca: string;
+  /** Precio del dia, tal y como lo da Amazon. Nunca se narra. */
+  precio: string;
+  /** Foto principal; vacia si no hay API de Afiliados. */
+  imagen: string;
+  imagenes: string[];
+  caracteristicas: string[];
+  /** Enlace con la etiqueta de afiliado, ya montado por el servidor. */
+  enlace: string;
+};
+
+/** Que se puede hacer con Amazon ahora mismo, segun lo que este configurado. */
+export type EstadoAmazon = {
+  /** Con API: buscar productos y usar sus fotos. */
+  api: boolean;
+  /** Con etiqueta: los enlaces generan comision. */
+  etiqueta: boolean;
+  mercado: string;
+  mercados: { id: string; nombre: string; dominio: string }[];
+  divulgacion: string;
+  ordenes: string[];
+  nota: string;
+};
+
+/** Guion de un video con producto: el objeto es la excusa, el giro es el final. */
+export type GuionProducto = {
+  titulo: string;
+  gancho: string;
+  usos: string[];
+  reflexion: string;
+  advertencia: string;
+  cierre: string;
+  keywords: string[];
+  hashtags: string[];
+  ganchos: string[];
+  motorUsado?: string;
+  avisoMotor?: string;
+};
+
 /**
  * Miniatura servida por la app. Enlazar directamente al CDN del banco se cae
  * por muchos sitios (politicas del navegador, redes que bloquean terceros,

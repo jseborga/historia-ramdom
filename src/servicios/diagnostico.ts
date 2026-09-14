@@ -12,6 +12,7 @@ import { redditConfigurado } from "./reddit.js";
 import { fuentesDisponibles } from "../render/fuentes.js";
 import { vocesLocalesDisponibles, modelosVozGemini, modeloVozGemini, vozGemini } from "./voz.js";
 import { tiktokConfigurado } from "./tiktok.js";
+import { amazonConfigurado, buscarProductos, hayEtiqueta, mercadoPorDefecto } from "./amazon.js";
 
 /**
  * Comprobacion de que todo lo que la app necesita responde de verdad.
@@ -330,6 +331,26 @@ export async function diagnosticar(): Promise<Prueba[]> {
       const r = await buscarArchive("space", ["video"]);
       if (!r.length) return "Responde, pero sin video con licencia para 'space'";
       return `${r.length} items · el primero: ${r[0].info.licencia}`;
+    }),
+
+    /**
+     * Amazon Afiliados. La prueba es una busqueda de verdad porque es donde
+     * fallan las cuentas nuevas: las claves valen, pero la API no se abre
+     * hasta que la cuenta tiene ventas, y eso solo se ve al pedir algo.
+     */
+    medir("amazon", "Amazon Afiliados", "Publicacion", async () => {
+      if (!amazonConfigurado()) {
+        // Con etiqueta pero sin claves la seccion sigue sirviendo: enlaces si,
+        // fotos no. Eso no es un fallo, es lo que hay.
+        return hayEtiqueta()
+          ? "Etiqueta de afiliado puesta, sin API: enlaces si, fotos y fichas no"
+          : SIN_CONFIGURAR;
+      }
+      const mercado = mercadoPorDefecto();
+      const productos = await buscarProductos("usb c cable", { mercado, cuantos: 1 });
+      if (!productos.length) return `Responde desde amazon.${mercado}, pero sin resultados`;
+      const p = productos[0];
+      return `amazon.${mercado} · ${p.titulo.slice(0, 40)}${p.imagen ? " · con foto" : " · sin foto"}`;
     }),
 
     // ---- Publicacion ----

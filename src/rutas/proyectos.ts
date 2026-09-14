@@ -25,6 +25,7 @@ import {
   duracionProyecto,
   creditosDeProyecto,
   descripcionDeProyecto,
+  publicacionDeProyecto,
   MusicaCapaSchema,
   VOZ_IA_POR_DEFECTO,
   type ClipPista,
@@ -836,6 +837,7 @@ export async function rutasProyectos(app: FastifyInstance) {
         guion?.success ? guion.data.gancho : null,
         musica,
         guion?.success ? guion.data.ganchos : [],
+        publicacionDeProyecto(p.publicacion),
       );
     return { descripcion, creditos: creditosDeProyecto(video, musica) };
   });
@@ -856,6 +858,7 @@ export async function rutasProyectos(app: FastifyInstance) {
         guion?.success ? guion.data.gancho : null,
         musica,
         guion?.success ? guion.data.ganchos : [],
+        publicacionDeProyecto(p.publicacion),
       );
     // El .txt lleva la descripción corta para pegar y, debajo, la lista completa con enlaces.
     const texto = [descripcion, "", "Créditos completos:", creditosDeProyecto(video, musica)].join("\n");

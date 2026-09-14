@@ -1002,3 +1002,125 @@ export function contextoParaContinuar(guion: Guion, parte: number) {
     ultimaFrase: frases.at(-1) ?? guion.gancho,
   };
 }
+
+/**
+ * Guion de un vídeo con producto: un objeto real como excusa para una idea.
+ *
+ * No es un anuncio. La estructura es la de un corto: un gancho que para el
+ * dedo, dos o tres momentos concretos del objeto en la vida de alguien, y un
+ * giro que habla de nosotros, no del producto. Lo que se vende, si se vende,
+ * se vende en la descripción con su enlace y su divulgación; el vídeo tiene
+ * que sostenerse aunque nadie compre nada.
+ */
+export const GuionProductoSchema = z.object({
+  titulo: z.string().min(1).max(120),
+  /** Lo primero que se oye: tres segundos para que no pasen de largo. */
+  gancho: z.string().min(1).max(200),
+  /** Momentos concretos del objeto: qué resuelve y cuándo, sin superlativos. */
+  usos: z.array(z.string().min(1).max(400)).min(1).max(5),
+  /** El giro: qué dice de nosotros que exista este objeto. */
+  reflexion: z.string().min(1).max(800),
+  /** Lo que el objeto NO hace. Decirlo es lo que hace creíble lo demás. */
+  advertencia: z.string().max(300).default(""),
+  /** Cierre hablado: invita a mirar el enlace sin prometer nada. */
+  cierre: z.string().max(200).default(""),
+  keywords: z.array(z.string().min(1).max(40)).min(1).max(8),
+  hashtags: z.array(z.string().max(40)).max(8).default([]),
+  ganchos: z.array(z.string().min(1).max(150)).max(4).default([]),
+  motorUsado: z.string().max(20).optional(),
+  avisoMotor: z.string().max(300).optional(),
+});
+
+export type GuionProducto = z.infer<typeof GuionProductoSchema>;
+
+/** El texto que se narra, en el orden en que se dice. */
+export function narracionDeProducto(g: GuionProducto): string {
+  return [g.gancho, ...g.usos, g.advertencia, g.reflexion, g.cierre]
+    .map((t) => (t ?? "").trim())
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+export type PeticionProducto = {
+  motor: string;
+  modelo?: string | null;
+  /** Lo que se sabe del producto: título, marca y sus características. */
+  producto: { titulo: string; marca?: string; caracteristicas?: string[] };
+  /** Hacia dónde tirar la reflexión; vacío = lo decide el modelo. */
+  angulo?: string;
+  duracion?: number;
+  idioma?: string;
+  region?: string;
+  modismos?: boolean;
+  categoria?: string | null;
+  subcategoria?: string | null;
+};
+
+/**
+ * Escribe el guion a partir de la ficha del producto. Lo único que el modelo
+ * puede dar por cierto es lo que venga en esa ficha: nada de inventar
+ * materiales, duraciones de batería ni precios, porque eso lo desmiente el
+ * primer comentario.
+ */
+export async function generarGuionProducto(p: PeticionProducto): Promise<GuionProducto> {
+  if (!esMotor(p.motor)) throw new Error(`Motor desconocido: ${p.motor}`);
+  const titulo = p.producto.titulo.trim();
+  if (!titulo) throw new Error("Hace falta al menos el nombre del producto");
+  const idioma = p.idioma ?? "es";
+  const duracion = p.duracion ?? 45;
+  const elegida = p.categoria ? resolverCategoria(p.categoria, p.subcategoria) : null;
+  // ~2,6 palabras por segundo; un bloque ronda las 30 palabras.
+  const bloques = Math.max(2, Math.min(5, Math.round((duracion * 2.6) / 30) - 2));
+  const caracteristicas = (p.producto.caracteristicas ?? []).filter(Boolean).slice(0, 8);
+
+  const prompt = [
+    `Escribe el guion de un vídeo vertical de unos ${duracion} segundos sobre un objeto real.`,
+    `Producto: ${titulo}`,
+    p.producto.marca ? `Marca: ${p.producto.marca}` : "",
+    caracteristicas.length
+      ? ["Lo que dice su ficha (es lo ÚNICO que puedes dar por cierto):", ...caracteristicas.map((c) => `- ${c}`)].join("\n")
+      : "No hay ficha técnica: habla del objeto por lo que es, sin atribuirle características concretas.",
+    p.angulo ? `La reflexión tiene que ir por aquí: ${p.angulo}.` : "",
+    elegida ? `Tono del género: ${elegida.categoria.tono}` : "",
+    "",
+    "Cómo tiene que ser:",
+    `- Empieza por un gancho de una frase que pare el dedo: una pregunta incómoda, una escena reconocible o un dato de la ficha que sorprenda.`,
+    `- Después, ${bloques} momentos concretos: alguien usando el objeto un martes cualquiera, no una lista de características.`,
+    "- Luego el giro: qué dice de nosotros que este objeto exista y que lo queramos. Consumo, tiempo, deseo, utilidad real, lo que se compra creyendo que se compra otra cosa.",
+    "- La reflexión es lo que se recuerda: que sea honesta y que incomode un poco. Nada de moralina ni de 'compra menos, vive más'.",
+    "- Di también qué NO hace o para quién no es: sin eso, el vídeo suena a anuncio y nadie se lo cree.",
+    "- No inventes precios, cifras, materiales, garantías ni comparaciones con otras marcas.",
+    "- No digas que lo has probado ni hables en primera persona como si lo tuvieras.",
+    "- Nada de urgencia falsa ('última oportunidad', 'solo hoy') ni de promesas de resultados.",
+    "- Nada de emojis ni de acotaciones: solo lo que se dice en voz alta.",
+    ORTOGRAFIA,
+    "",
+    "Devuelve exactamente este JSON:",
+    "{",
+    '  "titulo": "título corto del vídeo",',
+    '  "gancho": "la primera frase que se dice",',
+    `  "usos": [${Array.from({ length: bloques }, () => '"un momento concreto"').join(", ")}],`,
+    '  "advertencia": "qué no hace o para quién no es, en una frase",',
+    '  "reflexion": "el giro, dos o tres frases",',
+    '  "cierre": "última frase; puede mandar al enlace, sin prometer nada",',
+    '  "keywords": ["visual keyword in english", "another"],',
+    '  "ganchos": ["gancho viral para la descripcion", "otro"],',
+    '  "hashtags": ["sinAlmohadilla", "otro"]',
+    "}",
+    "Las keywords son de 3 a 6, EN INGLÉS, del ambiente del vídeo (dónde se usa el objeto, no el objeto en sí).",
+    "Los ganchos NO se dicen en voz alta: son el texto con el que se publica.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const informe: InformeMotor = {};
+  const crudo = await textoConMotor(p.motor, prompt, p.modelo, idioma, p.region ?? "bolivia", p.modismos ?? true, informe);
+  if (!crudo) throw new Error(`El motor ${informe.motor ?? p.motor} no devolvió contenido`);
+  const datos = extraerJSON(crudo) as Record<string, unknown>;
+  return GuionProductoSchema.parse({
+    ...datos,
+    hashtags: [...new Set([...(Array.isArray(datos.hashtags) ? datos.hashtags : []), ...(elegida?.categoria.hashtags ?? [])])].slice(0, 8),
+    motorUsado: informe.motor,
+    avisoMotor: informe.aviso,
+  });
+}

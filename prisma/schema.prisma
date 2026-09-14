@@ -188,6 +188,11 @@ model Proyecto {
   archivo    String? // MP4 final dentro de DATA_DIR/videos
   /// Título, hashtags y créditos de los clips, listo para pegar al publicar.
   descripcion String?
+  /// Con qué se publica el vídeo cuando no viene de una historia:
+  /// { producto, gancho, ganchos, hashtags }. De aquí salen el gancho viral,
+  /// las etiquetas y, si hay producto, su enlace de afiliado y la
+  /// divulgación obligatoria; si no se guardara, cada render las borraría.
+  publicacion Json?
   duracionSeg Float?
   /// Perfil de compresión del render: alta, normal o ligera.
   calidad    String          @default("normal")

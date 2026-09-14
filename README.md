@@ -32,6 +32,9 @@ Implementa la guía de `docs/guia-original.md`.
   bancos y se compone un montaje con lo elegido, en el orden elegido.
 - **Diálogos.** Dos o tres voces distintas discutiendo un tema, con el rótulo
   del que habla en su color.
+- **Productos con reflexión.** Un objeto real de Amazon como gancho y un giro
+  final que habla de nosotros: enlace de afiliado y divulgación siempre en la
+  descripción, y fotos solo si hay API oficial.
 - **Ganchos con puntuación.** El gancho es una escena propia con su rótulo; las
   métricas lo califican y los que funcionan se vuelven a usar solos.
 - **Servidor MCP.** Claude puede consultar el banco, ver qué rinde y encargar
@@ -151,7 +154,8 @@ ENCRYPTION_KEY=... node dist/scripts/cifrar-secreto.js
 
 Admiten cifrado: `DATABASE_URL`, `REDIS_URL`, `ADMIN_PASSWORD`,
 `ADMIN_PASSWORD_HASH`, las cuatro claves de IA, `PEXELS_API_KEY`,
-`PIXABAY_API_KEY`, `TIKTOK_CLIENT_KEY` y `TIKTOK_CLIENT_SECRET`. Si una falla al
+`PIXABAY_API_KEY`, `OPENVERSE_TOKEN`, `AMAZON_ACCESS_KEY`, `AMAZON_SECRET_KEY`,
+`TIKTOK_CLIENT_KEY` y `TIKTOK_CLIENT_SECRET`. Si una falla al
 descifrarse, la app no arranca y el registro solo menciona el **nombre** de la
 variable, nunca su valor.
 
@@ -648,6 +652,59 @@ cuota.
 - **API**: `POST /api/dialogo` escribe la conversación; `POST /api/dialogos` crea
   y monta el proyecto; `POST /api/proyectos/:id/dialogo` cambia las réplicas o
   las voces de uno ya creado y lo vuelve a montar.
+
+## Productos de Amazon con reflexión detrás
+
+La pestaña **Producto** hace vídeos que empiezan por un objeto real y acaban en
+una idea. No es un anuncio: el producto es el gancho —lo que para el dedo— y lo
+que se recuerda es el giro final. Si nadie compra nada, el vídeo sigue
+funcionando.
+
+1. **Qué producto.** Con la API de Afiliados se busca en Amazon y salen fotos,
+   marca, características y precio del día. Sin ella se pega **el enlace del
+   producto**: de ahí sale el ASIN, el mercado (`amazon.com.mx` → México) y el
+   enlace con tu etiqueta.
+2. **Cómo se cuenta.** El modelo escribe gancho, dos o tres momentos concretos
+   del objeto en la vida de alguien, **qué no hace** (sin eso suena a anuncio) y
+   la reflexión: qué dice de nosotros que ese objeto exista y lo queramos.
+   No inventa precios, cifras ni materiales —solo puede dar por cierto lo que
+   venga en la ficha—, no habla como si lo hubiera probado y no usa urgencia
+   falsa. Se lee entero y se corrige antes de montar nada.
+3. **Con qué imágenes.** Abre con la foto del producto (si vino de la API),
+   siguen tus propias tomas de la galería en el orden que elijas, y el resto lo
+   rellenan los bancos con el ambiente del guion. Lo que pongas delante se
+   respeta tal cual; el relleno solo cubre lo que queda de narración.
+
+**Lo que Amazon permite, y aquí se cumple.** Las fotos y los datos de un
+producto solo pueden salir de la **Product Advertising API v5** con cuenta de
+Afiliados aprobada; descargarlas de la ficha pública está prohibido, así que la
+app no ofrece ninguna forma de hacerlo. Todo enlace lleva la etiqueta, y la
+descripción lleva siempre la frase obligatoria:
+
+```
+Producto: Lámpara de escritorio con reloj despertador
+https://www.amazon.es/dp/B0XXXXXXXX?tag=tuetiqueta-21&linkCode=ll1
+Como Afiliado de Amazon, gano por las compras adscritas.
+```
+
+Eso no se guarda solo en el texto: el proyecto guarda **con qué se publica**
+(gancho viral, etiquetas y producto) en la columna `publicacion`, así que cada
+render vuelve a escribir el enlace y la divulgación en vez de borrarlos. El
+precio se enseña como referencia del día y **nunca se narra**: cambia cada hora
+y un vídeo dura meses.
+
+- **Configuración**: `AMAZON_ACCESS_KEY`, `AMAZON_SECRET_KEY`,
+  `AMAZON_PARTNER_TAG` y `AMAZON_MERCADO` (`com`, `es`, `com.mx`, `com.br`,
+  `co.uk`, `de`, `fr`, `it`, `ca`). Solo con la etiqueta ya se pueden hacer
+  enlaces; las dos claves son lo que abre las fotos y las fichas. La cuenta de
+  Afiliados no abre la API hasta tener ventas: hasta entonces contesta que la
+  clave no es válida, y eso sale tal cual en Ajustes › Comprobaciones.
+- **API**: `GET /api/amazon` (qué se puede hacer ahora mismo),
+  `POST /api/amazon/buscar`, `POST /api/amazon/producto` (enlace o ASIN → ficha),
+  `POST /api/amazon/guardar` (sus fotos a la galería), `POST /api/producto`
+  (escribe el guion), `POST /api/productos` (crea y monta el proyecto) y
+  `POST /api/proyectos/:id/producto` (cambia o quita el producto de uno ya
+  creado).
 
 ## Editor de montaje
 

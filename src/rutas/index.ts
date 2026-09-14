@@ -8,6 +8,7 @@ import { rutasProyectos } from "./proyectos.js";
 import { rutasMusica } from "./musica.js";
 import { rutasMedios } from "./medios.js";
 import { rutasDialogos } from "./dialogos.js";
+import { rutasProductos } from "./productos.js";
 
 export async function registrarRutas(app: FastifyInstance) {
   await rutasCatalogo(app);
@@ -19,4 +20,5 @@ export async function registrarRutas(app: FastifyInstance) {
   await rutasMusica(app);
   await rutasMedios(app);
   await rutasDialogos(app);
+  await rutasProductos(app);
 }

@@ -17,6 +17,8 @@ const CIFRABLES = [
   "PEXELS_API_KEY",
   "PIXABAY_API_KEY",
   "OPENVERSE_TOKEN",
+  "AMAZON_ACCESS_KEY",
+  "AMAZON_SECRET_KEY",
   "TIKTOK_CLIENT_KEY",
   "TIKTOK_CLIENT_SECRET",
   "REDDIT_CLIENT_ID",
@@ -129,6 +131,18 @@ const Env = z.object({
    * Con un token de su API esos limites suben; no hace falta para empezar.
    */
   OPENVERSE_TOKEN: z.string().optional(),
+
+  /**
+   * Amazon Afiliados (opcional). Sin las tres primeras no hay API: la seccion
+   * de productos sigue funcionando pegando el enlace a mano, pero sin fotos
+   * ni datos del producto, porque sacarlos de la ficha publica esta prohibido.
+   */
+  AMAZON_ACCESS_KEY: z.string().optional(),
+  AMAZON_SECRET_KEY: z.string().optional(),
+  /** La etiqueta de afiliado ("miweb-21"): sin ella no hay comision. */
+  AMAZON_PARTNER_TAG: z.string().max(40).optional(),
+  /** Tienda por defecto: com, es, com.mx, com.br, co.uk, de, fr, it o ca. */
+  AMAZON_MERCADO: z.string().max(10).default("com"),
 
   // TikTok (opcional)
   /**

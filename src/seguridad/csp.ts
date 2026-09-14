@@ -24,6 +24,10 @@ export const IMG_SRC = [
   "https://thumb.wikimedia.org",
   "https://archive.org",
   "https://*.archive.org",
+  // Fotos de producto de Amazon. Solo se cargan cuando hay cuenta de
+  // Afiliados: sin API no hay imágenes que enseñar.
+  "https://m.media-amazon.com",
+  "https://images-na.ssl-images-amazon.com",
 ];
 
 /**

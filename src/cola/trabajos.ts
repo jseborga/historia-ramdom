@@ -561,7 +561,7 @@ export async function limpiarArchivos() {
  * se acredite exactamente igual que el montaje del que sale.
  */
 async function prepararProyecto(proyectoId: string) {
-  const { ProyectoSchema, desdeEscenasAntiguas, esModeloAntiguo, huellaVoz, creditosDeProyecto, descripcionDeProyecto } =
+  const { ProyectoSchema, desdeEscenasAntiguas, esModeloAntiguo, huellaVoz, creditosDeProyecto, descripcionDeProyecto, publicacionDeProyecto } =
     await import("../servicios/proyecto.js");
   const { generarNarracion, narracionExiste } = await import("../servicios/narracion.js");
   const { rutaSubidaSegura } = await import("../almacen.js");
@@ -616,6 +616,10 @@ async function prepararProyecto(proyectoId: string) {
   const descripcion = descripcionDeProyecto(
     p.nombre, datos.video, hashtags, cabecera, musicaCredito,
     guion?.success ? guion.data.ganchos : [],
+    // Lo guardado al crear el proyecto: gancho viral, etiquetas y, con
+    // producto, su enlace de afiliado y la divulgacion. Sin esto, cada render
+    // las borraria.
+    publicacionDeProyecto(p.publicacion),
   );
 
   return {

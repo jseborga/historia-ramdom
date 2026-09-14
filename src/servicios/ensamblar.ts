@@ -29,6 +29,12 @@ export type OpcionesEnsamblado = {
   criterios?: string[];
   /** Dónde buscar y si entran fotos; vacío = lo que diga la categoría. */
   medios?: OpcionesMedios;
+  /**
+   * Clips que van al principio sí o sí, en este orden: la foto del producto,
+   * lo que se haya subido para enseñarlo. El relleno automático solo cubre lo
+   * que quede de narración después de ellos.
+   */
+  fijos?: ClipPista[];
 };
 
 const barajar = <T>(xs: T[]) => [...xs].sort(() => Math.random() - 0.5);
@@ -58,7 +64,9 @@ export function rellenarVideo(
     cubierto += duracion;
   };
 
-  const gancho = barajar(candidatosGancho).find((c) => (c.duracion ?? ganchoSeg) >= 2) ?? candidatos[0];
+  // Con `ganchoSeg` a cero no hay gancho que poner: quien llama ya tiene el
+  // primer plano decidido (la foto del producto, por ejemplo).
+  const gancho = ganchoSeg > 0 ? (barajar(candidatosGancho).find((c) => (c.duracion ?? ganchoSeg) >= 2) ?? candidatos[0]) : null;
   if (gancho) meter(gancho, ganchoSeg);
 
   // Primero los largos, y cada uno entero; si se acaban, se repite el conjunto.
@@ -148,7 +156,30 @@ export async function ensamblarProyecto(proyectoId: string, opciones: OpcionesEn
     ...criterios.map((k) => buscarClips(k, { ...medios, largos })),
   ]);
   const conjunto = [...new Map(resto.flat().map((c) => [c.id, c])).values()];
-  const video = rellenarVideo(gancho.length ? gancho : conjunto, conjunto.length ? conjunto : gancho, total, opciones.ganchoSeg ?? GANCHO_SEG);
+
+  // Los clips fijos van delante y se quedan como están; el relleno cubre solo
+  // lo que falte. Si ya cubren la narración entera, no se busca nada más.
+  // Nunca pasan del largo de la narración: un plano sin voz encima es silencio.
+  const fijos: ClipPista[] = [];
+  let cubiertoFijo = 0;
+  for (const c of (opciones.fijos ?? []).slice(0, 60)) {
+    const hueco = total - cubiertoFijo;
+    if (hueco < 0.5) break;
+    fijos.push(c.duracion <= hueco ? c : { ...c, duracion: hueco });
+    cubiertoFijo += Math.min(c.duracion, hueco);
+  }
+  const restante = total - cubiertoFijo;
+  const relleno =
+    restante > 0.05
+      ? rellenarVideo(
+          gancho.length ? gancho : conjunto,
+          conjunto.length ? conjunto : gancho,
+          restante,
+          // Con clips fijos el gancho ya está puesto: el relleno es continuación.
+          fijos.length ? 0 : (opciones.ganchoSeg ?? GANCHO_SEG),
+        )
+      : [];
+  const video = [...fijos, ...relleno];
 
   await db.proyecto.update({
     where: { id: proyectoId },

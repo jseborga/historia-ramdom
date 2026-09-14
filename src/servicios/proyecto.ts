@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { creditosLargos, armarDescripcion, FUENTES, MEDIOS } from "./clips.js";
+import { DIVULGACION, ProductoSchema, type Producto } from "./amazon.js";
 import { VozSchema, VOZ_POR_DEFECTO } from "./voz.js";
 import { ESTILO_POR_DEFECTO, fragmentar, type EstiloTexto, type Lectura } from "../render/rotulos.js";
 import {
@@ -479,6 +480,40 @@ export function creditosDeProyecto(video: ClipPista[], musica?: string | null): 
 }
 
 /**
+ * Con qué se publica un vídeo que no nace de una historia (una composición,
+ * un diálogo, un vídeo con producto): el gancho viral, las etiquetas y, si lo
+ * hay, el producto de Amazon. Va guardado con el proyecto porque el render
+ * rehace la descripción cada vez y, sin esto, se quedaría en el título pelado.
+ */
+export const PublicacionSchema = z.object({
+  producto: ProductoSchema.nullable().default(null),
+  /** Gancho narrado del vídeo: la segunda línea de la descripción. */
+  gancho: z.string().max(200).default(""),
+  /** Ganchos virales: el primero encabeza la descripción. */
+  ganchos: z.array(z.string().max(150)).max(4).default([]),
+  hashtags: z.array(z.string().max(40)).max(8).default([]),
+});
+
+export type Publicacion = z.infer<typeof PublicacionSchema>;
+
+/** Lo guardado en el proyecto, si sigue siendo válido. */
+export function publicacionDeProyecto(crudo: unknown): Publicacion | null {
+  if (!crudo || typeof crudo !== "object") return null;
+  const r = PublicacionSchema.safeParse(crudo);
+  return r.success ? r.data : null;
+}
+
+/**
+ * El bloque del producto en la descripción: qué es, dónde está y la
+ * divulgación de Afiliados. No es opcional: si el vídeo lleva enlace, la
+ * divulgación va con él.
+ */
+export function bloqueProducto(producto: Producto | null): string {
+  if (!producto) return "";
+  return [`Producto: ${producto.titulo}`, producto.enlace, DIVULGACION].join("\n");
+}
+
+/**
  * Descripción corta lista para pegar al publicar: gancho viral, gancho del
  * vídeo, hashtags y créditos en una línea.
  */
@@ -489,7 +524,17 @@ export function descripcionDeProyecto(
   gancho?: string | null,
   musica?: string | null,
   ganchos: string[] = [],
+  publicacion?: Publicacion | null,
 ): string {
   const clips = video.filter((c) => c.clip).map((c) => c.clip!);
-  return armarDescripcion(gancho?.trim() || nombre, hashtags, clips, musica, ganchos);
+  // Lo de la historia manda; lo guardado con el proyecto rellena lo que falte.
+  const base = armarDescripcion(
+    gancho?.trim() || publicacion?.gancho?.trim() || nombre,
+    hashtags.length ? hashtags : (publicacion?.hashtags ?? []),
+    clips,
+    musica,
+    ganchos.length ? ganchos : (publicacion?.ganchos ?? []),
+  );
+  const bloque = bloqueProducto(publicacion?.producto ?? null);
+  return bloque ? `${base}\n\n${bloque}` : base;
 }

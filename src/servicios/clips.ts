@@ -40,6 +40,10 @@ const HOSTS_PERMITIDOS = new Set([
   "archive.org",
   "commons.wikimedia.org",
   "upload.wikimedia.org",
+  // Fotos de producto de Amazon: solo llegan aqui desde la API de Afiliados
+  // (ver servicios/amazon.ts), nunca de una ficha publica.
+  "m.media-amazon.com",
+  "images-na.ssl-images-amazon.com",
 ]);
 
 /** De dónde pueden salir las imágenes y los vídeos. */
@@ -55,8 +59,11 @@ export const MEDIOS = ["video", "imagen"] as const;
 export type TipoMedio = (typeof MEDIOS)[number];
 export const esMedio = (v: string): v is TipoMedio => (MEDIOS as readonly string[]).includes(v);
 
-/** Origen de un clip: un banco, o la biblioteca propia. */
-export const FUENTES = [...BANCOS, "subido"] as const;
+/**
+ * Origen de un clip: un banco, la biblioteca propia, o una foto de producto
+ * de Amazon (que no es un banco: no se busca por keyword, viene de su API).
+ */
+export const FUENTES = [...BANCOS, "subido", "amazon"] as const;
 export type Fuente = (typeof FUENTES)[number];
 
 export type ClipInfo = {
@@ -710,15 +717,22 @@ const NOMBRE_FUENTE: Record<Fuente, string> = {
   wikimedia: "Wikimedia Commons",
   archive: "Internet Archive",
   subido: "propio",
+  amazon: "Amazon",
 };
+
+/**
+ * Lo que no va en la linea de creditos: el material propio no tiene a quien
+ * acreditar, y el producto de Amazon lleva su propio bloque en la descripcion,
+ * con el enlace de afiliado y la divulgacion.
+ */
+const SIN_CREDITO: Fuente[] = ["subido", "amazon"];
 
 const unicos = (clips: ClipAcreditable[]) => [...new Map(clips.map((c) => [c.id, c])).values()];
 
 /** Lista completa, un clip por línea con su enlace: para el .txt y los comentarios. */
 export function creditosLargos(clips: ClipAcreditable[]): string {
   return unicos(clips)
-    // El material propio no lleva crédito: no hay a quién acreditar.
-    .filter((c) => c.fuente !== "subido")
+    .filter((c) => !SIN_CREDITO.includes(c.fuente))
     .map((c) => `${c.autor} (${NOMBRE_FUENTE[c.fuente]}, ${c.licencia}) - ${c.pagina}`)
     .join("\n");
 }
@@ -729,7 +743,7 @@ export function creditosLargos(clips: ClipAcreditable[]): string {
  */
 export function creditosCortos(clips: ClipAcreditable[]): string {
   const porFuente = new Map<Fuente, Set<string>>();
-  for (const c of unicos(clips).filter((c) => c.fuente !== "subido")) {
+  for (const c of unicos(clips).filter((c) => !SIN_CREDITO.includes(c.fuente))) {
     const autores = porFuente.get(c.fuente) ?? new Set<string>();
     autores.add(c.autor.trim());
     porFuente.set(c.fuente, autores);
