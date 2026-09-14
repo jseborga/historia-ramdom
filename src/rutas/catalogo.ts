@@ -1,3 +1,5 @@
+import { stat } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import type { FastifyInstance } from "fastify";
 import { MOTORES, MODELOS } from "../servicios/guion.js";
 import {
@@ -20,7 +22,31 @@ import { db } from "../db.js";
 
 /** Lo que el frontend necesita para poblar selectores, sin exponer claves. */
 export async function rutasCatalogo(app: FastifyInstance) {
-  app.get("/api/salud", async () => ({ ok: true }));
+  /**
+   * Salud del servidor, y **de qué build** se trata.
+   *
+   * Sin esto, comprobar si un despliegue cogió el código nuevo es adivinar:
+   * la app contesta igual de bien con la versión de ayer. `compilado` es la
+   * fecha del archivo que se está ejecutando (la del momento en que se
+   * construyó la imagen), así que un `curl /api/salud` basta para saber si el
+   * redespliegue entró o si sigue corriendo el de antes.
+   */
+  app.get("/api/salud", async () => {
+    const compilado = await stat(fileURLToPath(import.meta.url))
+      .then((s) => s.mtime.toISOString())
+      .catch(() => null);
+    return {
+      ok: true,
+      compilado,
+      arrancado: new Date(Date.now() - Math.round(process.uptime() * 1000)).toISOString(),
+      funciones: {
+        /** Rutas que no existían en versiones anteriores; delatan un build viejo. */
+        verificacionTikTok: true,
+        paginasLegales: true,
+        productosAmazon: true,
+      },
+    };
+  });
 
   /**
    * Modelos de voz que de verdad tiene la clave de Gemini. Se pregunta a la
