@@ -175,7 +175,19 @@ form.login { max-width: 340px; margin: 15vh auto 0; display: grid; gap: 12px; }
   place-items: center;
 }
 
-.lienzo video, .lienzo .fondo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.lienzo video, .lienzo img, .lienzo .fondo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* Encuadre "ajustar": la imagen cabe entera y detras va ella desenfocada, igual
+   que en el render. Asi la vista previa enseña lo que va a salir. */
+.lienzo .capa.ajustar { object-fit: contain; }
+.lienzo .difuso { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(22px) brightness(0.85); transform: scale(1.1); }
+/* Marca de transicion entre bloques de la linea de tiempo. */
+.bloque .cruce {
+  position: absolute; right: -1px; top: 0; bottom: 0; width: 14px;
+  background: linear-gradient(90deg, transparent, var(--acento));
+  opacity: .7; border-radius: 0 6px 6px 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: #0b0e14; font-weight: 700;
+}
 
 /* Efectos de imagen, aproximados en CSS a lo que hace ffmpeg */
 @keyframes zoomLento { from { transform: scale(1); } to { transform: scale(1.12); } }

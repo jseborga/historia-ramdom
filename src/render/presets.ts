@@ -214,6 +214,50 @@ export function filtroEscena(p: Preset, efecto: Efecto, d: number, imagen = fals
     .join(",");
 }
 
+/**
+ * Cómo se pasa de un clip al siguiente. `ninguna` es un corte seco, que es lo
+ * normal en un vídeo narrado; las demás valen para composiciones de fotos,
+ * donde el corte seco canta.
+ */
+export const TRANSICIONES = ["ninguna", "fundido", "desplazar", "barrido", "circulo"] as const;
+export type Transicion = (typeof TRANSICIONES)[number];
+
+/** El nombre que entiende el filtro `xfade` de ffmpeg. */
+export const XFADE: Record<Transicion, string> = {
+  ninguna: "",
+  fundido: "fade",
+  desplazar: "slideleft",
+  barrido: "wipeleft",
+  circulo: "circleopen",
+};
+
+/**
+ * Lienzo "ajustar": la imagen cabe entera y detrás va ella misma recortada y
+ * desenfocada, que es lo que hace que una foto horizontal no quede con dos
+ * franjas negras en un vídeo vertical.
+ *
+ * Devuelve un grafo (`-filter_complex`) porque hace falta partir la entrada en
+ * dos y superponerlas; el movimiento se aplica al conjunto ya compuesto, así
+ * que la foto y su fondo se mueven juntos.
+ */
+export function grafoAjustar(p: Preset, efecto: Efecto, d: number, imagen = false): string {
+  // Con fotos se compone al doble y el movimiento baja al lienzo: así el zoom
+  // no emborrona. Con vídeo se compone al tamaño final.
+  const escala = imagen ? 2 : 1;
+  const W = p.ancho * escala;
+  const H = p.alto * escala;
+  const movimiento = imagen && !esMovimiento(efecto) ? "kenBurns" : efecto;
+  const filtro = filtroEfecto(movimiento, p, d);
+  // Sin movimiento hay que bajar del lienzo doble a mano.
+  const cierre = filtro ? filtro : escala > 1 ? `scale=${p.ancho}:${p.alto}` : "";
+  return [
+    `[0:v]split=2[fondo][frente]`,
+    `[fondo]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=${Math.round(20 * escala)},eq=brightness=-0.06[difuso]`,
+    `[frente]scale=${W}:${H}:force_original_aspect_ratio=decrease,setsar=1[cabe]`,
+    `[difuso][cabe]overlay=(W-w)/2:(H-h)/2${cierre ? "," : ""}${cierre},format=yuv420p,fps=${p.fps}[v]`,
+  ].join(";");
+}
+
 /** Entrada de ffmpeg para una foto: se repite el fotograma a la cadencia del lienzo. */
 export const entradaImagen = (p: Preset, archivo: string, d: number) => [
   "-framerate", String(p.fps),

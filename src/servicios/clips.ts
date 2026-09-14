@@ -13,6 +13,8 @@ const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
  * URL manipulada no puede hacer que el servidor acceda a direcciones internas
  * (SSRF).
  */
+export const hostPermitido = (u: URL) => u.protocol === "https:" && HOSTS_PERMITIDOS.has(u.hostname);
+
 const HOSTS_PERMITIDOS = new Set([
   "videos.pexels.com",
   "images.pexels.com",

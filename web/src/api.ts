@@ -146,6 +146,8 @@ export type EstiloTexto = {
 export type Lectura = "todo" | "frases" | "bloques";
 
 /** Un clip de la pista de video; su inicio es la suma de los anteriores. */
+export type Transicion = "ninguna" | "fundido" | "desplazar" | "barrido" | "circulo";
+
 export type ClipPista = {
   id: string;
   clip: ClipCandidato | null;
@@ -153,6 +155,11 @@ export type ClipPista = {
   duracion: number;
   recorte: number;
   efecto: Efecto;
+  /** "recortar" llena el lienzo; "ajustar" cabe entera con fondo desenfocado. */
+  encuadre?: "recortar" | "ajustar";
+  /** Cómo se pasa al clip siguiente. */
+  transicion?: Transicion;
+  transicionSeg?: number;
 };
 
 /** Un rotulo de la pista de textos, con su propio sitio en el tiempo. */
@@ -313,6 +320,14 @@ export type GuionDialogo = {
   hashtags: string[];
   ganchos: string[];
 };
+
+/**
+ * Miniatura servida por la app. Enlazar directamente al CDN del banco se cae
+ * por muchos sitios (politicas del navegador, redes que bloquean terceros,
+ * CDN sin enlazado externo); lo propio se sirve tal cual.
+ */
+export const urlMuestra = (u?: string | null) =>
+  !u ? "" : u.startsWith("/") ? u : `/api/muestra?url=${encodeURIComponent(u)}`;
 
 export type ClipCandidato = {
   id: string;

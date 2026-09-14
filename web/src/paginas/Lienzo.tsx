@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ClipPista, Preset, RotuloPista } from "../api";
+import { urlMuestra, type ClipPista, type Preset, type RotuloPista } from "../api";
 import { fragmentar, repartirTiempo, retardosKaraoke } from "../lectura";
 
 /**
@@ -147,6 +147,7 @@ export function Lienzo({
 
   const progreso = clip ? local / clip.duracion : 0;
   const esFoto = clip?.clip?.tipo === "imagen";
+  const ajustar = clip?.encuadre === "ajustar";
   // Una foto sin movimiento parece un fallo: en el render se le pone Ken Burns
   // aunque el efecto elegido no mueva nada, y la vista previa hace lo mismo.
   const movimiento =
@@ -187,13 +188,28 @@ export function Lienzo({
         className="lienzo"
         style={{ aspectRatio: `${preset.ancho} / ${preset.alto}`, containerType: "size" }}
       >
+        {clip?.clip && ajustar && (
+          // El fondo del encuadre "ajustar": la misma imagen, recortada y
+          // desenfocada, para que no queden franjas negras.
+          esFoto ? (
+            <img className="difuso" src={urlMuestra(clip.clip.url)} alt="" aria-hidden />
+          ) : (
+            <video className="difuso" src={clip.clip.url} muted loop playsInline preload="metadata" aria-hidden />
+          )
+        )}
         {clip?.clip && esFoto ? (
-          <img key={clip.id} className="capa" style={estiloEfecto} src={clip.clip.url} alt="" />
+          <img
+            key={clip.id}
+            className={`capa${ajustar ? " ajustar" : ""}`}
+            style={estiloEfecto}
+            src={urlMuestra(clip.clip.url)}
+            alt=""
+          />
         ) : clip?.clip ? (
           <video
             key={clip.id}
             ref={vid}
-            className="capa"
+            className={`capa${ajustar ? " ajustar" : ""}`}
             style={estiloEfecto}
             src={clip.clip.url}
             muted

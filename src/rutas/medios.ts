@@ -15,7 +15,7 @@ import {
   EXT_IMAGEN,
   EXT_VIDEO,
 } from "../servicios/medios.js";
-import { buscarClips, esBanco, esMedio, type Banco, type TipoMedio } from "../servicios/clips.js";
+import { buscarClips, esBanco, esMedio, hostPermitido, type Banco, type TipoMedio } from "../servicios/clips.js";
 import { ClipPistaSchema, ProyectoSchema, efectoDeClip, type ClipPista } from "../servicios/proyecto.js";
 import { buscarPreset } from "../render/presets.js";
 
@@ -70,7 +70,46 @@ async function servir(req: FastifyRequest, reply: FastifyReply, ruta: string, ti
     .send(createReadStream(ruta, { start: desde, end: hasta }));
 }
 
+/** Tipos de imagen que se aceptan como muestra; nada de HTML ni SVG. */
+const IMAGENES_OK = /^image\/(jpeg|png|webp|gif)$/;
+/** Una miniatura no pesa megas; si pesa, algo raro pasa. */
+const MAX_MUESTRA = 12 * 1024 * 1024;
+
 export async function rutasMedios(app: FastifyInstance) {
+  /**
+   * Muestra de un banco servida por la app.
+   *
+   * Las miniaturas se enlazaban directamente al CDN, y eso se cae por muchos
+   * sitios: politicas de contenido del navegador, redes que bloquean terceros,
+   * CDN que no admiten enlazado externo. Aqui se traen por el servidor, que ya
+   * tiene la lista de dominios permitidos, y salen como imagenes propias.
+   *
+   * Solo GET, solo https, solo los dominios de los bancos y solo imagenes: una
+   * direccion manipulada no puede llegar a la red interna.
+   */
+  app.get("/api/muestra", async (req, reply) => {
+    const { url } = z.object({ url: z.string().min(10).max(700) }).parse(req.query);
+    let destino: URL;
+    try {
+      destino = new URL(url);
+    } catch {
+      return reply.code(400).send({ error: "Direccion invalida" });
+    }
+    if (!hostPermitido(destino)) return reply.code(403).send({ error: "Dominio no permitido" });
+
+    const res = await fetch(destino, { redirect: "error", signal: AbortSignal.timeout(20_000) }).catch(() => null);
+    if (!res?.ok) return reply.code(502).send({ error: "La fuente no devolvio la imagen" });
+    const tipo = res.headers.get("content-type") ?? "";
+    if (!IMAGENES_OK.test(tipo)) return reply.code(415).send({ error: "Eso no es una imagen" });
+    const datos = Buffer.from(await res.arrayBuffer());
+    if (datos.length > MAX_MUESTRA) return reply.code(413).send({ error: "Imagen demasiado grande" });
+
+    return reply
+      .header("Content-Type", tipo)
+      .header("Cache-Control", "public, max-age=86400")
+      .send(datos);
+  });
+
   /** La biblioteca, con filtro por clase y por texto. */
   app.get("/api/medios", async (req) => {
     const { clase, q, limite } = z

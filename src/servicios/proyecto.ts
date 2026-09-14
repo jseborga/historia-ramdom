@@ -3,10 +3,19 @@ import { z } from "zod";
 import { creditosLargos, armarDescripcion, FUENTES, MEDIOS } from "./clips.js";
 import { VozSchema, VOZ_POR_DEFECTO } from "./voz.js";
 import { ESTILO_POR_DEFECTO, fragmentar, type EstiloTexto, type Lectura } from "../render/rotulos.js";
-import { PRESETS, PRESET_POR_DEFECTO, EFECTOS, movimientoPorIndice, type Efecto } from "../render/presets.js";
+import {
+  PRESETS,
+  PRESET_POR_DEFECTO,
+  EFECTOS,
+  TRANSICIONES,
+  movimientoPorIndice,
+  type Efecto,
+  type Transicion,
+} from "../render/presets.js";
 
 /** Los ids de efecto, para el esquema; la lista viva está en `presets.ts`. */
 const EFECTOS_ID = EFECTOS as [Efecto, ...Efecto[]];
+const TRANSICIONES_ID = [...TRANSICIONES] as [Transicion, ...Transicion[]];
 
 /**
  * Efecto con el que entra un clip nuevo en la línea de tiempo. Las fotos
@@ -87,6 +96,17 @@ export const ClipPistaSchema = z.object({
   /** Segundo del clip original por el que empieza (recorte de entrada). */
   recorte: z.number().min(0).max(3600).default(0),
   efecto: z.enum(EFECTOS_ID).default("ninguno"),
+  /**
+   * Cómo entra la imagen en el lienzo:
+   *   recortar  llena el lienzo y se come los bordes (lo de siempre),
+   *   ajustar   cabe entera, con el fondo desenfocado detrás.
+   * Una foto horizontal en un vertical se salva con "ajustar".
+   */
+  encuadre: z.enum(["recortar", "ajustar"]).default("recortar"),
+  /** Cómo se pasa al clip siguiente. La última no se usa. */
+  transicion: z.enum(TRANSICIONES_ID).default("ninguna"),
+  /** Cuánto dura esa transición, en segundos. */
+  transicionSeg: z.number().min(0.2).max(2).default(0.5),
 });
 
 /** Un rotulo de la pista de textos, con su propio sitio en el tiempo. */

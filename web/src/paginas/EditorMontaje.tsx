@@ -10,12 +10,14 @@ import {
   type Fuente,
   type Lectura,
   type Letra,
+  type Medio,
   type MusicaCapa,
   type Preset,
   type ResumenEstimacion,
   type Proyecto,
   type Region,
   type RotuloPista,
+  type Transicion,
   type VozPista,
 } from "../api";
 import { mensajeDe } from "../App";
@@ -49,7 +51,15 @@ const ESTILO: EstiloTexto = {
 };
 const clipNuevo = (): ClipPista => ({
   id: crypto.randomUUID(), clip: null, color: "#111318", duracion: 4, recorte: 0, efecto: "ninguno",
+  encuadre: "recortar", transicion: "ninguna", transicionSeg: 0.5,
 });
+
+const TRANSICIONES: [Transicion, string][] = [
+  ["ninguna", "corte seco"], ["fundido", "fundido cruzado"], ["desplazar", "desplazar"],
+  ["barrido", "barrido"], ["circulo", "circulo"],
+];
+/** Movimientos que se reparten entre las fotos al añadirlas de la galeria. */
+const MOVIMIENTOS: Efecto[] = ["zoomLento", "alejar", "paneoDerecha", "paneoIzquierda", "kenBurns"];
 const rotuloNuevo = (inicio: number): RotuloPista => ({
   id: crypto.randomUUID(), inicio, duracion: 4, texto: "", estilo: ESTILO, animacion: "fundido", lectura: "frases",
 });
@@ -73,6 +83,9 @@ export function EditorMontaje({
   const [t, setT] = useState(0);
   const [seek, setSeek] = useState({ t: 0, n: 0 });
   const [buscando, setBuscando] = useState(false);
+  /** Panel de la galeria dentro del editor, para añadir material propio. */
+  const [galeria, setGaleria] = useState<Medio[] | null>(null);
+  const [elegidosGaleria, setElegidosGaleria] = useState<string[]>([]);
   const [ocupado, setOcupado] = useState("");
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
@@ -334,6 +347,53 @@ export function EditorMontaje({
     copia.splice(hacia, 0, x);
     act({ video: copia });
   }
+
+  /** La biblioteca dentro del editor: añadir material propio sin salir de aqui. */
+  async function abrirGaleria() {
+    if (galeria) {
+      setGaleria(null);
+      return;
+    }
+    try {
+      setGaleria(await api.get<Medio[]>("/api/medios?limite=60"));
+    } catch (err) {
+      setError(mensajeDe(err));
+    }
+  }
+
+  /**
+   * Mete lo elegido de la galeria en la linea de tiempo: las fotos con su
+   * movimiento (uno distinto cada una) y los videos con su duracion real.
+   */
+  function insertarDeGaleria(despues: boolean) {
+    if (!galeria || !elegidosGaleria.length) return;
+    const nuevos: ClipPista[] = elegidosGaleria
+      .map((id) => galeria.find((m) => m.id === id))
+      .filter((m): m is Medio => Boolean(m))
+      .map((m, i) => ({
+        id: crypto.randomUUID(),
+        clip: m.clip,
+        color: "#111318",
+        duracion: m.clase === "IMAGEN" ? 3.5 : Math.min(Math.max(m.duracion ?? 6, 1), 12),
+        recorte: 0,
+        efecto: (m.clase === "IMAGEN" ? MOVIMIENTOS[i % MOVIMIENTOS.length] : "ninguno") as Efecto,
+        encuadre: "recortar" as const,
+        transicion: "ninguna" as const,
+        transicionSeg: 0.5,
+      }));
+    const copia = [...video];
+    const donde = despues && iClip >= 0 ? iClip + 1 : copia.length;
+    copia.splice(donde, 0, ...nuevos);
+    act({ video: copia });
+    setElegidosGaleria([]);
+    setOk(`${nuevos.length} de la galeria en la linea de tiempo.`);
+  }
+
+  /** Aplica un ajuste del clip elegido a todos los demas (o solo a las fotos). */
+  function aTodos(cambio: Partial<ClipPista>, soloFotos = false) {
+    act({ video: video.map((c) => (soloFotos && c.clip?.tipo !== "imagen" ? c : { ...c, ...cambio })) });
+    setOk(soloFotos ? "Aplicado a todas las fotos." : "Aplicado a todos los clips.");
+  }
   function aplicarGlobal(g: NonNullable<typeof global>) {
     const { animacion, lectura, ...estilo } = g;
     act({ textos: textos.map((r) => ({ ...r, estilo: { ...estilo, posicion: r.estilo.posicion }, animacion, lectura })) });
@@ -442,6 +502,51 @@ export function EditorMontaje({
                         </p>
                       )}
                     </div>
+                    <div>
+                      <label htmlFor="enc">Encuadre</label>
+                      <select
+                        id="enc"
+                        value={clipSel.encuadre ?? "recortar"}
+                        onChange={(e) => actClip({ encuadre: e.target.value as "recortar" | "ajustar" })}
+                      >
+                        <option value="recortar">Recortar (llena el lienzo)</option>
+                        <option value="ajustar">Ajustar (cabe entera, fondo desenfocado)</option>
+                      </select>
+                      <p className="suave">
+                        Una foto horizontal en un video vertical se salva con "ajustar": se ve completa y
+                        detras va ella misma desenfocada.
+                      </p>
+                    </div>
+                    <div>
+                      <label htmlFor="tr">Transicion al siguiente</label>
+                      <select
+                        id="tr"
+                        value={clipSel.transicion ?? "ninguna"}
+                        disabled={iClip >= video.length - 1}
+                        onChange={(e) => actClip({ transicion: e.target.value as Transicion })}
+                      >
+                        {TRANSICIONES.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
+                      </select>
+                      {iClip >= video.length - 1 && <p className="suave">El ultimo clip no tiene siguiente.</p>}
+                    </div>
+                    {(clipSel.transicion ?? "ninguna") !== "ninguna" && iClip < video.length - 1 && (
+                      <div>
+                        <label htmlFor="trs">Dura la transicion (s)</label>
+                        <input
+                          id="trs"
+                          type="number"
+                          min={0.2}
+                          max={2}
+                          step="0.1"
+                          value={clipSel.transicionSeg ?? 0.5}
+                          onChange={(e) => actClip({ transicionSeg: Number(e.target.value) || 0.5 })}
+                        />
+                        <p className="suave">
+                          El cruce sale de los dos clips a partes iguales, asi que el montaje sigue durando lo
+                          mismo y la voz no se descoloca.
+                        </p>
+                      </div>
+                    )}
                     {!clipSel.clip && (
                       <div>
                         <label htmlFor="col">Color de fondo</label>
@@ -451,6 +556,7 @@ export function EditorMontaje({
                   </div>
                   <div className="pie">
                     <button onClick={() => setBuscando(!buscando)}>{buscando ? "Cerrar" : clipSel.clip ? "Cambiar clip" : "Elegir clip"}</button>
+                    <button onClick={abrirGaleria}>{galeria ? "Cerrar galeria" : "Añadir de la galeria"}</button>
                     <button onClick={() => completarClips(false, true)} disabled={ocupado === "clips"}>Buscar clip parecido</button>
                     <button onClick={clipAlAzar}>Otro al azar</button>
                     <button onClick={() => moverClip(iClip, iClip - 1)} disabled={iClip <= 0}>Mover antes</button>
@@ -458,11 +564,77 @@ export function EditorMontaje({
                     <button onClick={() => { const c = [...video]; c.splice(iClip + 1, 0, { ...clipSel, id: crypto.randomUUID() }); act({ video: c }); }}>Duplicar</button>
                     <button disabled={video.length <= 1} onClick={() => { act({ video: video.filter((c) => c.id !== clipSel.id) }); setSel({ tipo: "clip", id: video[Math.max(0, iClip - 1)]?.id }); }}>Quitar</button>
                   </div>
+                  <div className="pie">
+                    <span className="suave">Aplicar a todos:</span>
+                    <button onClick={() => aTodos({ duracion: clipSel.duracion }, true)}>
+                      esta duracion a las fotos
+                    </button>
+                    <button onClick={() => aTodos({ encuadre: clipSel.encuadre ?? "recortar" })}>este encuadre</button>
+                    <button
+                      onClick={() =>
+                        aTodos({
+                          transicion: clipSel.transicion ?? "ninguna",
+                          transicionSeg: clipSel.transicionSeg ?? 0.5,
+                        })
+                      }
+                    >
+                      esta transicion
+                    </button>
+                  </div>
                   {clipSel.clip && (
                     <p className="suave">
                       {clipSel.clip.autor} · {clipSel.clip.fuente}
                       {clipSel.clip.tipo === "imagen" ? " · foto animada" : ""}
                     </p>
+                  )}
+                  {galeria && (
+                    <div style={{ marginTop: 12 }}>
+                      {galeria.length === 0 ? (
+                        <p className="suave">La galeria esta vacia: sube material en la pestaña Galeria.</p>
+                      ) : (
+                        <>
+                          <div className="rejilla">
+                            {galeria.map((m) => {
+                              const orden = elegidosGaleria.indexOf(m.id);
+                              return (
+                                <div className={`miniatura${orden >= 0 ? " elegida" : ""}`} key={m.id}>
+                                  <img src={`/api/medios/${m.id}/miniatura`} alt="" loading="lazy" />
+                                  <div className="fila">
+                                    <button
+                                      onClick={() =>
+                                        setElegidosGaleria(
+                                          orden >= 0
+                                            ? elegidosGaleria.filter((x) => x !== m.id)
+                                            : [...elegidosGaleria, m.id],
+                                        )
+                                      }
+                                    >
+                                      {orden >= 0 ? `Elegido ${orden + 1}` : "Elegir"}
+                                    </button>
+                                  </div>
+                                  <span className="suave">
+                                    {m.clase === "IMAGEN" ? "foto" : "video"} · {m.nombre.slice(0, 22)}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div className="pie">
+                            <button
+                              className="primario"
+                              disabled={!elegidosGaleria.length}
+                              onClick={() => insertarDeGaleria(true)}
+                            >
+                              Insertar despues de este clip
+                            </button>
+                            <button disabled={!elegidosGaleria.length} onClick={() => insertarDeGaleria(false)}>
+                              Añadir al final
+                            </button>
+                            <span className="suave">{elegidosGaleria.length} elegidos</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   )}
                   {buscando && (
                     <BuscadorClips sugerencia={(textoSobre(iClip) || proyecto.nombre).split(" ").slice(0, 3).join(" ")}

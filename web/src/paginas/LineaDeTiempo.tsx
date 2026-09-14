@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ClipPista, RotuloPista, VozPista } from "../api";
+import { urlMuestra, type ClipPista, type RotuloPista, type VozPista } from "../api";
 
 /**
  * Linea de tiempo multipista al estilo CapCut: zoom (deslizador y Ctrl+rueda),
@@ -140,8 +140,16 @@ export function LineaDeTiempo({
                   style={{ position: "absolute", left: ini * pps, width: Math.max(c.duracion * pps - 2, 18), top: 4 }}
                   onPointerDown={(e) => { e.stopPropagation(); alSeleccionar({ tipo: "clip", id: c.id }); alSaltar(ini); }}
                   title={tope ? `Origen: ${tope.toFixed(0)} s` : undefined}>
-                  {c.clip?.imagen ? <img className="mini" src={c.clip.imagen} alt="" loading="lazy" draggable={false} /> : <div className="mini" style={{ background: c.color }} />}
-                  <span>{i + 1} · {c.duracion.toFixed(1)}s{tope && c.duracion >= tope - 0.05 ? " (tope)" : ""}</span>
+                  {c.clip?.imagen ? <img className="mini" src={urlMuestra(c.clip.imagen)} alt="" loading="lazy" draggable={false} /> : <div className="mini" style={{ background: c.color }} />}
+                  <span>
+                    {i + 1} · {c.duracion.toFixed(1)}s{tope && c.duracion >= tope - 0.05 ? " (tope)" : ""}
+                    {c.encuadre === "ajustar" ? " · ajustada" : ""}
+                  </span>
+                  {(c.transicion ?? "ninguna") !== "ninguna" && i < video.length - 1 && (
+                    <div className="cruce" title={`Transicion ${c.transicion} de ${(c.transicionSeg ?? 0.5).toFixed(1)} s`}>
+                      ⟩
+                    </div>
+                  )}
                   <div className="asa" onPointerDown={(e) => empezar(e, { tipo: "estirarClip", id: c.id, x0: 0, v0: c.duracion })} />
                 </div>
               );

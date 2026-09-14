@@ -501,6 +501,19 @@ lo guardado de un banco sí conserva la suya.
 El render de un clip de la biblioteca **no descarga nada**: el archivo ya está
 en disco y se copia a la carpeta de trabajo.
 
+La galería también está **dentro del editor de montaje**: en el panel Clip,
+*Añadir de la galería* abre la misma rejilla y mete lo elegido en la línea de
+tiempo, detrás del clip actual o al final, sin salir del editor.
+
+### Las miniaturas pasan por la app
+
+Las muestras de los bancos ya no se enlazan directamente al CDN: van por
+`GET /api/muestra?url=…`, que solo acepta https, solo los dominios de los
+bancos y solo imágenes. Enlazar al CDN se cae por muchos sitios —la política de
+contenido del navegador, redes que bloquean terceros, CDN sin enlazado
+externo—, y era justo lo que hacía que **las fotos de la NASA no cargaran**
+aunque la búsqueda funcionase.
+
 ## Diálogos: dos o tres voces sobre un tema
 
 La pestaña **Diálogo** hace conversaciones, no narraciones: dos o tres personas
@@ -534,11 +547,29 @@ cuota.
 ## Editor de montaje
 
 La pestaña **Montaje** abre una línea de tiempo al estilo CapCut: se crea desde
-una historia con las escenas y los clips ya colocados en orden, y desde ahí se
-cambia cada pieza. Texto con tamaño, color, posición y cuatro animaciones; el
-clip de cada escena buscable por palabras; voz de IA o archivo propio; música de
-la biblioteca o subida; y un preset de formato por red (TikTok, Instagram feed,
-cuadrado, YouTube, Facebook). Al final, un solo MP4.
+una historia, desde una composición de la galería o desde un diálogo, con todo
+ya colocado en orden, y desde ahí se cambia cada pieza. Texto con tamaño, color,
+posición y cuatro animaciones; el clip de cada escena buscable por palabras o
+traído de la galería; voz de IA, diálogo a varias voces o archivo propio; música
+de la biblioteca o subida; y un preset de formato por red (TikTok, Instagram
+feed, cuadrado, YouTube, Facebook, y los dos largos de miniserie). Al final, un
+solo MP4.
+
+Para componer con fotos, el panel **Clip** tiene lo que hace falta:
+
+| Herramienta | Qué hace |
+|---|---|
+| **Duración y recorte** | cuánto dura el plano y por dónde entra; se estira arrastrando el borde en la línea de tiempo |
+| **Efecto** | acercar, alejar, dos paneos, Ken Burns, fundido, blanco y negro, viñeta |
+| **Encuadre** | *recortar* (llena el lienzo) o *ajustar* (cabe entera, con el fondo desenfocado detrás) |
+| **Transición** | al clip siguiente: corte seco, fundido cruzado, desplazar, barrido o círculo, con su duración |
+| **Añadir de la galería** | abre la biblioteca dentro del editor y mete lo elegido detrás del clip actual o al final |
+| **Aplicar a todos** | la duración a todas las fotos, o el encuadre o la transición a todos los clips |
+
+Las transiciones **no acortan el vídeo**: cada cruce sale a partes iguales de
+los dos clips vecinos, así que el montaje sigue durando lo que dice la línea de
+tiempo y la voz no se descoloca. Y cuando no hay ninguna transición se usa el
+camino rápido de siempre, pegando sin recodificar.
 
 Las cuatro animaciones están elegidas porque ffmpeg las reproduce igual que la
 vista previa, con etiquetas ASS (`\fad`, `\move`, `\t`), en vez de aproximarlas.

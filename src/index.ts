@@ -25,7 +25,16 @@ await app.register(helmet, {
   contentSecurityPolicy: {
     directives: {
       "default-src": ["'self'"],
-      "img-src": ["'self'", "data:", "https://images.pexels.com", "https://cdn.pixabay.com"],
+      // Las miniaturas de los tres bancos: sin esto, los resultados de la NASA
+      // se ven como cuadros rotos aunque la busqueda funcione.
+      "img-src": [
+        "'self'",
+        "data:",
+        "https://images.pexels.com",
+        "https://cdn.pixabay.com",
+        "https://pixabay.com",
+        "https://images-assets.nasa.gov",
+      ],
       // Los mismos CDN de los que el servidor ya descarga, para poder ver el
       // clip antes de elegirlo sin pasar el archivo por nuestro ancho de banda.
       "media-src": [
@@ -33,6 +42,7 @@ await app.register(helmet, {
         "blob:",
         "https://videos.pexels.com",
         "https://cdn.pixabay.com",
+        "https://images-assets.nasa.gov",
       ],
       "connect-src": ["'self'"],
     },

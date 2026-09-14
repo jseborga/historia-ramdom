@@ -188,7 +188,8 @@ rótulo por frase** en vez de uno enorme para todo el bloque.
    narración) y, en Textos, *Textos desde la narración* (reparte las frases
    sobre la voz en proporción a sus palabras) o *Alinear con los clips* (cada
    rótulo sobre el clip del mismo orden).
-3. **Clip.** Duración, segundo de entrada, efecto, buscar / parecido / al azar,
+3. **Clip.** Duración, segundo de entrada, efecto, encuadre, transición al
+   siguiente, **añadir de la galería**, buscar / parecido / al azar,
    mover, duplicar, quitar. *Buscar clip parecido* usa el texto que cae encima
    de ese clip en la línea de tiempo.
 4. **Texto.** Nuevo en el instante del cabezal, arrastrar para mover, borde
@@ -340,6 +341,38 @@ Sobre el clip o el fondo de cada escena, ya encajado en el lienzo:
 Uno por escena. El panel **Formato** tiene además un **estilo global** —letra,
 tamaño, color, contorno, animación, lectura y efecto— que se aplica a todas las
 escenas de golpe, respetando la posición de cada una.
+
+### Encuadre: recortar o ajustar
+
+Cada clip decide cómo entra en el lienzo:
+
+| Encuadre | Qué hace | Cuándo |
+|---|---|---|
+| **Recortar** (por defecto) | llena el lienzo y se come lo que sobra por los lados | vídeo vertical, o fotos que aguantan el recorte |
+| **Ajustar** | la imagen cabe entera y detrás va ella misma recortada y **desenfocada** | fotos horizontales en un vídeo vertical (casi todo el archivo de la NASA) |
+
+En el render, «ajustar» es un grafo: se parte la entrada en dos, el fondo se
+escala a cubrir y se desenfoca (`gblur`), el frente se escala a caber, se
+superponen centrados y el movimiento se aplica al conjunto ya compuesto —así la
+foto y su fondo se mueven juntos—. La vista previa hace lo mismo con CSS
+(`object-fit: contain` sobre una copia difuminada), así que lo que se ve es lo
+que sale.
+
+### Transiciones entre clips
+
+Cada clip elige **cómo se pasa al siguiente**: corte seco (por defecto),
+fundido cruzado, desplazar, barrido o círculo, con su duración (0,2 a 2 s).
+
+Lo importante es que **el montaje sigue durando lo mismo**. `xfade` solapa los
+dos clips, así que cada trozo se renderiza con medio cruce de más por cada lado
+y lo que el solape quita, el material extra lo devuelve. Sin eso, cada
+transición acortaría el vídeo y la voz y los rótulos se irían de sitio. La
+duración del cruce se limita sola a la mitad del clip más corto de los dos.
+
+Los tramos sin transición se siguen pegando con `concat` dentro del mismo
+grafo, así que se pueden mezclar cortes secos y cruces; y cuando no hay ninguna
+transición se usa el camino rápido de siempre (`concat` sin recodificar). En la
+línea de tiempo, un clip con transición lleva una marca en su borde derecho.
 
 ### Las fotos siempre se mueven
 
@@ -559,14 +592,14 @@ Crear o Series.
 
 Para que quede claro qué esperar:
 
-- **No recorta dentro de un clip.** Cada escena usa el clip desde el principio y
-  lo repite en bucle si hace falta; no hay punto de entrada ni de salida.
 - **No hay varias capas de texto a la vez** ni stickers, ni pistas superpuestas
   de vídeo.
 - **No hay fotogramas clave** ni curvas de animación: las cuatro animaciones son
   de entrada, no programables.
-- **No hay transiciones entre escenas**, solo cortes (el fundido a negro por
-  escena es lo más parecido).
+- **Las transiciones son entre clip y clip**, siempre centradas en el corte: no
+  se puede arrastrar el cruce ni darle una curva.
+- **La vista previa no muestra el cruce**: las transiciones se ven al
+  renderizar; en la línea de tiempo solo queda marcado qué clip lleva una.
 - **El karaoke reparte el tiempo por longitud de palabra**, no por el audio
   real: con voz de IA va aproximadamente a la par, no sincronizado al
   milisegundo.
