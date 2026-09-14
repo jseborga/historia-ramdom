@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, type Busqueda, type ClipCandidato } from "../api";
 import { mensajeDe } from "../App";
+import { Muestra } from "./comunes";
 
 /**
  * Deja elegir a mano el clip de cada escena. Las vistas previas se ven
@@ -82,10 +83,8 @@ export function SelectorClips({
                       >
                         {viendo === c.id ? (
                           <video src={c.url} controls muted autoPlay playsInline />
-                        ) : c.imagen ? (
-                          <img src={c.imagen} alt="" loading="lazy" />
                         ) : (
-                          <div className="sinImagen">sin muestra</div>
+                          <Muestra url={c.tipo === "imagen" ? (c.imagen ?? c.url) : c.imagen} />
                         )}
                         <div className="fila">
                           <button onClick={() => alElegir(i, c.id)}>

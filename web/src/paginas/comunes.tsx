@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
-import { api, type Catalogo, type Genero, type ModoAudio, type ModoPublicacion, type Region, type Voz } from "../api";
+import {
+  api,
+  urlMuestra,
+  type Catalogo,
+  type Genero,
+  type ModoAudio,
+  type ModoPublicacion,
+  type Region,
+  type Voz,
+} from "../api";
 import { mensajeDe } from "../App";
 
 /**
@@ -679,3 +688,16 @@ export const EFECTOS: [string, string][] = [
   ["blancoYNegro", "Blanco y negro"],
   ["vineta", "Viñeta"],
 ];
+
+/**
+ * Muestra de un clip. Si no carga, lo dice: una miniatura rota y muda deja al
+ * usuario sin saber si el banco no trajo nada, si la imagen se cayo o si el
+ * servidor la bloqueo.
+ */
+export function Muestra({ url, alt = "" }: { url?: string | null; alt?: string }) {
+  const [fallo, setFallo] = useState(false);
+  if (!url || fallo) {
+    return <div className="sinImagen">{fallo ? "no se pudo cargar la muestra" : "sin muestra"}</div>;
+  }
+  return <img src={urlMuestra(url)} alt={alt} loading="lazy" onError={() => setFallo(true)} />;
+}

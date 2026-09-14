@@ -556,6 +556,30 @@ contenido del navegador, redes que bloquean terceros, CDN sin enlazado
 externo—, y era justo lo que hacía que **las fotos de la NASA no cargaran**
 aunque la búsqueda funcionase.
 
+Eso trajo un segundo problema, que también está resuelto: al pasar por la app,
+las miniaturas empezaron a contar contra el **límite general de peticiones**
+(120 por minuto). Una rejilla pide veinte de golpe, así que el cupo se agotaba
+solo y las imágenes dejaban de cargar —otra vez en silencio—. Las rutas de
+muestra (`/api/muestra`, `/api/medios/:id/miniatura`, `/api/medios/:id/ver`)
+tienen ahora su propio límite, holgado, y se cachean un día en el navegador.
+
+Y cuando una muestra no carga, **se ve que no cargó**: en su hueco aparece «no
+se pudo cargar la muestra» en vez de un recuadro vacío.
+
+### Si las imágenes de un banco siguen sin verse
+
+En **Ajustes → Probar todo** hay dos comprobaciones para esto:
+
+- **Política de contenido**: enseña los dominios de imagen que permite el
+  servidor que está corriendo ahora mismo. Si `images-assets.nasa.gov` no
+  aparece en la lista, lo que está desplegado es una versión anterior: hay que
+  reconstruir y volver a desplegar (y recargar el navegador sin caché, porque
+  la cabecera viaja con la página).
+- **NASA (imágenes y vídeo)**: busca de verdad, saca la muestra de la primera
+  ficha y la descarga, que es el mismo camino que recorre la pantalla. Si esa
+  prueba pasa y aun así no se ven, el problema está entre el navegador y la
+  app, no en la NASA.
+
 ## Diálogos: dos o tres voces sobre un tema
 
 La pestaña **Diálogo** hace conversaciones, no narraciones: dos o tres personas

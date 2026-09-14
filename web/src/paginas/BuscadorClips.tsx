@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { api, urlMuestra, type Busqueda, type Catalogo, type ClipCandidato } from "../api";
+import { api, type Busqueda, type Catalogo, type ClipCandidato } from "../api";
 import { mensajeDe } from "../App";
+import { Muestra } from "./comunes";
 
 /** Todos los bancos si el catálogo no los trae (servidor antiguo). */
 const BANCOS_BASE = [
@@ -103,12 +104,8 @@ export function BuscadorClips({
           <div className="miniatura" key={c.id}>
             {viendo === c.id && c.tipo !== "imagen" ? (
               <video src={c.url} controls muted autoPlay playsInline />
-            ) : c.tipo === "imagen" ? (
-              <img src={urlMuestra(c.imagen ?? c.url)} alt="" loading="lazy" />
-            ) : c.imagen ? (
-              <img src={urlMuestra(c.imagen)} alt="" loading="lazy" />
             ) : (
-              <div className="sinImagen">sin muestra</div>
+              <Muestra url={c.tipo === "imagen" ? (c.imagen ?? c.url) : c.imagen} />
             )}
             <div className="fila">
               <button onClick={() => alElegir(c)}>Usar</button>

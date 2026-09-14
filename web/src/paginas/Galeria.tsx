@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type Catalogo, type ClipCandidato, type Medio, type Preset, type Proyecto } from "../api";
 import { mensajeDe } from "../App";
 import { BuscadorClips } from "./BuscadorClips";
+import { Muestra } from "./comunes";
 import { EditorMontaje } from "./EditorMontaje";
 
 /**
@@ -247,7 +248,7 @@ export function Galeria({ catalogo }: { catalogo: Catalogo }) {
                   onClick={() => alternar(m.id)}
                   title={orden >= 0 ? "Quitar de la seleccion" : "Añadir a la composicion"}
                 >
-                  <img src={`/api/medios/${m.id}/miniatura`} alt="" loading="lazy" />
+                  <Muestra url={`/api/medios/${m.id}/miniatura`} />
                 </button>
                 <div className="fila">
                   <button onClick={() => alternar(m.id)}>

@@ -70,6 +70,14 @@ async function servir(req: FastifyRequest, reply: FastifyReply, ruta: string, ti
     .send(createReadStream(ruta, { start: desde, end: hasta }));
 }
 
+/**
+ * Las muestras no son peticiones "de usuario": una rejilla de resultados pide
+ * veinte de golpe, y la galeria otras tantas. Con el limite general de la app
+ * (120 por minuto) se agotaban solas y las imagenes dejaban de cargar sin
+ * decir nada. Son GET baratos y con sesion, asi que llevan su propio limite.
+ */
+const LIMITE_MUESTRAS = { max: 1200, timeWindow: "1 minute" };
+
 /** Tipos de imagen que se aceptan como muestra; nada de HTML ni SVG. */
 const IMAGENES_OK = /^image\/(jpeg|png|webp|gif)$/;
 /** Una miniatura no pesa megas; si pesa, algo raro pasa. */
@@ -87,7 +95,7 @@ export async function rutasMedios(app: FastifyInstance) {
    * Solo GET, solo https, solo los dominios de los bancos y solo imagenes: una
    * direccion manipulada no puede llegar a la red interna.
    */
-  app.get("/api/muestra", async (req, reply) => {
+  app.get("/api/muestra", { config: { rateLimit: LIMITE_MUESTRAS } }, async (req, reply) => {
     const { url } = z.object({ url: z.string().min(10).max(700) }).parse(req.query);
     let destino: URL;
     try {
@@ -194,18 +202,19 @@ export async function rutasMedios(app: FastifyInstance) {
     return reply.code(201).send({ ...r.medio, clip: clipDeMedio(r.medio) });
   });
 
-  app.get("/api/medios/:id/ver", async (req, reply) => {
+  app.get("/api/medios/:id/ver", { config: { rateLimit: LIMITE_MUESTRAS } }, async (req, reply) => {
     const { id } = idParam.parse(req.params);
     const m = await db.medio.findUnique({ where: { id } });
     if (!m) return reply.code(404).send({ error: "No encontrado" });
     return servir(req, reply, rutaMedioSeguro(m.archivo), tipoDe(m.archivo));
   });
 
-  app.get("/api/medios/:id/miniatura", async (req, reply) => {
+  app.get("/api/medios/:id/miniatura", { config: { rateLimit: LIMITE_MUESTRAS } }, async (req, reply) => {
     const { id } = idParam.parse(req.params);
     const m = await db.medio.findUnique({ where: { id } });
     if (!m) return reply.code(404).send({ error: "No encontrado" });
     try {
+      reply.header("Cache-Control", "public, max-age=86400");
       return servir(req, reply, await miniaturaDe(m), "image/jpeg");
     } catch {
       return reply.code(422).send({ error: "No se pudo sacar la miniatura" });

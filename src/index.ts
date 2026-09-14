@@ -11,6 +11,7 @@ import { env, MAX_AUDIO_BYTES } from "./env.js";
 import { db } from "./db.js";
 import { prepararCarpetas } from "./almacen.js";
 import { registrarAuth, asegurarAdminMaestro } from "./seguridad/auth.js";
+import { DIRECTIVAS_CSP } from "./seguridad/csp.js";
 import { registrarRutas } from "./rutas/index.js";
 import { iniciarWorker, programarSerie, detenerWorker } from "./cola/cola.js";
 import { cerrarRedisClips } from "./servicios/clips.js";
@@ -21,36 +22,9 @@ const app = Fastify({
   logger: { redact: ["req.headers.authorization", "req.headers.cookie"] },
 });
 
-await app.register(helmet, {
-  contentSecurityPolicy: {
-    directives: {
-      "default-src": ["'self'"],
-      // Las miniaturas de los tres bancos: sin esto, los resultados de la NASA
-      // se ven como cuadros rotos aunque la busqueda funcione.
-      "img-src": [
-        "'self'",
-        "data:",
-        "https://images.pexels.com",
-        "https://cdn.pixabay.com",
-        "https://pixabay.com",
-        "https://i.vimeocdn.com",
-        "https://images-assets.nasa.gov",
-      ],
-      // Los mismos CDN de los que el servidor ya descarga, para poder ver el
-      // clip antes de elegirlo sin pasar el archivo por nuestro ancho de banda.
-      "media-src": [
-        "'self'",
-        "blob:",
-        "https://videos.pexels.com",
-        "https://cdn.pixabay.com",
-        "https://videos.pixabay.com",
-        "https://player.vimeo.com",
-        "https://images-assets.nasa.gov",
-      ],
-      "connect-src": ["'self'"],
-    },
-  },
-});
+// La lista vive en `seguridad/csp.ts` para que la comprobacion de Ajustes
+// pueda enseñar exactamente la que se esta aplicando.
+await app.register(helmet, { contentSecurityPolicy: { directives: DIRECTIVAS_CSP } });
 await app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
 await app.register(cookie);
 // Subidas del editor: voz y musica propias, 40 MB por archivo.

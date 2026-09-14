@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { writeFile, unlink, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { db } from "../db.js";
+import { IMG_SRC, dominiosPermitidos } from "../seguridad/csp.js";
 import { env } from "../env.js";
 import { conexion } from "../cola/conexion.js";
 import { rutaTrabajo } from "../almacen.js";
@@ -269,6 +270,41 @@ export async function diagnosticar(): Promise<Prueba[]> {
         `Clave valida · video: ${videos.totalHits ?? 0} · fotos: ${fotos.totalHits ?? 0}` +
         (dominio ? ` · sirve desde ${dominio}` : "")
       );
+    }),
+
+    /**
+     * Lo que el navegador tiene permitido cargar. Va aqui porque cuando una
+     * miniatura sale en blanco, lo primero que hay que descartar es que el
+     * servidor que esta corriendo sea uno viejo, sin los dominios nuevos.
+     */
+    medir("csp", "Politica de contenido", "Clips", async () => {
+      const imagenes = dominiosPermitidos(IMG_SRC);
+      const faltan = ["images-assets.nasa.gov", "cdn.pixabay.com", "images.pexels.com"].filter(
+        (d) => !imagenes.includes(d),
+      );
+      if (faltan.length) throw new Error(`El navegador no podra cargar: ${faltan.join(", ")}`);
+      return `Imagenes permitidas: ${imagenes.join(", ")}`;
+    }),
+
+    /**
+     * La NASA no pide clave, asi que aqui solo puede fallar la red o el
+     * enlace: se busca de verdad, se saca el archivo de la primera ficha y se
+     * descarga su muestra, que es justo el camino que recorre la pantalla.
+     */
+    medir("nasa", "NASA (imagenes y video)", "Clips", async () => {
+      const res = await pedir(
+        "https://images-api.nasa.gov/search?q=earth&media_type=image&page_size=3",
+        "NASA",
+      );
+      const data = (await res.json()) as {
+        collection?: { items?: { href?: string; links?: { href?: string }[] }[] };
+      };
+      const fichas = data.collection?.items ?? [];
+      const muestra = fichas[0]?.links?.find((l) => l.href)?.href?.replace(/^http:/, "https:");
+      if (!muestra) return `${fichas.length} fichas, pero ninguna trae muestra`;
+      const img = await pedir(muestra, "NASA (muestra)");
+      const bytes = (await img.arrayBuffer()).byteLength;
+      return `${fichas.length} fichas · muestra de ${Math.round(bytes / 1024)} kB desde ${new URL(muestra).hostname}`;
     }),
 
     // ---- Publicacion ----
