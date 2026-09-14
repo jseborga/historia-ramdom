@@ -23,6 +23,39 @@ trozos y guarda el identificador de la publicación.
 Puedes cortar la conexión desde **Ajustes → Desconectar**, o desde TikTok en
 *Configuración → Seguridad y permisos → Aplicaciones conectadas*.
 
+## Verificar el dominio ("This URL is not verified")
+
+Antes de aceptar la URL de tu web, TikTok comprueba que el dominio es tuyo. En
+*Verify URL properties* te da tres caminos; el más directo es el **archivo de
+firma**:
+
+1. Descarga el archivo del portal (se llama `tiktok<código>.txt` y dentro lleva
+   una línea tipo `tiktok-developers-site-verification=ab12…`).
+2. Pega **esa línea** en la variable `TIKTOK_VERIFICACION` y reinicia.
+3. Comprueba que responde texto plano y no HTML:
+
+   ```bash
+   curl -i https://tu-dominio/tiktok-developers-site-verification.txt
+   # 200 · content-type: text/plain · la misma línea del archivo
+   ```
+4. Vuelve al portal y pulsa verificar.
+
+**Por qué hace falta la variable y no basta con subir el archivo.** El frontend
+es una SPA: cualquier ruta desconocida devuelve `index.html` con código 200 y
+`text/html`. Sin esta ruta, TikTok pide el `.txt`, recibe una página web y da el
+dominio por no verificado sin explicar el motivo. La ruta se registra antes que
+el frontend y responde a cualquier nombre `tiktok*.txt`, que es lo que cambia
+según la propiedad que verifiques.
+
+El otro camino sin tocar la app es el **registro DNS TXT** en tu proveedor de
+dominio (en Cloudflare, si es donde está el DNS): es igual de válido y no
+depende de que el servicio esté levantado.
+
+> Y lo primero de todo: la verificación solo puede funcionar si el sitio
+> **responde**. Si `https://tu-dominio/` devuelve 503 «Service is not started»,
+> no hay nada que verificar — arranca el servicio en Easypanel y vuelve a
+> intentarlo.
+
 ## Las dos páginas que pide el formulario
 
 Al registrar la app, TikTok exige **Terms of Service URL** y **Privacy Policy

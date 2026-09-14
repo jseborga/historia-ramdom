@@ -163,6 +163,12 @@ const Env = z.object({
    */
   TIKTOK_SCOPES: z.string().default("user.info.basic,video.upload,video.list"),
   TIKTOK_CLIENT_KEY: z.string().optional(),
+  /**
+   * Contenido exacto del archivo de verificacion de dominio que se descarga
+   * del portal de TikTok. Se sirve en /tiktok<codigo>.txt, que sin esto lo
+   * atenderia el frontend devolviendo HTML y la verificacion fallaria.
+   */
+  TIKTOK_VERIFICACION: z.string().max(200).optional(),
   TIKTOK_CLIENT_SECRET: z.string().optional(),
   TIKTOK_REDIRECT_URI: z.string().url().optional(),
 
