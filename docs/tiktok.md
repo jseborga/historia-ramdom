@@ -23,6 +23,37 @@ trozos y guarda el identificador de la publicación.
 Puedes cortar la conexión desde **Ajustes → Desconectar**, o desde TikTok en
 *Configuración → Seguridad y permisos → Aplicaciones conectadas*.
 
+## Las dos páginas que pide el formulario
+
+Al registrar la app, TikTok exige **Terms of Service URL** y **Privacy Policy
+URL** publicadas en tu dominio y accesibles sin iniciar sesión. La app las sirve
+ella misma:
+
+```
+https://tu-dominio/terminos     (también /terms)
+https://tu-dominio/privacidad   (también /privacy)
+```
+
+Antes de pegarlas, rellena quién eres en el entorno, porque los dos textos
+firman con esos datos:
+
+```
+LEGAL_TITULAR=Tu nombre o el de tu empresa
+LEGAL_CONTACTO=tu-correo@tu-dominio
+LEGAL_JURISDICCION=Bolivia
+```
+
+Si falta alguno, las páginas se sirven igual pero con un aviso rojo arriba que
+dice que el documento no identifica a nadie: eso es una revisión denegada. La
+comprobación **Términos y privacidad** de Ajustes te dice si están completas y
+escupe las dos direcciones exactas para copiarlas al formulario.
+
+El texto describe lo que esta app hace de verdad —qué guarda, con quién habla y
+cuánto lo conserva—, así que si cambias ese comportamiento, actualiza
+`src/rutas/legales.ts` y la fecha de revisión que lleva dentro. Cada página trae
+la versión en español y, debajo, la misma en inglés, que es la que suele leer
+quien revisa.
+
 ## Permisos (`TIKTOK_SCOPES`)
 
 | Permiso | Para qué | ¿Aprobación aparte? |

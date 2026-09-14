@@ -324,6 +324,32 @@ historia y su propia voz, de modo que puedes combinar, por ejemplo, historias
 con `gemini-2.5-flash` y voz con el modelo TTS de Gemini, o historia con Gemini
 y voz con OpenAI. Si dejas el campo vacío se usa el valor del entorno.
 
+## Términos y privacidad: las dos páginas que piden las plataformas
+
+TikTok (y Amazon, y cualquier plataforma seria) no aprueba una aplicación sin una
+**Terms of Service URL** y una **Privacy Policy URL** públicas en tu dominio. La
+app las sirve ella misma, sin login, en `/terminos` (`/terms`) y `/privacidad`
+(`/privacy`), en español y con la traducción al inglés debajo.
+
+Rellena antes quién firma:
+
+```
+LEGAL_TITULAR=Tu nombre o el de tu empresa
+LEGAL_CONTACTO=tu-correo@tu-dominio
+LEGAL_JURISDICCION=Bolivia
+```
+
+Sin esos datos las páginas salen con un aviso rojo diciendo que no identifican a
+nadie. La comprobación **Términos y privacidad** de Ajustes avisa de eso y
+enseña las dos direcciones listas para pegar.
+
+Los textos cuentan lo que la app hace de verdad: contraseñas con argon2id,
+sesión en cookie propia de 7 días, testigos de TikTok cifrados con AES-256-GCM y
+borrados al desconectar, métricas agregadas del vídeo (nunca de quien lo ve),
+MP4 borrados a los `RETENCION_DIAS` días, y la lista de con quién se habla
+(motores de IA, bancos de imagen, Amazon y TikTok). Si cambias ese
+comportamiento, cambia `src/rutas/legales.ts` y su fecha de revisión.
+
 ## Créditos para TikTok
 
 Cada escena guarda el clip que usó (id, fuente, autor, página y licencia). La

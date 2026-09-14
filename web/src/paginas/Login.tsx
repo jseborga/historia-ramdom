@@ -52,6 +52,11 @@ export function Login({ alEntrar }: { alEntrar: () => void }) {
       <button className="primario" disabled={enviando}>
         {enviando ? "Entrando..." : "Entrar"}
       </button>
+      {/* Publicas y sin sesion: es donde TikTok y Amazon miran antes de
+          aprobar la aplicacion, y quien entra tiene derecho a leerlas. */}
+      <p className="suave">
+        <a href="/terminos">Terminos de servicio</a> · <a href="/privacidad">Politica de privacidad</a>
+      </p>
     </form>
   );
 }

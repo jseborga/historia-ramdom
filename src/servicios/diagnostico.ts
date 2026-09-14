@@ -12,6 +12,7 @@ import { redditConfigurado } from "./reddit.js";
 import { fuentesDisponibles } from "../render/fuentes.js";
 import { vocesLocalesDisponibles, modelosVozGemini, modeloVozGemini, vozGemini } from "./voz.js";
 import { tiktokConfigurado } from "./tiktok.js";
+import { estadoLegal } from "../rutas/legales.js";
 import { amazonConfigurado, buscarProductos, hayEtiqueta, mercadoPorDefecto } from "./amazon.js";
 
 /**
@@ -351,6 +352,21 @@ export async function diagnosticar(): Promise<Prueba[]> {
       if (!productos.length) return `Responde desde amazon.${mercado}, pero sin resultados`;
       const p = productos[0];
       return `amazon.${mercado} · ${p.titulo.slice(0, 40)}${p.imagen ? " · con foto" : " · sin foto"}`;
+    }),
+
+    /**
+     * Las dos paginas que TikTok exige publicadas para aprobar la app. La
+     * prueba dice las direcciones exactas que hay que pegar en el formulario,
+     * y falla si el documento todavia no identifica a nadie.
+     */
+    medir("legales", "Terminos y privacidad", "Publicacion", async () => {
+      const l = estadoLegal();
+      if (!l.completo) {
+        throw new Error(
+          "Falta LEGAL_TITULAR o LEGAL_CONTACTO: las paginas se sirven, pero no identifican a nadie",
+        );
+      }
+      return `${l.terminos} · ${l.privacidad}`;
     }),
 
     // ---- Publicacion ----

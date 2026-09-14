@@ -144,6 +144,15 @@ const Env = z.object({
   /** Tienda por defecto: com, es, com.mx, com.br, co.uk, de, fr, it o ca. */
   AMAZON_MERCADO: z.string().max(10).default("com"),
 
+  /**
+   * Identidad del titular para las paginas de Terminos y Privacidad, que
+   * TikTok exige publicadas en el dominio para aprobar la app. Sin ellas las
+   * paginas se sirven igual, pero avisan de que faltan datos.
+   */
+  LEGAL_TITULAR: z.string().max(120).optional(),
+  LEGAL_CONTACTO: z.string().email().optional(),
+  LEGAL_JURISDICCION: z.string().max(80).default("Bolivia"),
+
   // TikTok (opcional)
   /**
    * Permisos que se piden al conectar la cuenta:
