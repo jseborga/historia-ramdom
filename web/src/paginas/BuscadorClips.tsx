@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, urlMuestra, type Catalogo, type ClipCandidato } from "../api";
+import { api, urlMuestra, type Busqueda, type Catalogo, type ClipCandidato } from "../api";
 import { mensajeDe } from "../App";
 
 /** Todos los bancos si el catálogo no los trae (servidor antiguo). */
@@ -24,6 +24,8 @@ export function BuscadorClips({
 }) {
   const [consulta, setConsulta] = useState(sugerencia);
   const [lista, setLista] = useState<ClipCandidato[]>([]);
+  /** Cuantos trajo cada banco y cual fallo: sin esto, una busqueda vacia no dice nada. */
+  const [estado, setEstado] = useState<Busqueda["bancos"]>([]);
   const [viendo, setViendo] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
@@ -40,7 +42,9 @@ export function BuscadorClips({
       const parametros = new URLSearchParams({ keywords: consulta });
       if (bancos.length) parametros.set("bancos", bancos.join(","));
       parametros.set("medios", conFotos ? "video,imagen" : "video");
-      setLista(await api.get<ClipCandidato[]>(`/api/clips?${parametros}`));
+      const r = await api.get<Busqueda>(`/api/clips?${parametros}`);
+      setLista(r.clips);
+      setEstado(r.bancos ?? []);
     } catch (err) {
       setError(mensajeDe(err));
     } finally {
@@ -84,6 +88,15 @@ export function BuscadorClips({
           fotos
         </label>
       </div>
+
+      {estado.length > 0 && (
+        <p className={estado.some((b) => b.error) ? "aviso error" : "suave"}>
+          {estado
+            .map((b) => `${b.banco}: ${b.encontrados}${b.error ? ` — ${b.error}` : ""}`)
+            .join(" · ")}
+          {estado.some((b) => b.error) ? " · revisa la clave en Ajustes y prueba otra vez" : ""}
+        </p>
+      )}
 
       <div className="rejilla">
         {lista.map((c) => (

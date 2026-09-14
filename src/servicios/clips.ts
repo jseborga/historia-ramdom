@@ -21,6 +21,10 @@ const HOSTS_PERMITIDOS = new Set([
   "player.vimeo.com",
   "cdn.pixabay.com",
   "pixabay.com",
+  // Pixabay sirve los videos y las miniaturas de sus entradas antiguas desde
+  // estos dos; sin ellos, sus resultados salen sin muestra o no se descargan.
+  "videos.pixabay.com",
+  "i.vimeocdn.com",
   "images-assets.nasa.gov",
 ]);
 
@@ -100,12 +104,25 @@ export type EscenaPreparada = {
   audio?: string;
 };
 
-export async function buscarConCache<T>(clave: string, buscar: () => Promise<T>): Promise<T> {
+/** Pixabay exige cachear sus resultados 24 h; lo aplicamos tambien a Pexels. */
+const CACHE_SEG = 86_400;
+/**
+ * Cuando un banco ha fallado, lo que se guarda es una respuesta a medias: se
+ * cachea unos minutos en vez de un día, para que un 429 pasajero no deje la
+ * búsqueda vacía hasta mañana.
+ */
+const CACHE_FALLO_SEG = 300;
+
+export async function buscarConCache<T>(
+  clave: string,
+  buscar: () => Promise<T>,
+  segundos: number | ((r: T) => number) = CACHE_SEG,
+): Promise<T> {
   const guardado = await redis.get(clave);
   if (guardado) return JSON.parse(guardado) as T;
   const resultado = await buscar();
-  // Pixabay exige cachear sus resultados 24 h; lo aplicamos tambien a Pexels.
-  await redis.set(clave, JSON.stringify(resultado), "EX", 86_400);
+  const ex = typeof segundos === "function" ? segundos(resultado) : segundos;
+  await redis.set(clave, JSON.stringify(resultado), "EX", Math.max(30, ex));
   return resultado;
 }
 
@@ -147,6 +164,17 @@ export async function descargarClip(url: string, destino: string) {
 
 type Candidato = { info: ClipInfo; alto: number; ancho: number };
 
+/**
+ * El porqué del fallo, no solo el número. Pixabay contesta en texto plano
+ * ("[ERROR 400] \"key\" is invalid"), que es justo lo que hace falta leer para
+ * arreglarlo; un 400 a secas no dice nada.
+ */
+async function motivo(banco: string, res: Response) {
+  const cuerpo = await res.text().catch(() => "");
+  const limpio = cuerpo.replace(/\s+/g, " ").trim().slice(0, 120);
+  return `${banco} respondio ${res.status}${limpio ? `: ${limpio}` : ""}`;
+}
+
 /** Prioriza vertical y la mayor resolucion que no sea desmesurada. */
 function puntuar(c: Candidato) {
   const vertical = c.alto >= c.ancho ? 1000 : 0;
@@ -169,7 +197,7 @@ async function buscarPexels(keyword: string, largos: boolean): Promise<Candidato
     headers: { Authorization: env.PEXELS_API_KEY },
     signal: AbortSignal.timeout(30_000),
   });
-  if (!res.ok) throw new Error(`Pexels respondio ${res.status}`);
+  if (!res.ok) throw new Error(await motivo("Pexels", res));
   const data = await leerJSON(res);
 
   const salida: Candidato[] = [];
@@ -212,7 +240,7 @@ async function buscarPixabay(keyword: string): Promise<Candidato[]> {
   }).toString();
 
   const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
-  if (!res.ok) throw new Error(`Pixabay respondio ${res.status}`);
+  if (!res.ok) throw new Error(await motivo("Pixabay", res));
   const data = await leerJSON(res);
 
   const salida: Candidato[] = [];
@@ -260,7 +288,7 @@ async function buscarPexelsFotos(keyword: string): Promise<Candidato[]> {
     headers: { Authorization: env.PEXELS_API_KEY },
     signal: AbortSignal.timeout(30_000),
   });
-  if (!res.ok) throw new Error(`Pexels respondio ${res.status}`);
+  if (!res.ok) throw new Error(await motivo("Pexels", res));
   const data = await leerJSON(res);
 
   const salida: Candidato[] = [];
@@ -299,7 +327,7 @@ async function buscarPixabayFotos(keyword: string): Promise<Candidato[]> {
   }).toString();
 
   const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
-  if (!res.ok) throw new Error(`Pixabay respondio ${res.status}`);
+  if (!res.ok) throw new Error(await motivo("Pixabay", res));
   const data = await leerJSON(res);
 
   const salida: Candidato[] = [];
@@ -377,7 +405,7 @@ async function buscarNasaTipo(keyword: string, tipoPedido: TipoMedio): Promise<C
   const medios = [tipoPedido];
 
   const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
-  if (!res.ok) throw new Error(`NASA respondio ${res.status}`);
+  if (!res.ok) throw new Error(await motivo("NASA", res));
   const data = await leerJSON(res);
   const fichas = (data.collection?.items ?? []).slice(0, NASA_ITEMS);
 
@@ -418,40 +446,82 @@ async function buscarNasaTipo(keyword: string, tipoPedido: TipoMedio): Promise<C
  * `medios` deciden dónde se busca y si entran fotos además de vídeos.
  */
 export async function buscarClips(keyword: string, o: OpcionesMedios = {}): Promise<ClipInfo[]> {
+  return (await buscarConEstado(keyword, o)).clips;
+}
+
+/** Cómo le fue a cada banco: cuántos trajo y, si falló, por qué. */
+export type EstadoBanco = { banco: Banco; encontrados: number; error?: string };
+
+export type Busqueda = { clips: ClipInfo[]; bancos: EstadoBanco[] };
+
+/**
+ * Igual que `buscarClips`, pero contando qué hizo cada banco. Un banco que
+ * falla en silencio es el peor error posible de esta pantalla: se ve una
+ * búsqueda vacía y no hay forma de saber si es que no hay material, si la
+ * clave está mal o si el banco devolvió un 429.
+ */
+export async function buscarConEstado(keyword: string, o: OpcionesMedios = {}): Promise<Busqueda> {
   const largos = o.largos ?? false;
   const disponibles = bancosDisponibles();
   const bancos = (o.bancos?.length ? o.bancos : disponibles).filter((b) => disponibles.includes(b));
   const medios = o.medios?.length ? o.medios : (["video"] as TipoMedio[]);
-  const clave = `clips:v2:${bancos.join("+")}:${medios.join("+")}:${largos ? "largos:" : ""}${keyword
+  const clave = `clips:v3:${bancos.join("+")}:${medios.join("+")}:${largos ? "largos:" : ""}${keyword
     .toLowerCase()
     .trim()}`;
 
-  return buscarConCache(clave, async () => {
-    const tareas: Promise<Candidato[]>[] = [];
-    const conVideo = medios.includes("video");
-    const conImagen = medios.includes("imagen");
-    if (bancos.includes("pexels")) {
-      if (conVideo) tareas.push(buscarPexels(keyword, largos).catch(() => []));
-      if (conImagen) tareas.push(buscarPexelsFotos(keyword).catch(() => []));
-    }
-    if (bancos.includes("pixabay")) {
-      if (conVideo) tareas.push(buscarPixabay(keyword).catch(() => []));
-      if (conImagen) tareas.push(buscarPixabayFotos(keyword).catch(() => []));
-    }
-    if (bancos.includes("nasa")) tareas.push(buscarNasa(keyword, medios).catch(() => []));
+  return buscarConCache(
+    clave,
+    async () => {
+      const conVideo = medios.includes("video");
+      const conImagen = medios.includes("imagen");
 
-    const todos = (await Promise.all(tareas)).flat();
-    const esLargo = (c: Candidato) => (c.info.duracion ?? 0) >= CLIP_LARGO;
-    const esVideo = (c: Candidato) => c.info.tipo === "video";
-    return todos
-      .sort((a, b) => {
-        // Un vídeo manda sobre una foto: la foto se anima, pero no se mueve sola.
-        if (conVideo && conImagen && esVideo(a) !== esVideo(b)) return Number(esVideo(b)) - Number(esVideo(a));
-        if (largos && esLargo(a) !== esLargo(b)) return Number(esLargo(b)) - Number(esLargo(a));
-        return puntuar(b) - puntuar(a);
-      })
-      .map((c) => c.info);
-  });
+      /** Lanza las búsquedas de un banco y se queda con el primer error. */
+      const pedir = async (banco: Banco, tareas: Promise<Candidato[]>[]): Promise<[EstadoBanco, Candidato[]]> => {
+        const resultados = await Promise.all(
+          tareas.map((t) => t.then((r) => ({ r }), (e: unknown) => ({ e: e instanceof Error ? e.message : String(e) }))),
+        );
+        const encontrados = resultados.flatMap((x) => ("r" in x ? x.r : []));
+        const error = resultados.find((x) => "e" in x) as { e: string } | undefined;
+        return [{ banco, encontrados: encontrados.length, ...(error ? { error: error.e } : {}) }, encontrados];
+      };
+
+      const porBanco: Promise<[EstadoBanco, Candidato[]]>[] = [];
+      if (bancos.includes("pexels")) {
+        porBanco.push(
+          pedir("pexels", [
+            ...(conVideo ? [buscarPexels(keyword, largos)] : []),
+            ...(conImagen ? [buscarPexelsFotos(keyword)] : []),
+          ]),
+        );
+      }
+      if (bancos.includes("pixabay")) {
+        porBanco.push(
+          pedir("pixabay", [
+            ...(conVideo ? [buscarPixabay(keyword)] : []),
+            ...(conImagen ? [buscarPixabayFotos(keyword)] : []),
+          ]),
+        );
+      }
+      if (bancos.includes("nasa")) porBanco.push(pedir("nasa", [buscarNasa(keyword, medios)]));
+
+      const resultados = await Promise.all(porBanco);
+      const todos = resultados.flatMap(([, cs]) => cs);
+      const esLargo = (c: Candidato) => (c.info.duracion ?? 0) >= CLIP_LARGO;
+      const esVideo = (c: Candidato) => c.info.tipo === "video";
+      return {
+        clips: todos
+          .sort((a, b) => {
+            // Un vídeo manda sobre una foto: la foto se anima, pero no se mueve sola.
+            if (conVideo && conImagen && esVideo(a) !== esVideo(b)) return Number(esVideo(b)) - Number(esVideo(a));
+            if (largos && esLargo(a) !== esLargo(b)) return Number(esLargo(b)) - Number(esLargo(a));
+            return puntuar(b) - puntuar(a);
+          })
+          .map((c) => c.info),
+        bancos: resultados.map(([estado]) => estado),
+      };
+    },
+    (r) => (r.bancos.some((b) => b.error) ? CACHE_FALLO_SEG : CACHE_SEG),
+  );
 }
 
 /**

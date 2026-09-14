@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, type ClipCandidato } from "../api";
+import { api, type Busqueda, type ClipCandidato } from "../api";
 import { mensajeDe } from "../App";
 
 /**
@@ -34,10 +34,10 @@ export function SelectorClips({
     setCargando(true);
     setError("");
     try {
-      const lista = await api.get<ClipCandidato[]>(
-        `/api/clips?keywords=${encodeURIComponent(keywords.join(","))}`,
-      );
-      setCandidatos((c) => ({ ...c, [indice]: lista }));
+      const r = await api.get<Busqueda>(`/api/clips?keywords=${encodeURIComponent(keywords.join(","))}`);
+      setCandidatos((c) => ({ ...c, [indice]: r.clips }));
+      const fallo = (r.bancos ?? []).filter((b) => b.error);
+      if (fallo.length) setError(fallo.map((b) => `${b.banco}: ${b.error}`).join(" · "));
     } catch (err) {
       setError(mensajeDe(err));
     } finally {

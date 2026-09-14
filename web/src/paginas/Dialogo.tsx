@@ -10,7 +10,7 @@ import {
   type Voz,
 } from "../api";
 import { mensajeDe } from "../App";
-import { SelectorCategoria, SelectorMotor, SelectorRegion, SelectorVoz } from "./comunes";
+import { SelectorCategoria, SelectorMotor, SelectorRegion, SelectorVoz, motorInicial } from "./comunes";
 import { EditorMontaje } from "./EditorMontaje";
 
 /**
@@ -43,7 +43,7 @@ function vozInicial(catalogo: Catalogo, i: number): Voz {
 export function Dialogo({ catalogo }: { catalogo: Catalogo }) {
   const [tema, setTema] = useState("");
   const [duracion, setDuracion] = useState(90);
-  const [motor, setMotor] = useState(catalogo.motores.find((m) => m.disponible)?.id ?? "groq");
+  const [motor, setMotor] = useState(motorInicial(catalogo));
   const [modelo, setModelo] = useState<string | null>(null);
   const [idioma, setIdioma] = useState<Idioma>("es");
   const [region, setRegion] = useState<Region>("bolivia");
@@ -99,7 +99,10 @@ export function Dialogo({ catalogo }: { catalogo: Catalogo }) {
         subcategoria,
       });
       setGuion(g);
-      setOk(`Dialogo escrito: ${g.intervenciones.length} intervenciones. Leelo y corrige lo que no suene.`);
+      setOk(
+        `Dialogo escrito con ${g.motorUsado ?? motor}: ${g.intervenciones.length} intervenciones. ` +
+          `Leelo y corrige lo que no suene.${g.avisoMotor ? ` ${g.avisoMotor}` : ""}`,
+      );
     } catch (err) {
       setError(mensajeDe(err));
     } finally {

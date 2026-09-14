@@ -33,6 +33,7 @@ await app.register(helmet, {
         "https://images.pexels.com",
         "https://cdn.pixabay.com",
         "https://pixabay.com",
+        "https://i.vimeocdn.com",
         "https://images-assets.nasa.gov",
       ],
       // Los mismos CDN de los que el servidor ya descarga, para poder ver el
@@ -42,6 +43,8 @@ await app.register(helmet, {
         "blob:",
         "https://videos.pexels.com",
         "https://cdn.pixabay.com",
+        "https://videos.pixabay.com",
+        "https://player.vimeo.com",
         "https://images-assets.nasa.gov",
       ],
       "connect-src": ["'self'"],

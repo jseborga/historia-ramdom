@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   api,
   type Animacion,
+  type Busqueda,
   type Catalogo,
   type ClipCandidato,
   type ClipPista,
@@ -294,7 +295,7 @@ export function EditorMontaje({
     if (!clipSel) return;
     try {
       const consulta = (textoSobre(iClip) || proyecto!.nombre).split(" ").slice(0, 3).join(" ");
-      const lista = await api.get<ClipCandidato[]>(`/api/clips?keywords=${encodeURIComponent(consulta)}`);
+      const { clips: lista } = await api.get<Busqueda>(`/api/clips?keywords=${encodeURIComponent(consulta)}`);
       const otros = lista.filter((c) => c.id !== clipSel.clip?.id);
       if (!otros.length) { setError("No hay mas clips para ese texto."); return; }
       const elegido = otros[Math.floor(Math.random() * otros.length)];

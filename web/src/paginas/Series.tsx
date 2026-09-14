@@ -17,6 +17,7 @@ import {
   SelectorCategoria,
   SelectorModo,
   SelectorMotor,
+  motorInicial,
   SelectorMusica,
   SelectorRegion,
   SelectorVoz,
@@ -43,7 +44,7 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
   const [zonaHoraria, setZonaHoraria] = useState(
     Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Lima",
   );
-  const [motor, setMotor] = useState(catalogo.motores.find((m) => m.disponible)?.id ?? "groq");
+  const [motor, setMotor] = useState(motorInicial(catalogo));
   const [modelo, setModelo] = useState<string | null>(null);
   const [idioma, setIdioma] = useState<Idioma>("es");
   const [region, setRegion] = useState<Region>("bolivia");

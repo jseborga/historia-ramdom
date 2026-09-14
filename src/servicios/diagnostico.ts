@@ -75,7 +75,10 @@ async function pedir(url: string, servicio: string, init: RequestInit = {}) {
   const res = await fetch(url, { ...init, signal: AbortSignal.timeout(20_000) });
   if (!res.ok) {
     const pista = res.status === 401 || res.status === 403 ? " (clave rechazada)" : "";
-    throw new Error(`${servicio} respondio ${res.status}${pista}`);
+    // El cuerpo suele decir el motivo exacto (Pixabay contesta en texto plano
+    // "[ERROR 400] Invalid API key"); sin él, un 400 no ayuda a arreglar nada.
+    const cuerpo = (await res.text().catch(() => "")).replace(/\s+/g, " ").trim().slice(0, 120);
+    throw new Error(`${servicio} respondio ${res.status}${pista}${cuerpo ? `: ${cuerpo}` : ""}`);
   }
   return res;
 }
@@ -232,17 +235,40 @@ export async function diagnosticar(): Promise<Prueba[]> {
       return `Clave valida${restantes ? ` · quedan ${restantes} peticiones` : ""}`;
     }),
 
+    /**
+     * Pixabay se prueba por sus dos APIs, la de vídeo y la de foto, porque
+     * tienen rutas distintas y fallan por separado: con una sola prueba se
+     * puede decir "clave válida" mientras la mitad de la búsqueda no devuelve
+     * nada. Y se mira el enlace real del primer resultado, que es lo que hay
+     * que poder descargar.
+     */
     medir("pixabay", "Pixabay", "Clips", async () => {
       if (!env.PIXABAY_API_KEY) return SIN_CONFIGURAR;
-      const url = new URL("https://pixabay.com/api/videos/");
-      url.search = new URLSearchParams({
-        key: env.PIXABAY_API_KEY,
-        q: "sky",
-        per_page: "3",
-      }).toString();
-      const res = await pedir(url.toString(), "Pixabay");
-      const data = (await res.json()) as { totalHits?: number };
-      return `Clave valida · ${data.totalHits ?? 0} resultados de prueba`;
+      const consultar = async (ruta: string, extra: Record<string, string>) => {
+        const url = new URL(ruta);
+        url.search = new URLSearchParams({
+          key: env.PIXABAY_API_KEY!,
+          q: "sky",
+          per_page: "3",
+          safesearch: "true",
+          ...extra,
+        }).toString();
+        const res = await pedir(url.toString(), "Pixabay");
+        return (await res.json()) as {
+          totalHits?: number;
+          hits?: { videos?: Record<string, { url?: string }>; largeImageURL?: string }[];
+        };
+      };
+
+      const videos = await consultar("https://pixabay.com/api/videos/", {});
+      const fotos = await consultar("https://pixabay.com/api/", { image_type: "photo" });
+      const primero =
+        Object.values(videos.hits?.[0]?.videos ?? {}).find((v) => v.url)?.url ?? fotos.hits?.[0]?.largeImageURL;
+      const dominio = primero ? new URL(primero).hostname : "";
+      return (
+        `Clave valida · video: ${videos.totalHits ?? 0} · fotos: ${fotos.totalHits ?? 0}` +
+        (dominio ? ` · sirve desde ${dominio}` : "")
+      );
     }),
 
     // ---- Publicacion ----

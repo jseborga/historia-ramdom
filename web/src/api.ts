@@ -319,6 +319,8 @@ export type GuionDialogo = {
   keywords: string[];
   hashtags: string[];
   ganchos: string[];
+  motorUsado?: string;
+  avisoMotor?: string;
 };
 
 /**
@@ -328,6 +330,12 @@ export type GuionDialogo = {
  */
 export const urlMuestra = (u?: string | null) =>
   !u ? "" : u.startsWith("/") ? u : `/api/muestra?url=${encodeURIComponent(u)}`;
+
+/** Lo que devuelve la busqueda de clips: resultados y como le fue a cada banco. */
+export type Busqueda = {
+  clips: ClipCandidato[];
+  bancos: { banco: string; encontrados: number; error?: string }[];
+};
 
 export type ClipCandidato = {
   id: string;
@@ -394,6 +402,9 @@ export type Premisa = {
   hashtags: string[];
   categoriaNombre?: string;
   subcategoriaNombre?: string;
+  /** Quién lo escribió de verdad y, si no fue el pedido, por qué. */
+  motorUsado?: string;
+  avisoMotor?: string;
 };
 
 /** Un capítulo de miniserie dentro del plan. */
@@ -416,6 +427,8 @@ export type Miniserie = {
   hashtags: string[];
   categoriaNombre?: string;
   subcategoriaNombre?: string;
+  motorUsado?: string;
+  avisoMotor?: string;
 };
 
 export type Guion = {
@@ -429,6 +442,8 @@ export type Guion = {
   subcategoria?: string | null;
   premisa?: Premisa | null;
   keywords?: string[];
+  motorUsado?: string;
+  avisoMotor?: string;
 };
 
 export type ModoPublicacion = "DESCARGA" | "BORRADOR_TIKTOK" | "DIRECTO_TIKTOK";

@@ -21,6 +21,7 @@ import {
   SelectorCategoria,
   SelectorModo,
   SelectorMotor,
+  motorInicial,
   SelectorMusica,
   SelectorRegion,
   SelectorVoz,
@@ -33,9 +34,7 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
   const [tipo, setTipo] = useState<"Reflexion" | "Historia">("Reflexion");
   const [tema, setTema] = useState("");
   const [duracion, setDuracion] = useState(65);
-  const [motor, setMotor] = useState(
-    catalogo.motores.find((m) => m.disponible)?.id ?? "groq",
-  );
+  const [motor, setMotor] = useState(motorInicial(catalogo));
   const [modelo, setModelo] = useState<string | null>(null);
   const [idioma, setIdioma] = useState<Idioma>("es");
   const [region, setRegion] = useState<Region>("bolivia");
@@ -77,19 +76,19 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
     setError("");
     setOk("");
     try {
-      setPremisa(
-        await api.post<Premisa>("/api/premisa", {
-          motor,
-          modelo,
-          tema: tema || undefined,
-          categoria,
-          subcategoria,
-          duracion,
-          idioma,
-          region,
-          modismos,
-        }),
-      );
+      const p = await api.post<Premisa>("/api/premisa", {
+        motor,
+        modelo,
+        tema: tema || undefined,
+        categoria,
+        subcategoria,
+        duracion,
+        idioma,
+        region,
+        modismos,
+      });
+      setPremisa(p);
+      if (p.avisoMotor) setOk(p.avisoMotor);
       setGuion(null);
       setMiniserie(null);
       setClipsElegidos({});
@@ -122,7 +121,10 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
       setCapitulo(1);
       setPremisa(null);
       setGuion(null);
-      setOk(`Miniserie planeada: ${plan.capitulos.length} capítulos. Escribe el primero cuando quieras.`);
+      setOk(
+        `Miniserie planeada: ${plan.capitulos.length} capítulos. Escribe el primero cuando quieras.` +
+          (plan.avisoMotor ? ` ${plan.avisoMotor}` : ""),
+      );
     } catch (err) {
       setError(mensajeDe(err));
     } finally {
@@ -136,8 +138,7 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
     setOk("");
     try {
       setClipsElegidos({});
-      setGuion(
-        await api.post<Guion>("/api/guion", {
+      const g = await api.post<Guion>("/api/guion", {
           motor,
           modelo,
           tipo,
@@ -149,11 +150,12 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
           capitulo: miniserie ? capitulo : null,
           duracion,
           idioma,
-          region,
-          modismos,
-          narrado: modoAudio === "VOZ",
-        }),
-      );
+        region,
+        modismos,
+        narrado: modoAudio === "VOZ",
+      });
+      setGuion(g);
+      if (g.avisoMotor) setOk(g.avisoMotor);
     } catch (err) {
       setError(mensajeDe(err));
     } finally {

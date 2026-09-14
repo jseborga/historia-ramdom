@@ -2,6 +2,16 @@ import { useEffect, useState } from "react";
 import { api, type Catalogo, type Genero, type ModoAudio, type ModoPublicacion, type Region, type Voz } from "../api";
 import { mensajeDe } from "../App";
 
+/**
+ * Con qué motor se empieza: Groq si tiene clave —es el rápido y barato para
+ * historias—, y si no, el primero que la tenga. Si no hay ninguno, se deja
+ * Groq elegido y el selector lo dice.
+ */
+export function motorInicial(catalogo: Catalogo): string {
+  const conClave = catalogo.motores.filter((m) => m.disponible);
+  return conClave.find((m) => m.id === "groq")?.id ?? conClave[0]?.id ?? "groq";
+}
+
 export function SelectorMotor({
   catalogo,
   valor,
@@ -16,6 +26,8 @@ export function SelectorMotor({
   alCambiarModelo: (v: string | null) => void;
 }) {
   const porDefecto = catalogo.motores.find((m) => m.id === valor)?.modelo ?? "";
+  const conClave = catalogo.motores.filter((m) => m.disponible);
+  const elegido = catalogo.motores.find((m) => m.id === valor);
   return (
     <>
       <div>
@@ -27,6 +39,20 @@ export function SelectorMotor({
             </option>
           ))}
         </select>
+        {!conClave.length ? (
+          <p className="aviso error">
+            Ningun motor tiene clave. Ponla en Ajustes (Groq, Gemini, OpenAI o Claude) y elige aqui con cual
+            trabajar.
+          </p>
+        ) : !elegido?.disponible ? (
+          <p className="suave">
+            {valor} no tiene clave: se escribira con {conClave[0].id}. Elige otro si prefieres.
+          </p>
+        ) : (
+          <p className="suave">
+            Con clave: {conClave.map((m) => m.id).join(", ")}. Si el elegido falla, se sigue con el siguiente.
+          </p>
+        )}
       </div>
       <div>
         <label htmlFor="modeloTexto">Modelo de la historia</label>

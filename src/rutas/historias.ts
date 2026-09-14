@@ -20,11 +20,13 @@ import { creditoMusica } from "../servicios/suno.js";
 import { VozSchema } from "../servicios/voz.js";
 import {
   buscarClips,
+  buscarConEstado,
   creditosDe,
   esBanco,
   esMedio,
   bancosDisponibles,
   type Banco,
+  type ClipInfo,
   type EscenaPreparada,
   type TipoMedio,
 } from "../servicios/clips.js";
@@ -336,11 +338,24 @@ export async function rutasHistorias(app: FastifyInstance) {
       bancos: (bancos ?? "").split(",").map((b) => b.trim()).filter(esBanco) as Banco[],
       medios: (medios ?? "").split(",").map((m) => m.trim()).filter(esMedio) as TipoMedio[],
     };
-    const resultados = await Promise.all(lista.map((k) => buscarClips(k, opciones)));
+    const resultados = await Promise.all(lista.map((k) => buscarConEstado(k, opciones)));
     // Sin repetir: la misma keyword en dos escenas puede traer los mismos.
-    const unicos = new Map<string, (typeof resultados)[0][0]>();
-    for (const clip of resultados.flat()) unicos.set(clip.id, clip);
-    return [...unicos.values()].slice(0, 24);
+    const unicos = new Map<string, ClipInfo>();
+    for (const clip of resultados.flatMap((r) => r.clips)) unicos.set(clip.id, clip);
+
+    // Qué hizo cada banco, sumando las keywords: un banco vacío o roto tiene
+    // que verse en la pantalla, no quedarse en un catch.
+    const porBanco = new Map<string, { banco: string; encontrados: number; error?: string }>();
+    for (const estado of resultados.flatMap((r) => r.bancos)) {
+      const previo = porBanco.get(estado.banco) ?? { banco: estado.banco, encontrados: 0 };
+      porBanco.set(estado.banco, {
+        banco: estado.banco,
+        encontrados: previo.encontrados + estado.encontrados,
+        error: previo.error ?? estado.error,
+      });
+    }
+
+    return { clips: [...unicos.values()].slice(0, 24), bancos: [...porBanco.values()] };
   });
 
   /**

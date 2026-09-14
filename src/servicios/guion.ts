@@ -178,13 +178,7 @@ export async function textoConClaude(prompt: string, modelo = MODELOS.claude, id
 
 /** El primer motor con clave configurada, para tareas pequenas sin elegir. */
 export function motorDisponible(): Motor | null {
-  const orden: [Motor, string | undefined][] = [
-    ["groq", env.GROQ_API_KEY],
-    ["gemini", env.GEMINI_API_KEY],
-    ["openai", env.OPENAI_API_KEY],
-    ["claude", env.ANTHROPIC_API_KEY],
-  ];
-  return orden.find(([, clave]) => clave)?.[0] ?? null;
+  return ordenDeMotores()[0] ?? null;
 }
 
 const STOP = new Set(
@@ -237,7 +231,54 @@ export async function generarKeywords(textos: string[], idioma = "es", motor?: s
   }
 }
 
-/** Llama al motor elegido con el mismo sistema y devuelve el texto crudo. */
+/** Claves configuradas, en el orden en que se prueban. */
+const CLAVES: Record<Motor, () => string | undefined> = {
+  groq: () => env.GROQ_API_KEY,
+  gemini: () => env.GEMINI_API_KEY,
+  openai: () => env.OPENAI_API_KEY,
+  claude: () => env.ANTHROPIC_API_KEY,
+};
+
+export const motorConClave = (m: Motor) => Boolean(CLAVES[m]());
+
+/**
+ * En qué orden se prueban cuando no se pide uno concreto. Groq va primero
+ * porque es el rápido y barato para historias; Gemini detrás, que es la otra
+ * clave que casi todo el mundo tiene.
+ */
+export const PREFERENCIA: Motor[] = ["groq", "gemini", "openai", "claude"];
+
+/** Los motores con clave, empezando por el pedido si la tiene. */
+export function ordenDeMotores(pedido?: string | null): Motor[] {
+  const primero = pedido && esMotor(pedido) && motorConClave(pedido) ? [pedido] : [];
+  return [...primero, ...PREFERENCIA.filter((m) => motorConClave(m) && m !== primero[0])];
+}
+
+/**
+ * A quién se le escribe y qué pasó. `motor` es el que respondió de verdad, que
+ * puede no ser el pedido: si el elegido no tiene clave o se cae, se sigue por
+ * los demás en vez de dejar al usuario con un error y sin historia.
+ */
+export type InformeMotor = { motor?: Motor; modelo?: string; sustituto?: boolean; aviso?: string };
+
+function llamar(motor: Motor, prompt: string, modelo: string, idioma: string, region: string, modismos: boolean) {
+  return motor === "claude"
+    ? textoConClaude(prompt, modelo, idioma, region, modismos)
+    : motor === "openai"
+      ? textoConOpenAI(prompt, modelo, idioma, region, modismos)
+      : motor === "gemini"
+        ? textoConGemini(prompt, modelo, idioma, region, modismos)
+        : textoConGroq(prompt, modelo, idioma, region, modismos);
+}
+
+/**
+ * Llama al motor elegido y devuelve el texto crudo.
+ *
+ * Si ese motor no tiene clave o falla (cuota, red, modelo retirado), se
+ * intenta con los demás que sí la tengan, en orden, y se apunta en `informe`
+ * cuál acabó escribiendo. Un modelo escrito a mano solo se aplica al motor
+ * pedido: al sustituto se le deja el suyo, que es el que sabe servir.
+ */
 export async function textoConMotor(
   motor: Motor,
   prompt: string,
@@ -245,15 +286,37 @@ export async function textoConMotor(
   idioma = "es",
   region = "bolivia",
   modismos = true,
+  informe?: InformeMotor,
 ) {
-  const m = modelo?.trim() || MODELOS[motor];
-  return motor === "claude"
-    ? textoConClaude(prompt, m, idioma, region, modismos)
-    : motor === "openai"
-      ? textoConOpenAI(prompt, m, idioma, region, modismos)
-      : motor === "gemini"
-        ? textoConGemini(prompt, m, idioma, region, modismos)
-        : textoConGroq(prompt, m, idioma, region, modismos);
+  const orden = ordenDeMotores(motor);
+  if (!orden.length) {
+    throw new Error(
+      "No hay ningun motor de IA con clave: pon GROQ_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY o " +
+        "ANTHROPIC_API_KEY en Ajustes y elige con cual trabajar.",
+    );
+  }
+
+  const fallos: string[] = [];
+  for (const m of orden) {
+    const suyo = m === motor ? modelo?.trim() || MODELOS[m] : MODELOS[m];
+    try {
+      const texto = await llamar(m, prompt, suyo, idioma, region, modismos);
+      if (informe) {
+        informe.motor = m;
+        informe.modelo = suyo;
+        informe.sustituto = m !== motor;
+        informe.aviso = fallos.length
+          ? `Escrito con ${m} (${suyo}) porque ${fallos.join("; ")}`
+          : m !== motor
+            ? `Escrito con ${m} (${suyo}): ${motor} no tiene clave configurada.`
+            : undefined;
+      }
+      return texto;
+    } catch (err) {
+      fallos.push(`${m} fallo: ${err instanceof Error ? err.message.slice(0, 120) : "error"}`);
+    }
+  }
+  throw new Error(fallos.join(" · "));
 }
 
 export type EstiloNarracion = "plano" | "expresivo";
@@ -337,6 +400,9 @@ export const GuionSchema = z.object({
   premisa: z.lazy(() => PremisaSchema).nullable().default(null),
   /** Criterios visuales generales EN INGLÉS para buscar clips de toda la historia. */
   keywords: z.array(z.string().max(40)).max(8).default([]),
+  /** Qué motor lo escribió de verdad y, si no fue el pedido, por qué. */
+  motorUsado: z.string().max(20).optional(),
+  avisoMotor: z.string().max(300).optional(),
 });
 
 export type Guion = z.infer<typeof GuionSchema>;
@@ -362,6 +428,8 @@ export const PremisaSchema = z.object({
   /** Criterios EN INGLÉS para buscar clips del ambiente general. */
   keywords: z.array(z.string().min(1).max(40)).min(1).max(8),
   hashtags: z.array(z.string().max(40)).max(8).default([]),
+  motorUsado: z.string().max(20).optional(),
+  avisoMotor: z.string().max(300).optional(),
 });
 
 export type Premisa = z.infer<typeof PremisaSchema>;
@@ -456,14 +524,17 @@ export async function generarPremisa(p: PeticionPremisa): Promise<Premisa> {
     .filter(Boolean)
     .join("\n");
 
-  const crudo = await textoConMotor(p.motor, prompt, p.modelo, idioma, p.region ?? "bolivia", p.modismos ?? true);
-  if (!crudo) throw new Error(`El motor ${p.motor} no devolvió contenido`);
+  const informe: InformeMotor = {};
+  const crudo = await textoConMotor(p.motor, prompt, p.modelo, idioma, p.region ?? "bolivia", p.modismos ?? true, informe);
+  if (!crudo) throw new Error(`El motor ${informe.motor ?? p.motor} no devolvió contenido`);
   const datos = extraerJSON(crudo) as Record<string, unknown>;
   return PremisaSchema.parse({
     ...datos,
     categoria: categoria.id,
     subcategoria: subcategoria.id,
     hashtags: [...new Set([...(Array.isArray(datos.hashtags) ? datos.hashtags : []), ...categoria.hashtags])].slice(0, 8),
+    motorUsado: informe.motor,
+    avisoMotor: informe.aviso,
   });
 }
 
@@ -494,6 +565,8 @@ export const MiniserieSchema = z.object({
   capitulos: z.array(CapituloSchema).min(2).max(12),
   keywords: z.array(z.string().min(1).max(40)).min(1).max(8),
   hashtags: z.array(z.string().max(40)).max(8).default([]),
+  motorUsado: z.string().max(20).optional(),
+  avisoMotor: z.string().max(300).optional(),
 });
 
 export type Miniserie = z.infer<typeof MiniserieSchema>;
@@ -566,14 +639,17 @@ export async function generarMiniserie(p: PeticionMiniserie): Promise<Miniserie>
     .filter(Boolean)
     .join("\n");
 
-  const crudo = await textoConMotor(p.motor, prompt, p.modelo, idioma, p.region ?? "bolivia", p.modismos ?? true);
-  if (!crudo) throw new Error(`El motor ${p.motor} no devolvió contenido`);
+  const informe: InformeMotor = {};
+  const crudo = await textoConMotor(p.motor, prompt, p.modelo, idioma, p.region ?? "bolivia", p.modismos ?? true, informe);
+  if (!crudo) throw new Error(`El motor ${informe.motor ?? p.motor} no devolvió contenido`);
   const datos = extraerJSON(crudo) as Record<string, unknown>;
   const plan = MiniserieSchema.parse({
     ...datos,
     categoria: categoria.id,
     subcategoria: subcategoria.id,
     hashtags: [...new Set([...(Array.isArray(datos.hashtags) ? datos.hashtags : []), ...categoria.hashtags])].slice(0, 8),
+    motorUsado: informe.motor,
+    avisoMotor: informe.aviso,
   });
   // Los modelos se saltan la numeración y el orden; se reordena aquí.
   return {
@@ -622,6 +698,8 @@ export const GuionDialogoSchema = z.object({
   keywords: z.array(z.string().min(1).max(40)).min(1).max(8),
   hashtags: z.array(z.string().max(40)).max(8).default([]),
   ganchos: z.array(z.string().min(1).max(150)).max(4).default([]),
+  motorUsado: z.string().max(20).optional(),
+  avisoMotor: z.string().max(300).optional(),
 });
 
 export type GuionDialogo = z.infer<typeof GuionDialogoSchema>;
@@ -692,10 +770,16 @@ export async function generarDialogo(p: PeticionDialogo): Promise<GuionDialogo> 
     .filter(Boolean)
     .join("\n");
 
-  const crudo = await textoConMotor(p.motor, prompt, p.modelo, idioma, p.region ?? "bolivia", p.modismos ?? true);
-  if (!crudo) throw new Error(`El motor ${p.motor} no devolvió contenido`);
+  const informe: InformeMotor = {};
+  const crudo = await textoConMotor(p.motor, prompt, p.modelo, idioma, p.region ?? "bolivia", p.modismos ?? true, informe);
+  if (!crudo) throw new Error(`El motor ${informe.motor ?? p.motor} no devolvió contenido`);
   const datos = extraerJSON(crudo) as Record<string, unknown>;
-  const guion = GuionDialogoSchema.parse({ tema: p.tema, ...datos });
+  const guion = GuionDialogoSchema.parse({
+    tema: p.tema,
+    ...datos,
+    motorUsado: informe.motor,
+    avisoMotor: informe.aviso,
+  });
 
   // Los nombres mandan los que eligió el usuario, y una intervención de un
   // hablante que no existe se le asigna al primero en vez de tirar el guion.
@@ -886,8 +970,9 @@ export async function generarGuion(peticion: PeticionGuion): Promise<Guion> {
   const plan = elegida ? { ...elegida, premisa } : null;
 
   const prompt = construirPrompt(peticion, plan);
-  const crudo = await textoConMotor(motor, prompt, modelo, idioma, region, modismos);
-  if (!crudo) throw new Error(`El motor ${motor} (${modelo}) no devolvio contenido`);
+  const informe: InformeMotor = {};
+  const crudo = await textoConMotor(motor, prompt, modelo, idioma, region, modismos, informe);
+  if (!crudo) throw new Error(`El motor ${informe.motor ?? motor} (${informe.modelo ?? modelo}) no devolvio contenido`);
 
   const guion = GuionSchema.parse(extraerJSON(crudo));
   if (peticion.capitulo) guion.titulo = peticion.capitulo.titulo;
@@ -899,6 +984,9 @@ export async function generarGuion(peticion: PeticionGuion): Promise<Guion> {
     premisa,
     keywords: [...new Set([...(premisa?.keywords ?? []), ...(plan?.categoria.visual ?? [])])].slice(0, 8),
     hashtags: [...new Set([...guion.hashtags, ...(premisa?.hashtags ?? []), ...(plan?.categoria.hashtags ?? [])])].slice(0, 8),
+    motorUsado: informe.motor,
+    // El aviso de la premisa cuenta igual: se escribió con otro motor.
+    avisoMotor: informe.aviso ?? premisa?.avisoMotor,
   };
 }
 

@@ -284,6 +284,25 @@ archivo.
 
 Los dos límites se muestran en el editor para que no haya sorpresas.
 
+## Qué motor escribe: Groq por defecto, y lo que hay si no
+
+El motor del guion se elige en cada pantalla (Editor, Series, Diálogo) y
+arranca en **Groq** si tiene clave —es el rápido y barato para historias—; si
+no, en el primero que la tenga, en este orden: Groq, Gemini, OpenAI, Claude.
+
+Si el motor elegido **no tiene clave o se cae** (cuota, red, modelo retirado),
+no se pierde el trabajo: se sigue con los demás que sí la tengan, en ese mismo
+orden, y el resultado dice quién escribió de verdad
+(`motorUsado`) y por qué (`avisoMotor`), que es lo que se ve en pantalla:
+«Escrito con gemini (gemini-2.5-flash) porque groq falló: Groq respondió 429».
+
+- Un modelo escrito a mano se aplica **solo al motor pedido**; al sustituto se
+  le deja el suyo, que es el que sabe servir.
+- El selector dice qué motores tienen clave, y si no hay ninguno lo avisa con
+  todas las letras en vez de fallar al generar.
+- Vale igual para historias, segundas partes, miniseries y **diálogos**: el
+  diálogo se puede escribir con Gemini o con el que esté disponible.
+
 ## Modelos: Google AI Studio y el resto
 
 Los proveedores renuevan sus modelos a menudo, así que los nombres se
@@ -504,6 +523,29 @@ en disco y se copia a la carpeta de trabajo.
 La galería también está **dentro del editor de montaje**: en el panel Clip,
 *Añadir de la galería* abre la misma rejilla y mete lo elegido en la línea de
 tiempo, detrás del clip actual o al final, sin salir del editor.
+
+### Si un banco no trae nada
+
+Cada búsqueda dice **qué hizo cada banco**: cuántos resultados trajo y, si
+falló, el motivo tal cual lo da el proveedor —`pixabay: 0 — Pixabay respondió
+400: [ERROR 400] Invalid or missing API key`—. Antes cada banco fallaba en
+silencio y la pantalla quedaba vacía sin explicación, que es lo peor que puede
+pasar aquí: no se sabe si no hay material, si la clave está mal o si el banco
+devolvió un 429.
+
+Dos cosas más que iban en la misma dirección:
+
+- **Un fallo ya no se queda cacheado un día.** Los resultados se guardan 24 h
+  (Pixabay lo exige), pero si algún banco falló se guardan solo 5 minutos: un
+  429 pasajero dejaba la búsqueda vacía hasta el día siguiente.
+- **Pixabay sirve parte de su material desde `videos.pixabay.com` y
+  `i.vimeocdn.com`** (sus entradas antiguas). Faltaban en la lista de dominios
+  permitidos, así que sus resultados aparecían sin muestra o no se podían
+  descargar.
+
+En **Ajustes → Probar todo**, la prueba de Pixabay consulta sus **dos** APIs
+—vídeo y foto, que fallan por separado—, cuenta los resultados de cada una y
+dice desde qué dominio sirve el primero.
 
 ### Las miniaturas pasan por la app
 
