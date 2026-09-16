@@ -118,13 +118,28 @@ export function SelectorVoz({
   catalogo,
   valor,
   alCambiar,
+  idioma,
 }: {
   catalogo: Catalogo;
   valor: Voz;
   alCambiar: (v: Voz) => void;
+  /** Idioma del texto: deja solo las voces locales que lo hablan. */
+  idioma?: "es" | "en";
 }) {
   const [genero, setGenero] = useState<Genero | "todas">("todas");
   const [modelos, setModelos] = useState<ModelosVoz | null>(null);
+
+  // Cambiar el idioma sin cambiar la voz deja una voz espanola leyendo ingles.
+  // Aqui, en cuanto cambia, la voz local salta a la mejor de ese idioma.
+  useEffect(() => {
+    if (!idioma || valor.proveedor !== "local") return;
+    const actual = (catalogo.vocesLocales ?? []).find((v) => v.id === valor.nombre);
+    if (actual && actual.idioma === idioma) return;
+    const mejor = (catalogo.vocesLocales ?? [])
+      .filter((v) => v.idioma === idioma)
+      .sort((a, b) => b.calidad - a.calidad)[0];
+    if (mejor && mejor.id !== valor.nombre) alCambiar({ ...valor, nombre: mejor.id });
+  }, [idioma, valor.proveedor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Google renombra los modelos de voz cada pocos meses: en vez de escribir el
   // nombre a mano, se listan los que tiene la clave. Solo se pregunta cuando
@@ -151,7 +166,9 @@ export function SelectorVoz({
   const nombres = (catalogo.voces[valor.proveedor] ?? []).filter(
     (n) => genero === "todas" || (catalogo.generosIA?.[n] ?? "desconocido") === genero,
   );
-  const locales = (catalogo.vocesLocales ?? []).filter((v) => genero === "todas" || v.genero === genero);
+  const locales = (catalogo.vocesLocales ?? []).filter(
+    (v) => (!idioma || v.idioma === idioma) && (genero === "todas" || v.genero === genero),
+  );
   return (
     <>
       <div>
@@ -164,7 +181,9 @@ export function SelectorVoz({
             setGenero(g);
             // Si la voz actual no es de ese género, salta a la mejor que sí lo sea.
             if (valor.proveedor === "local") {
-              const cand = (catalogo.vocesLocales ?? []).filter((v) => g === "todas" || v.genero === g).sort((a, b) => b.calidad - a.calidad)[0];
+              const cand = (catalogo.vocesLocales ?? [])
+                .filter((v) => (!idioma || v.idioma === idioma) && (g === "todas" || v.genero === g))
+                .sort((a, b) => b.calidad - a.calidad)[0];
               if (cand && cand.id !== valor.nombre) alCambiar({ ...valor, nombre: cand.id });
             } else {
               const cand = (catalogo.voces[valor.proveedor] ?? []).find((n) => g === "todas" || catalogo.generosIA?.[n] === g);
@@ -243,6 +262,7 @@ export function SelectorVoz({
             ? locales.map((v) => (
                 <option key={v.id} value={v.id}>
                   {"★".repeat(v.calidad)} {v.nombre}
+                  {idioma ? "" : ` · ${v.idioma}`}
                 </option>
               ))
             : nombres.map((n) => (

@@ -133,7 +133,16 @@ export const VOCES = {
   openai: ["coral", "alloy", "echo", "fable", "onyx", "nova", "shimmer", "sage"],
 } as const;
 
+/**
+ * Cómo tiene que sonar la narración. Va en la petición a Gemini y a OpenAI,
+ * y por eso importa el idioma: pedir en español que narre "en español
+ * latinoamericano" un texto en inglés es la forma más rápida de que salga con
+ * acento raro, o directamente traducido.
+ */
 const INSTRUCCION = "Narra en español latinoamericano neutro, con voz cálida, pausada y cercana";
+const INSTRUCCION_EN = "Narrate in neutral US English, with a warm, unhurried, close voice";
+
+export const instruccionDeVoz = (idioma = "es") => (idioma === "en" ? INSTRUCCION_EN : INSTRUCCION);
 
 /**
  * Las marcas entre corchetes ([pausa], [susurrando]...) no se pueden mandar
@@ -286,11 +295,11 @@ export function vozLocal(
 }
 
 /** Una llamada de sintesis; devuelve el WAV ya escrito o lanza el error de la API. */
-async function pedirVozGemini(modelo: string, voz: string, texto: string, destino: string) {
+async function pedirVozGemini(modelo: string, voz: string, texto: string, destino: string, idioma = "es") {
   // El estilo va delante como indicacion, igual que en los ejemplos de Google
   // ("Say cheerfully: ..."), y el texto que se lee va limpio de corchetes.
   const { directiva, limpio } = estiloDesdeMarcas(texto);
-  const instruccion = `${INSTRUCCION}${directiva ? `, ${directiva}` : ""}`;
+  const instruccion = `${instruccionDeVoz(idioma)}${directiva ? `, ${directiva}` : ""}`;
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`,
@@ -335,6 +344,7 @@ export async function vozGemini(
   destino: string,
   modelo = VOZ_GEMINI_POR_DEFECTO.modelo,
   voz = VOZ_GEMINI_POR_DEFECTO.nombre,
+  idioma = "es",
 ) {
   if (!env.GEMINI_API_KEY) throw new Error("Falta GEMINI_API_KEY");
   if (!VOCES.gemini.includes(voz as (typeof VOCES.gemini)[number])) {
@@ -349,7 +359,7 @@ export async function vozGemini(
     enFila("voz:gemini", async () => {
     const elegido = await modeloVozGemini(modelo);
     try {
-      await pedirVozGemini(elegido, voz, texto, destino);
+      await pedirVozGemini(elegido, voz, texto, destino, idioma);
     } catch (err) {
       if (!(err as { modeloMal?: boolean }).modeloMal) throw err;
 
@@ -364,7 +374,7 @@ export async function vozGemini(
               : "Tu clave no tiene ningun modelo de voz (tts) disponible: revisa el proyecto de Google AI Studio."),
         );
       }
-      await pedirVozGemini(alternativo, voz, texto, destino);
+      await pedirVozGemini(alternativo, voz, texto, destino, idioma);
     }
     }, { separacionMs: 250 }),
   );
@@ -375,6 +385,7 @@ export async function vozOpenAI(
   destino: string,
   modelo = env.OPENAI_MODELO_VOZ,
   voz = env.OPENAI_VOZ,
+  idioma = "es",
 ) {
   if (!env.OPENAI_API_KEY) throw new Error("Falta OPENAI_API_KEY");
   await conReintentos(() =>
@@ -390,7 +401,7 @@ export async function vozOpenAI(
         voice: voz,
         input: limpiarMarcas(texto),
         response_format: "mp3",
-        instructions: INSTRUCCION,
+        instructions: instruccionDeVoz(idioma),
       }),
       signal: AbortSignal.timeout(120_000),
     });
@@ -441,14 +452,16 @@ export async function generarVoz(
   texto: string,
   dir: string,
   indice: number,
+  /** Idioma del texto: decide cómo se le pide el tono a la voz de IA. */
+  idioma = "es",
 ): Promise<string> {
   const voz = normalizarVoz(config);
   const nombre = voz.proveedor === "openai" ? `voz${indice}.mp3` : `voz${indice}.wav`;
   const destino = join(dir, nombre);
 
   if (voz.proveedor === "local") await vozLocal(texto, destino, voz.nombre);
-  else if (voz.proveedor === "openai") await vozOpenAI(texto, destino, voz.modelo, voz.nombre);
-  else await vozGemini(texto, destino, voz.modelo, voz.nombre);
+  else if (voz.proveedor === "openai") await vozOpenAI(texto, destino, voz.modelo, voz.nombre, idioma);
+  else await vozGemini(texto, destino, voz.modelo, voz.nombre, idioma);
 
   return nombre;
 }

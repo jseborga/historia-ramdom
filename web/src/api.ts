@@ -229,6 +229,8 @@ export type Letra = {
   titulo: string;
   texto: string;
   lineamientos: string;
+  /** En que idioma esta la letra: manda en el analisis y en los rotulos. */
+  idioma: Idioma;
   estiloVisual: string;
   mostrarLetra: boolean;
   secciones: Seccion[];
@@ -609,6 +611,8 @@ export type Historia = {
   titulo: string | null;
   categoria: string | null;
   subcategoria: string | null;
+  /** En que idioma se escribio; la continuacion hereda este. */
+  idioma?: Idioma;
   parte: number;
   continuaDeId: string | null;
   ganchoTexto: string | null;

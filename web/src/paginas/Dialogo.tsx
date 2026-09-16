@@ -120,6 +120,7 @@ export function Dialogo({ catalogo }: { catalogo: Catalogo }) {
         guion,
         hablantes: hablantes.map((h) => ({ nombre: h.nombre, papel: h.papel, config: h.config, color: h.color })),
         formato,
+        idioma,
       });
       if (p.aviso) setError(p.aviso);
       setAbierto(p.id);
@@ -255,7 +256,7 @@ export function Dialogo({ catalogo }: { catalogo: Catalogo }) {
                     onChange={(e) => cambiar(i, { color: e.target.value })}
                   />
                 </div>
-                <SelectorVoz catalogo={catalogo} valor={h.config} alCambiar={(config) => cambiar(i, { config })} />
+                <SelectorVoz catalogo={catalogo} valor={h.config} alCambiar={(config) => cambiar(i, { config })} idioma={idioma} />
               </div>
             </div>
           ))}

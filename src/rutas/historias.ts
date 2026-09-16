@@ -208,6 +208,7 @@ export async function rutasHistorias(app: FastifyInstance) {
         titulo: true,
         categoria: true,
         subcategoria: true,
+        idioma: true,
         parte: true,
         continuaDeId: true,
         ganchoTexto: true,

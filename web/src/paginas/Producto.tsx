@@ -191,6 +191,7 @@ export function Producto({ catalogo }: { catalogo: Catalogo }) {
         bancos,
         tiposMedio,
         conFoto,
+        idioma,
       });
       if (p.aviso) setError(p.aviso);
       setAbierto(p.id);
@@ -417,7 +418,7 @@ export function Producto({ catalogo }: { catalogo: Catalogo }) {
               modelo={modelo}
               alCambiarModelo={setModelo}
             />
-            <SelectorVoz catalogo={catalogo} valor={voz} alCambiar={setVoz} />
+            <SelectorVoz catalogo={catalogo} valor={voz} alCambiar={setVoz} idioma={idioma} />
           </div>
           <div className="pie">
             <button className="primario" onClick={escribir} disabled={ocupado !== ""}>

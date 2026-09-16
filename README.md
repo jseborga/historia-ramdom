@@ -353,6 +353,40 @@ MP4 borrados a los `RETENCION_DIAS` días, y la lista de con quién se habla
 (motores de IA, bancos de imagen, Amazon y TikTok). Si cambias ese
 comportamiento, cambia `src/rutas/legales.ts` y su fecha de revisión.
 
+## Idioma: dónde se elige y hasta dónde llega
+
+Se elige en cada pantalla que escribe algo —**Editor**, **Series**, **Diálogo**,
+**Producto**, **Música** (idioma de la letra) y **Remix**—, y el editor de
+montaje lo lleva también en la pestaña **Letra**.
+
+Lo que hace falta saber, porque no es obvio: **todos los prompts de la app están
+escritos en español**. Un modelo tiende a contestar en el idioma en el que se le
+habla, así que una línea suelta pidiendo inglés no bastaba y las historias
+seguían saliendo en español. Ahora, antes de mandar cualquier petición a
+cualquier motor:
+
+- la regla de ortografía se cambia por la del idioma pedido (pedir tildes y eñes
+  en un texto en inglés es una contradicción, y el modelo la resolvía
+  escribiendo en español);
+- el mensaje de sistema se escribe en ese idioma;
+- y la orden de idioma se repite **al final del prompt**, que es la posición que
+  más pesa.
+
+Se aplica en las cuatro entradas de motor, no en un punto intermedio, así que
+ninguna llamada puede saltárselo. La única excepción son los campos que el
+propio prompt pide en inglés —palabras de búsqueda de clips, prompts de imagen,
+estilo musical para Suno—: esos se quedan en inglés siempre, y la orden lo dice.
+
+**El idioma se queda pegado a lo que escribió.** La historia guarda el suyo, así
+que la **parte 2 se escribe en el mismo idioma que la parte 1** aunque la serie
+diga otro (antes volvía al español). La letra de un videoclip guarda el suyo, de
+modo que volver a analizarla desde el editor no lo pierde.
+
+**Y la voz lo sigue.** El selector de voz solo ofrece las voces locales que
+hablan ese idioma, y si cambias el idioma con una voz que no le corresponde,
+salta sola a la mejor que sí. A Gemini y a OpenAI se les pide el tono en el
+idioma del texto, no siempre en español.
+
 ## Créditos para TikTok
 
 Cada escena guarda el clip que usó (id, fuente, autor, página y licencia). La

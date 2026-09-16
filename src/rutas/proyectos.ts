@@ -219,6 +219,8 @@ export async function rutasProyectos(app: FastifyInstance) {
     let video: ClipPista[] = [clipVacio(), clipVacio(), clipVacio()];
     let textos: RotuloPista[] = [];
     let narracion = "";
+    // Idioma del proyecto: el de la historia de la que sale, si sale de una.
+    let idiomaVoz: "es" | "en" = "es";
     let titulo = nombre ?? "Proyecto sin titulo";
 
     if (historiaId) {
@@ -232,6 +234,7 @@ export async function rutasProyectos(app: FastifyInstance) {
       textos = pistas.textos;
       narracion = pistas.narracion;
       titulo = nombre ?? guion.data.titulo;
+      idiomaVoz = h.idioma === "en" ? "en" : "es";
     }
 
     const datos = ProyectoSchema.parse({
@@ -239,7 +242,7 @@ export async function rutasProyectos(app: FastifyInstance) {
       formato: formato ?? "tiktok",
       video,
       textos,
-      voz: { modo: "servidor", texto: narracion, config: VOZ_IA_POR_DEFECTO },
+      voz: { modo: "servidor", texto: narracion, config: VOZ_IA_POR_DEFECTO, idioma: idiomaVoz },
       musica: {},
     });
     const proyecto = await db.proyecto.create({
@@ -500,6 +503,7 @@ export async function rutasProyectos(app: FastifyInstance) {
       instrumental: d.instrumental,
       mostrarLetra: d.mostrarLetra,
       titulo: d.nombre,
+      idioma: d.idioma,
     });
 
     if (d.enlaceSuno) {
@@ -539,7 +543,8 @@ export async function rutasProyectos(app: FastifyInstance) {
         lineamientos: z.string().max(2000).optional(),
         instrumental: z.boolean().optional(),
         mostrarLetra: z.boolean().optional(),
-        idioma: z.enum(["es", "en"]).default("es"),
+        /** Sin esto manda el idioma con el que se guardó la letra. */
+        idioma: z.enum(["es", "en"]).optional(),
         motor: z.string().max(40).nullable().default(null),
         modelo: z.string().max(80).nullable().default(null),
         reanalizar: z.boolean().default(false),
@@ -559,6 +564,7 @@ export async function rutasProyectos(app: FastifyInstance) {
       lineamientos: o.lineamientos,
       instrumental: o.instrumental,
       mostrarLetra: o.mostrarLetra,
+      idioma: o.idioma,
     });
     const partes = MusicaCapaSchema.parse(p.musica ?? {}).partes;
     if (!letra.texto.trim() && !letra.lineamientos.trim() && !partes.some((x) => x.letra.trim())) {
@@ -570,7 +576,12 @@ export async function rutasProyectos(app: FastifyInstance) {
     }
 
     await db.proyecto.update({ where: { id }, data: { estado: "MONTAJE", error: null } });
-    const job = await encolarVideoclip(id, { idioma: o.idioma, motor: o.motor, modelo: o.modelo, reanalizar: o.reanalizar });
+    const job = await encolarVideoclip(id, {
+      idioma: o.idioma ?? letra.idioma,
+      motor: o.motor,
+      modelo: o.modelo,
+      reanalizar: o.reanalizar,
+    });
     return reply.code(202).send({ encolada: true, jobId: job.id, letra });
   });
 
@@ -658,7 +669,8 @@ export async function rutasProyectos(app: FastifyInstance) {
         letra: z.string().max(20_000).optional(),
         lineamientos: z.string().max(2000).optional(),
         instrumental: z.boolean().optional(),
-        idioma: z.enum(["es", "en"]).default("es"),
+        /** Sin esto manda el idioma con el que se guardó la letra. */
+        idioma: z.enum(["es", "en"]).optional(),
         motor: z.string().max(40).nullable().default(null),
         modelo: z.string().max(80).nullable().default(null),
       })
@@ -672,7 +684,7 @@ export async function rutasProyectos(app: FastifyInstance) {
         instrumental: o.instrumental ?? guardada?.instrumental,
         titulo: guardada?.titulo || p.nombre,
         duracion: p.duracionSeg ?? undefined,
-        idioma: o.idioma,
+        idioma: o.idioma ?? guardada?.idioma ?? "es",
         motor: o.motor,
         modelo: o.modelo,
       });

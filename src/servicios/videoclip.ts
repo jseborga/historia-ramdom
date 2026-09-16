@@ -54,6 +54,8 @@ export const LetraSchema = z.object({
   texto: z.string().max(20_000).default(""),
   /** Instrucciones del usuario: estilo visual, que buscar, que evitar. */
   lineamientos: z.string().max(2000).default(""),
+  /** En que idioma esta la letra: manda en el analisis y en los rotulos. */
+  idioma: z.enum(["es", "en"]).default("es"),
   /** Como debe verse el videoclip entero, en una frase. */
   estiloVisual: z.string().max(300).default(""),
   /** Quemar la letra sobre el video. Se recuerda para los montajes siguientes. */
@@ -486,6 +488,7 @@ export async function guardarLetra(
     instrumental?: boolean;
     mostrarLetra?: boolean;
     titulo?: string;
+    idioma?: "es" | "en";
   },
 ): Promise<Letra> {
   const p = await db.proyecto.findUniqueOrThrow({ where: { id: proyectoId } });
@@ -502,6 +505,7 @@ export async function guardarLetra(
     instrumental: cambios.instrumental ?? guardada?.instrumental ?? !texto.trim(),
     mostrarLetra: cambios.mostrarLetra ?? guardada?.mostrarLetra ?? true,
     titulo: cambios.titulo ?? guardada?.titulo ?? "",
+    idioma: cambios.idioma ?? guardada?.idioma ?? "es",
     secciones: cambio ? [] : (guardada?.secciones ?? []),
   });
   await db.proyecto.update({ where: { id: proyectoId }, data: { letra } });

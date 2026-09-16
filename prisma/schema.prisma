@@ -131,6 +131,9 @@ model Historia {
   continuaDeId String?
   estado      EstadoHistoria @default(GUION)
   titulo      String?
+  /// En qué idioma se escribió. Una continuación hereda este, no el de serie
+  /// por defecto: la parte 2 de una historia en inglés va en inglés.
+  idioma      String         @default("es")
   /// Con qué categoría y subcategoría se planteó (el planteamiento va dentro de `guion`).
   categoria   String?
   subcategoria String?

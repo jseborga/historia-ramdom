@@ -207,7 +207,7 @@ export async function rutasProductos(app: FastifyInstance) {
    * ambiente. La descripción se guarda ya con el enlace y la divulgación.
    */
   app.post("/api/productos", async (req, reply) => {
-    const { guion, producto, medios, formato, nombre, voz, segundosFoto, bancos, tiposMedio, conFoto } = z
+    const { guion, producto, medios, formato, nombre, voz, segundosFoto, bancos, tiposMedio, conFoto, idioma } = z
       .object({
         guion: GuionProductoSchema,
         producto: ProductoSchema,
@@ -221,6 +221,8 @@ export async function rutasProductos(app: FastifyInstance) {
         tiposMedio: MediosCampo,
         /** Abrir con la foto del producto (solo si vino de la API). */
         conFoto: z.boolean().default(true),
+        /** El mismo con el que se escribió el guion: fija la voz y el tono. */
+        idioma: z.enum(["es", "en"]).default("es"),
       })
       .parse(req.body);
 
@@ -260,7 +262,12 @@ export async function rutasProductos(app: FastifyInstance) {
       // El vídeo se rellena al ensamblar, cuando ya se sabe cuánto dura la voz.
       video: [clipVacio()],
       textos: [],
-      voz: { modo: "servidor", texto: narracionDeProducto(guion), ...(voz ? { config: voz } : {}) },
+      voz: {
+        modo: "servidor",
+        texto: narracionDeProducto(guion),
+        idioma,
+        ...(voz ? { config: voz } : {}),
+      },
       musica: {},
     });
 
@@ -286,6 +293,7 @@ export async function rutasProductos(app: FastifyInstance) {
 
     try {
       await ensamblarProyecto(proyecto.id, {
+        idioma,
         criterios: guion.keywords,
         fijos,
         medios: {

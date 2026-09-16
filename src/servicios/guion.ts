@@ -32,9 +32,11 @@ export type Region = (typeof REGIONES)[number];
 /** Cómo debe sonar el texto según la región y si se piden modismos. */
 export function descripcionRegion(region: string, modismos: boolean, idioma: string) {
   if (idioma === "en" || region === "eeuu") {
+    // Descrito EN inglés: si la única frase que fija el idioma está en
+    // español, el modelo tiende a seguir escribiendo en español.
     return modismos
-      ? "inglés de Estados Unidos, natural y coloquial, con expresiones propias del país"
-      : "inglés de Estados Unidos, claro y neutro";
+      ? "natural, colloquial US English, with everyday expressions"
+      : "clear, neutral US English";
   }
   if (region === "bolivia") {
     return modismos
@@ -50,16 +52,74 @@ export function descripcionRegion(region: string, modismos: boolean, idioma: str
 /**
  * Regla de ortografía explícita. Un prompt escrito sin tildes hace que el
  * modelo escriba sin tildes; por eso este texto lleva todas las suyas.
+ *
+ * Es la del español, que es el idioma en el que están escritos los prompts.
+ * Cuando se pide otro idioma, `textoConMotor` la cambia por la suya: pedir
+ * tildes y eñes en un texto en inglés es una contradicción, y el modelo la
+ * resuelve como le parece (normalmente, escribiendo en español).
  */
 export const ORTOGRAFIA =
   "Escribe con ortografía impecable: todas las tildes (á, é, í, ó, ú), la ñ, la diéresis cuando toque, " +
   "los signos de apertura ¿ y ¡ además de los de cierre, comas, puntos y mayúsculas correctas. " +
   "Nunca omitas tildes ni escribas 'n' por 'ñ'.";
 
+/** La misma regla para el inglés: lo que allí se hace mal. */
+export const ORTOGRAFIA_EN =
+  "Use impeccable spelling and punctuation: correct capitalization, apostrophes in contractions and " +
+  "possessives, commas where the sentence breathes, and full stops. Never leave a sentence unfinished.";
+
+export const ortografia = (idioma: string) => (idioma === "en" ? ORTOGRAFIA_EN : ORTOGRAFIA);
+
+/**
+ * La orden de idioma, escrita EN el idioma que se pide y pensada para ir al
+ * FINAL del prompt.
+ *
+ * Los prompts de la app están escritos en español —es el idioma del
+ * proyecto—, y un modelo tiende a contestar en el idioma en el que se le
+ * habla, por mucho que una línea suelta del mensaje de sistema le pida otro.
+ * Por eso la orden se repite al final, que es la posición que más pesa, y en
+ * el idioma pedido.
+ */
+export function reglaDeIdioma(idioma: string): string {
+  if (idioma === "en") {
+    return [
+      "LANGUAGE — READ THIS TWICE:",
+      "These instructions are written in Spanish, but what you write must be IN ENGLISH.",
+      "Title, hook, narration, dialogue, on-screen text, lyrics, notes for the author: all in English.",
+      "Do not write one sentence in Spanish.",
+      "The only exception is the fields this prompt explicitly asks for in English anyway",
+      "(search keywords, image prompts, music style): those were already English and stay as they are.",
+      ORTOGRAFIA_EN,
+    ].join(" ");
+  }
+  return [
+    "IDIOMA: todo lo que se ve o se oye —título, gancho, narración, diálogo, rótulos, letra, notas—",
+    "va en español.",
+    "Lo único que se queda en inglés es lo que este mismo prompt pide en inglés (palabras de búsqueda,",
+    "prompts de imagen, estilo musical).",
+    ORTOGRAFIA,
+  ].join(" ");
+}
+
+/**
+ * Deja el prompt listo para el idioma pedido. Lo aplican las cuatro entradas
+ * de motor, que es por donde pasa TODA llamada: así no hay forma de mandar un
+ * prompt sin la orden de idioma por haberse saltado `textoConMotor`.
+ */
+export function prepararPrompt(prompt: string, idioma: string): string {
+  const cuerpo = idioma === "en" ? prompt.split(ORTOGRAFIA).join(ORTOGRAFIA_EN) : prompt;
+  return `${cuerpo}\n\n${reglaDeIdioma(idioma)}`;
+}
+
 const sistema = (idioma: string, region = "latam", modismos = true) =>
-  `Eres guionista de vídeos verticales cortos. Escribes en ${descripcionRegion(region, modismos, idioma)}. ` +
-  `${ORTOGRAFIA} ` +
-  "Respondes únicamente con un objeto JSON válido, sin texto alrededor y sin bloques de código.";
+  idioma === "en"
+    ? `You write scripts for short vertical videos, in ${descripcionRegion(region, modismos, idioma)}. ` +
+      `${ORTOGRAFIA_EN} ` +
+      "You answer with a single valid JSON object, no text around it and no code fences. " +
+      "You always write in English, even when the instructions come in another language."
+    : `Eres guionista de vídeos verticales cortos. Escribes en ${descripcionRegion(region, modismos, idioma)}. ` +
+      `${ORTOGRAFIA} ` +
+      "Respondes únicamente con un objeto JSON válido, sin texto alrededor y sin bloques de código.";
 
 async function pedirJSON(url: string, init: RequestInit, servicio: string) {
   const res = await fetch(url, { ...init, signal: AbortSignal.timeout(60_000) });
@@ -81,6 +141,7 @@ export function extraerJSON(texto: string): unknown {
 
 export async function textoConGroq(prompt: string, modelo = MODELOS.groq, idioma = "es", region = "latam", modismos = true) {
   if (!env.GROQ_API_KEY) throw new Error("Falta GROQ_API_KEY");
+  prompt = prepararPrompt(prompt, idioma);
   const data = await pedirJSON(
     "https://api.groq.com/openai/v1/chat/completions",
     {
@@ -105,6 +166,7 @@ export async function textoConGroq(prompt: string, modelo = MODELOS.groq, idioma
 
 export async function textoConOpenAI(prompt: string, modelo = MODELOS.openai, idioma = "es", region = "latam", modismos = true) {
   if (!env.OPENAI_API_KEY) throw new Error("Falta OPENAI_API_KEY");
+  prompt = prepararPrompt(prompt, idioma);
   const data = await pedirJSON(
     "https://api.openai.com/v1/chat/completions",
     {
@@ -129,6 +191,7 @@ export async function textoConOpenAI(prompt: string, modelo = MODELOS.openai, id
 
 export async function textoConGemini(prompt: string, modelo = MODELOS.gemini, idioma = "es", region = "latam", modismos = true) {
   if (!env.GEMINI_API_KEY) throw new Error("Falta GEMINI_API_KEY");
+  prompt = prepararPrompt(prompt, idioma);
   const data = await pedirJSON(
     `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`,
     {
@@ -148,6 +211,7 @@ export async function textoConGemini(prompt: string, modelo = MODELOS.gemini, id
 
 export async function textoConClaude(prompt: string, modelo = MODELOS.claude, idioma = "es", region = "latam", modismos = true) {
   if (!env.ANTHROPIC_API_KEY) throw new Error("Falta ANTHROPIC_API_KEY");
+  prompt = prepararPrompt(prompt, idioma);
   const data = await pedirJSON(
     "https://api.anthropic.com/v1/messages",
     {

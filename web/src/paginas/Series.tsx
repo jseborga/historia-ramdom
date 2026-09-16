@@ -187,7 +187,7 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
           </div>
           <SelectorAudio valor={modoAudio} alCambiar={setModoAudio} />
           {modoAudio === "VOZ" ? (
-            <SelectorVoz catalogo={catalogo} valor={voz} alCambiar={setVoz} />
+            <SelectorVoz catalogo={catalogo} valor={voz} alCambiar={setVoz} idioma={idioma} />
           ) : (
             <CampoSegundos valor={segundosEscena} alCambiar={setSegundosEscena} />
           )}

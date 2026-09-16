@@ -140,6 +140,9 @@ async function generar(
   }
 
   const config = voz.config ?? { proveedor: "local" as const, modelo: "espeak-ng", nombre: "es-419" };
+  // El idioma de la pista: con él se le pide el tono a la voz de IA (narrar en
+  // español un texto en inglés sale con acento de nadie).
+  const idioma = voz.idioma ?? "es";
   const trabajo = await crearCarpetaTrabajo(`voz-${proyectoId}`);
   const esDialogo = voz.modo === "dialogo";
   // En un diálogo cada intervención va aparte aunque sea corta: la voz cambia
@@ -163,7 +166,7 @@ async function generar(
     const generados: string[] = [];
     for (const [i, t] of trozos.entries()) {
       const suya = (t.config ?? config) as { proveedor: string };
-      const bruto = await generarVoz(suya, t.texto, trabajo, i);
+      const bruto = await generarVoz(suya, t.texto, trabajo, i, idioma);
       // Las voces locales ya dan WAV, pero cada una con su cadencia: en un
       // diálogo se mezclan dos o tres y hay que igualarlas antes de pegarlas.
       if (suya.proveedor === "local" && !esDialogo) {

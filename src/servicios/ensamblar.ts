@@ -29,6 +29,8 @@ export type OpcionesEnsamblado = {
   criterios?: string[];
   /** Dónde buscar y si entran fotos; vacío = lo que diga la categoría. */
   medios?: OpcionesMedios;
+  /** Idioma del texto: fija la voz de reserva y el tono que se le pide. */
+  idioma?: "es" | "en";
   /**
    * Clips que van al principio sí o sí, en este orden: la foto del producto,
    * lo que se haya subido para enseñarlo. El relleno automático solo cubre lo
@@ -115,9 +117,16 @@ export async function ensamblarProyecto(proyectoId: string, opciones: OpcionesEn
     ...vozGuardada,
     modo: esDialogo ? "dialogo" : "servidor",
     texto,
+    idioma: opciones.idioma ?? vozGuardada.idioma ?? "es",
   });
   if (!esDialogo && (!voz.config || voz.config.proveedor === "local")) {
-    voz = { ...voz, config: { proveedor: "local", modelo: "local", nombre: voz.config?.nombre ?? (await mejorVozLocal("es")) } };
+    // La voz de reserva, en el idioma de la pista: una historia en inglés
+    // leída por una voz española no se entiende.
+    const idiomaVoz = voz.idioma === "en" ? "en" : "es";
+    voz = {
+      ...voz,
+      config: { proveedor: "local", modelo: "local", nombre: voz.config?.nombre ?? (await mejorVozLocal(idiomaVoz)) },
+    };
   }
 
   // 1. La voz manda

@@ -146,6 +146,8 @@ export const IntervencionSchema = z.object({
 export const VozPistaSchema = z.object({
   modo: z.enum(["ninguna", "servidor", "archivo", "dialogo"]).default("servidor"),
   texto: z.string().max(20_000).default(""),
+  /** En qué idioma está el texto: decide la voz local y el tono que se pide. */
+  idioma: z.enum(["es", "en"]).default("es"),
   config: VozSchema.nullable().default(VOZ_POR_DEFECTO),
   /** Solo en modo diálogo: quiénes hablan y con qué voz. */
   hablantes: z.array(HablanteSchema).max(3).default([]),

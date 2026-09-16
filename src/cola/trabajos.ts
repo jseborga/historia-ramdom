@@ -188,6 +188,7 @@ async function producir(historiaId: string, o: OpcionesHistoria) {
       data: {
         guion,
         titulo: guion.titulo,
+        idioma,
         categoria: guion.categoria ?? null,
         subcategoria: guion.subcategoria ?? null,
         ganchoTexto: guion.gancho,
@@ -343,6 +344,7 @@ async function crearMontaje(
         voz: {
           modo: serie.modoAudio === "VOZ" ? "servidor" : "ninguna",
           texto: pistas.narracion,
+          idioma: serie.idioma === "en" ? "en" : "es",
           config: VOZ_POR_DEFECTO,
           archivo: null, duracion: null, inicio: 0, huella: null,
         },
@@ -356,6 +358,7 @@ async function crearMontaje(
       data: {
         guion,
         titulo: guion.titulo,
+        idioma: serie.idioma,
         categoria: guion.categoria ?? null,
         subcategoria: guion.subcategoria ?? null,
         ganchoTexto: guion.gancho,
@@ -469,16 +472,20 @@ export async function continuarHistoria(historiaId: string): Promise<string> {
   const h = await db.historia.create({
     data: { serieId: previa.serieId, ideaId: previa.ideaId, parte, continuaDeId: previa.id, estado: "GUION" },
   });
+  // Sin serie, los ajustes son los de siempre MENOS el idioma, que es el de
+  // la parte anterior: una historia en inglés no continúa en español.
   const ajustes: AjustesSerie = previa.serie ?? {
-    tipo: "Historia", duracion: 90, idioma: "es", region: "bolivia", modismos: true, motor: "groq", modelo: null,
+    tipo: "Historia", duracion: 90, idioma: previa.idioma, region: "bolivia", modismos: true, motor: "groq", modelo: null,
     categoria: null, subcategoria: null,
     voz: VOZ_POR_DEFECTO, modoAudio: "VOZ", segundosEscena: null, musica: null, musicaModo: "FIJA",
     modoPublicacion: "DESCARGA", salida: "MONTAJE", partes: 1, bancos: [], medios: [],
   };
   // La continuacion hereda la categoria concreta de la parte anterior: nunca
-  // vuelve a sortear una ("aleatoria" es para historias nuevas).
+  // vuelve a sortear una ("aleatoria" es para historias nuevas). Y su idioma,
+  // aunque la serie diga otro: las dos partes tienen que sonar igual.
   const base: AjustesSerie = {
     ...ajustes,
+    idioma: previa.idioma,
     categoria: previa.categoria ?? (ajustes.categoria === "aleatoria" ? null : ajustes.categoria),
     subcategoria: previa.subcategoria ?? ajustes.subcategoria,
   };

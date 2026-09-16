@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Catalogo, type Preset, type Proyecto, type Sugerencia } from "../api";
+import { api, type Catalogo, type Idioma, type Preset, type Proyecto, type Sugerencia } from "../api";
 import { mensajeDe } from "../App";
 import { EditorMontaje } from "./EditorMontaje";
 import { Remix } from "./Remix";
@@ -30,6 +30,8 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
   const [canciones, setCanciones] = useState<EntradaCancion[]>([entradaVacia()]);
   const [cruce, setCruce] = useState(1.5);
   const [instrumental, setInstrumental] = useState(false);
+  /** Idioma de la letra: manda en el análisis, los rótulos y los lineamientos. */
+  const [idioma, setIdioma] = useState<Idioma>("es");
   const [lineamientos, setLineamientos] = useState("");
   const [mostrarLetra, setMostrarLetra] = useState(true);
   const [sugerencia, setSugerencia] = useState<Sugerencia | null>(null);
@@ -111,6 +113,7 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
     setOk("");
     try {
       const r = await api.post<Sugerencia>("/api/lineamientos", {
+        idioma,
         titulo: nombre,
         letra: listas.map((c) => c.letra).filter(Boolean).join("\n\n"),
         lineamientos,
@@ -145,6 +148,7 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
         lineamientos: lineamientos.trim() || undefined,
         instrumental,
         mostrarLetra,
+        idioma,
       });
 
       if (unaSola && primera.tipo === "archivo" && primera.archivo) {
@@ -209,6 +213,16 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
               {presets.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="idiomaVc">Idioma de la letra</label>
+            <select id="idiomaVc" value={idioma} onChange={(e) => setIdioma(e.target.value as Idioma)}>
+              {catalogo.idiomas.map((i) => (
+                <option key={i} value={i}>
+                  {i === "es" ? "Espanol" : "Ingles"}
                 </option>
               ))}
             </select>

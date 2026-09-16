@@ -181,6 +181,9 @@ export function Historias({ catalogo }: { catalogo?: Catalogo | null }) {
                 <span className={`estado ${h.estado}`}>{h.estado}</span>
                 <strong>{h.parte > 1 ? `Parte ${h.parte} · ` : ""}{h.titulo ?? "(sin titulo aun)"}</strong>
                 {h.categoria && <span className="estado">{nombreCategoria(catalogo, h.categoria, h.subcategoria)}</span>}
+                {/* El idioma se ve porque manda en la continuacion: la parte 2
+                    se escribe en el mismo, no en el de la serie. */}
+                {h.idioma === "en" && <span className="estado">EN</span>}
                 <span className="suave">{new Date(h.creadaEn).toLocaleString()}</span>
               </div>
 

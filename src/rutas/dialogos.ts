@@ -62,9 +62,11 @@ export async function rutasDialogos(app: FastifyInstance) {
    * clips del tema). Devuelve el proyecto para abrirlo en el editor.
    */
   app.post("/api/dialogos", async (req, reply) => {
-    const { guion, hablantes, formato, nombre, bancos, medios } = z
+    const { guion, hablantes, formato, nombre, bancos, medios, idioma } = z
       .object({
         guion: GuionDialogoSchema,
+        /** El mismo con el que se escribió: fija la voz y el tono. */
+        idioma: z.enum(["es", "en"]).default("es"),
         hablantes: z.array(HablantePeticion).min(2).max(3),
         formato: z.string().max(40).default("tiktok"),
         nombre: z.string().min(1).max(120).optional(),
@@ -94,6 +96,7 @@ export async function rutasDialogos(app: FastifyInstance) {
       textos: [],
       voz: {
         modo: "dialogo",
+        idioma: idioma === "en" ? "en" : "es",
         // El texto seguido sirve para buscar imagen y para leerlo de un vistazo.
         texto: guion.intervenciones.map((i) => i.texto).join("\n\n"),
         hablantes: voces,
@@ -116,6 +119,7 @@ export async function rutasDialogos(app: FastifyInstance) {
 
     try {
       await ensamblarProyecto(proyecto.id, {
+        idioma: idioma === "en" ? "en" : "es",
         criterios: guion.keywords,
         medios: {
           bancos: bancos.filter(esBanco) as Banco[],

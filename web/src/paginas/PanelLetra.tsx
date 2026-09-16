@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, type Letra, type Sugerencia } from "../api";
+import { api, type Idioma, type Letra, type Sugerencia } from "../api";
 import { mensajeDe } from "../App";
 
 /**
@@ -24,13 +24,14 @@ export function PanelLetra({
   const [lineamientos, setLineamientos] = useState(letra?.lineamientos ?? "");
   const [instrumental, setInstrumental] = useState(letra?.instrumental ?? false);
   const [mostrarLetra, setMostrarLetra] = useState(letra?.mostrarLetra ?? true);
+  const [idioma, setIdioma] = useState<Idioma>(letra?.idioma ?? "es");
   const [ocupado, setOcupado] = useState("");
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
   /** Lo ultimo que propuso la IA, para verlo sin perder lo que ya habia. */
   const [sugerencia, setSugerencia] = useState<Sugerencia | null>(null);
 
-  const cambios = { letra: texto, lineamientos, instrumental, mostrarLetra };
+  const cambios = { letra: texto, lineamientos, instrumental, mostrarLetra, idioma };
   const listo = instrumental ? lineamientos.trim().length > 10 : texto.trim().length > 20;
 
   async function guardar() {
@@ -57,6 +58,7 @@ export function PanelLetra({
         letra: texto,
         lineamientos,
         instrumental,
+        idioma,
       });
       setSugerencia(r);
       setLineamientos(r.lineamientos);
@@ -108,6 +110,13 @@ export function PanelLetra({
           >
             <option value="letra">Tiene letra</option>
             <option value="instrumental">Es instrumental</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="idiomaLetra">Idioma de la letra</label>
+          <select id="idiomaLetra" value={idioma} onChange={(e) => setIdioma(e.target.value as Idioma)}>
+            <option value="es">Espanol</option>
+            <option value="en">Ingles</option>
           </select>
         </div>
         {!instrumental && (
