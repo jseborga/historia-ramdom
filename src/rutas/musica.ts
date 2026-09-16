@@ -8,7 +8,13 @@ import { importarSunoABiblioteca, enlaceSuno } from "../servicios/suno.js";
 import { IdiomaCampo } from "../servicios/guion.js";
 import {
   FAMILIAS,
+  FUSIONES,
   INSTRUCCIONES_SUNO,
+  INSTRUCCIONES_SUNO_INSTRUMENTAL,
+  InstrumentalSchema,
+  USOS,
+  generarInstrumental,
+  instrumentalATexto,
   ORIGENES,
   RITMOS,
   RemixSchema,
@@ -28,6 +34,24 @@ const PeticionRemix = z.object({
   ritmos: z.array(z.string().max(40)).min(1).max(6),
   viral: z.boolean().default(true),
   notas: z.string().max(600).default(""),
+  idioma: IdiomaCampo.default("es"),
+  region: z.enum(["bolivia", "latam", "eeuu"]).default("bolivia"),
+  modismos: z.boolean().default(true),
+  motor: z.string().max(40).nullable().default(null),
+  modelo: z.string().max(80).nullable().default(null),
+});
+
+/** Una pista instrumental (o con voz) mezclando géneros. */
+const PeticionInstrumental = z.object({
+  /** De uno a cuatro géneros; con dos o tres es cuando la mezcla dice algo. */
+  ritmos: z.array(z.string().max(40)).min(1).max(4),
+  uso: z.string().max(40).default("ambiente"),
+  duracion: z.number().int().min(15).max(600).default(120),
+  energia: z.number().int().min(1).max(5).default(3),
+  notas: z.string().max(600).default(""),
+  tema: z.string().max(300).default(""),
+  /** Con voz en vez de instrumental puro. */
+  conLetra: z.boolean().default(false),
   idioma: IdiomaCampo.default("es"),
   region: z.enum(["bolivia", "latam", "eeuu"]).default("bolivia"),
   modismos: z.boolean().default(true),
@@ -61,8 +85,48 @@ export async function rutasMusica(app: FastifyInstance) {
     ritmos: RITMOS.map((r) => ({ id: r.id, nombre: r.nombre, familia: r.familia, estilo: r.estilo, bpm: r.bpm })),
     /** El orden en el que se agrupan en pantalla. */
     familias: FAMILIAS,
+    /** Mezclas que funcionan, con el porqué: el atajo de "¿con qué junto esto?". */
+    fusiones: FUSIONES,
+    usos: USOS,
     instrucciones: INSTRUCCIONES_SUNO,
+    instruccionesInstrumental: INSTRUCCIONES_SUNO_INSTRUMENTAL,
   }));
+
+  /**
+   * Pista instrumental mezclando géneros (jazz con metal, blues con dub…).
+   *
+   * Devuelve separado lo que se pega en Suno y lo que no: en `cajaLetra` va lo
+   * que entra en el campo de letra (solo etiquetas, si es instrumental), y en
+   * `indicaciones` las notas de arreglo. En `avisos`, lo que el modelo escribió
+   * entre corchetes sin ser una etiqueta: eso Suno lo canta.
+   */
+  app.post("/api/instrumental", async (req, reply) => {
+    const p = PeticionInstrumental.parse(req.body);
+    try {
+      return await generarInstrumental(p);
+    } catch (err) {
+      return reply.code(422).send({ error: err instanceof Error ? err.message : "No se pudo escribir la pista" });
+    }
+  });
+
+  /** La pista en un .txt, con cada caja de Suno separada. */
+  app.post("/api/instrumental/texto", async (req, reply) => {
+    const { pista } = z
+      .object({
+        pista: InstrumentalSchema.extend({
+          cajaLetra: z.string().max(4000).default(""),
+          avisos: z.array(z.string().max(300)).max(20).default([]),
+          corregidas: z.array(z.object({ de: z.string().max(120), a: z.string().max(120) })).max(20).default([]),
+          conVoz: z.boolean().default(false),
+        }),
+      })
+      .parse(req.body);
+    const limpio = pista.titulo.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "pista";
+    reply
+      .header("Content-Type", "text/plain; charset=utf-8")
+      .header("Content-Disposition", `attachment; filename="${limpio}-suno.txt"`);
+    return reply.send(instrumentalATexto(pista) + "\n");
+  });
 
   /**
    * Escribe la canción en otros ritmos, con las cajas de Suno listas.

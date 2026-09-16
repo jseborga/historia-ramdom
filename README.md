@@ -32,9 +32,12 @@ Implementa la guía de `docs/guia-original.md`.
   bancos y se compone un montaje con lo elegido, en el orden elegido.
 - **Diálogos.** Dos o tres voces distintas discutiendo un tema, con el rótulo
   del que habla en su color.
-- **Remix de canciones.** La misma letra escrita en otros ritmos —64, del huayño
+- **Remix de canciones.** La misma letra escrita en otros ritmos —81, del huayño
   al thrash metal— con las cajas de Suno listas para copiar y el gancho de los
   primeros quince segundos.
+- **Instrumentales y fusiones.** Jazz con metal, blues con dub: mezclas con el
+  porqué de cada junte, y los corchetes revisados para que Suno los lea como
+  instrucciones en vez de cantarlos.
 - **Tres idiomas.** Español, inglés y **spanglish**: base en español con el
   inglés en el gancho, que es como se canta la cumbia y el reggaetón.
 - **Productos con reflexión.** Un objeto real de Amazon como gancho y un giro
@@ -1096,7 +1099,7 @@ de arriba: **Videoclip** monta el vídeo sobre una canción que ya existe, y
 1. **La canción de partida.** Se pega la letra, o se deja vacía y se escribe
    solo de qué va. Lo primero que se pregunta es **de quién es la letra**, y no
    es burocracia: mira el recuadro de abajo.
-2. **A qué ritmos.** Hasta seis de los **64** del catálogo, agrupados por
+2. **A qué ritmos.** Hasta seis de los **81** del catálogo, agrupados por
    familia para poder encontrarlos:
    - **Latino** (11): cumbia, cumbia villera, salsa, bachata, merengue,
      vallenato, ranchera/banda, corrido tumbado, bolero, tango, flamenco.
@@ -1144,6 +1147,57 @@ pestaña: cuando Suno te dé la canción, pegas su enlace y el vídeo se monta s
 - **API**: `GET /api/remix/ritmos` (catálogo e instrucciones de Suno),
   `POST /api/remix` (escribe las versiones; devuelve `calcos` con lo que haya
   que revisar) y `POST /api/remix/texto` (el .txt).
+
+## Instrumentales y fusiones: mezclar géneros y que Suno entienda
+
+Tercera mitad de la pestaña **Música**. Sirve para lo que una canción con letra
+no cubre: una base para poner debajo de una voz, una intro de diez segundos, o
+un experimento —jazz con metal, blues con dub, huayño con post-rock—.
+
+1. **Qué se mezcla.** De uno a cuatro géneros de los 81 del catálogo. Debajo
+   salen **mezclas que funcionan**, con el porqué de cada una y un botón para
+   ponerla de un clic; si ya elegiste algo, se filtran por eso (eliges blues y
+   te propone stoner, trip hop y gospel, con la razón de cada junte). Juntar dos
+   géneros al azar suele dar un revoltijo: lo que hace que una fusión suene a
+   algo es que cada uno aporte una cosa distinta y que compartan el tempo, la
+   escala o la actitud.
+2. **Para qué es.** Ambiente, concentración, entrenamiento, intro de vídeo,
+   fondo de un vídeo hablado, club o cine: no cambia solo el estilo, cambia la
+   estructura. Más duración, energía de 1 a 5, y **con voz o sin ella** — por
+   defecto instrumental.
+3. **Lo que sale**, separado en las cajas de Suno: Style of Music, Exclude
+   styles, tempo y tonalidad, qué aporta cada género, la estructura sección a
+   sección y las **notas de arreglo**.
+
+### Los corchetes: instrucciones, no letra
+
+En la caja de letra de Suno, `[Chorus]` o `[Guitar Solo]` son **instrucciones**
+y no se cantan… pero solo si Suno las reconoce. Una acotación escrita a mano
+—`[la guitarra entra con rabia]`, `[se escucha una puerta]`— no es una etiqueta:
+Suno la trata como una línea más y acaba **cantada dentro del tema**. Es el
+fallo más común al pedirle música a un modelo de texto, porque escribir
+acotaciones es lo natural en un guion.
+
+Por eso todo lo que sale de aquí —y también las letras del **Remix**— pasa por
+una revisión que:
+
+- deja solo etiquetas que Suno entiende, escritas como las espera;
+- **traduce** las que venían en español: `[Verso]` → `[Verse]`, `[coro]` →
+  `[Chorus]`, `[Solo de guitarra]` → `[Guitar Solo]`, `[Puente]` → `[Bridge]`;
+- acepta las que no están en la lista pero son válidas (`[Trumpet Solo]`,
+  `[808 Drop]`);
+- y **saca de la letra** lo que era una acotación, lo baja a las notas de
+  arreglo y te dice cuál era y por qué.
+
+En una pista instrumental, la caja de letra lleva **solo las etiquetas**, una
+por línea: son la estructura, y sin voz que cantar Suno las usa como guion. Las
+notas de arreglo no se pegan en ningún sitio: son para ti, para saber qué
+cambiar si hay que repetir la generación.
+
+- **API**: `GET /api/remix/ritmos` devuelve también `fusiones`, `usos` e
+  `instruccionesInstrumental`; `POST /api/instrumental` escribe la pista
+  (`cajaLetra` es lo que se pega en Suno, `avisos` lo que se limpió) y
+  `POST /api/instrumental/texto` da el .txt con cada caja separada.
 
 ## Videoclips musicales
 

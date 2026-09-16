@@ -4,6 +4,7 @@ import { mensajeDe } from "../App";
 import { nombreIdioma } from "./comunes";
 import { EditorMontaje } from "./EditorMontaje";
 import { Remix } from "./Remix";
+import { Instrumental } from "./Instrumental";
 import {
   ListaCanciones,
   entradaVacia,
@@ -21,7 +22,7 @@ type Resumen = Pick<Proyecto, "id" | "nombre" | "tipo" | "formato" | "estado" | 
  */
 export function Musica({ catalogo }: { catalogo: Catalogo }) {
   /** Las dos mitades del area: montar el videoclip, o escribir la cancion. */
-  const [seccion, setSeccion] = useState<"videoclip" | "remix">("videoclip");
+  const [seccion, setSeccion] = useState<"videoclip" | "remix" | "instrumental">("videoclip");
   const [proyectos, setProyectos] = useState<Resumen[]>([]);
   const [presets, setPresets] = useState<Preset[]>([]);
   const [abierto, setAbierto] = useState<string | null>(null);
@@ -86,10 +87,18 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
       <button className={seccion === "remix" ? "primario" : ""} onClick={() => setSeccion("remix")}>
         Remix de canciones
       </button>
+      <button
+        className={seccion === "instrumental" ? "primario" : ""}
+        onClick={() => setSeccion("instrumental")}
+      >
+        Instrumentales y fusiones
+      </button>
       <span className="suave">
         {seccion === "videoclip"
           ? "Monta el video sobre una cancion que ya tienes."
-          : "Escribe la cancion en otros ritmos, lista para pedirsela a Suno."}
+          : seccion === "remix"
+            ? "Escribe la cancion en otros ritmos, lista para pedirsela a Suno."
+            : "Mezcla generos y arma las instrucciones de Suno, con o sin voz."}
       </span>
     </div>
   );
@@ -99,6 +108,15 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
       <>
         {submenu}
         <Remix catalogo={catalogo} alUsarLetra={usarLetra} />
+      </>
+    );
+  }
+
+  if (seccion === "instrumental") {
+    return (
+      <>
+        {submenu}
+        <Instrumental catalogo={catalogo} />
       </>
     );
   }

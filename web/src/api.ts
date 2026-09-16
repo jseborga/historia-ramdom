@@ -359,6 +359,42 @@ export type VersionRemix = {
   porQue: string;
 };
 
+/** Una mezcla que funciona, con el porque. */
+export type Fusion = { ids: [string, string]; nombre: string; nota: string };
+
+/** Para que es la pista: cambia la estructura, no solo el estilo. */
+export type UsoPista = { id: string; nombre: string; pista: string };
+
+export type SeccionInstrumental = {
+  /** Etiqueta de Suno, sin corchetes. */
+  etiqueta: string;
+  segundos?: number;
+  /** Que pasa ahi. Es nota para quien lo monta: NO se pega en Suno. */
+  que: string;
+};
+
+export type Instrumental = {
+  titulo: string;
+  estilo: string;
+  excluir: string;
+  bpm: string;
+  tonalidad: string;
+  /** Que pone cada genero en la mezcla. */
+  aportes: string[];
+  estructura: SeccionInstrumental[];
+  indicaciones: string;
+  porQue: string;
+  letra: string;
+  /** Lo que se pega EN LA CAJA DE LETRA de Suno. */
+  cajaLetra: string;
+  /** Corchetes que no eran etiquetas: Suno los habria cantado. */
+  avisos: string[];
+  corregidas: { de: string; a: string }[];
+  conVoz: boolean;
+  motorUsado?: string;
+  avisoMotor?: string;
+};
+
 export type Remix = {
   esencia: string;
   versiones: VersionRemix[];
@@ -368,6 +404,8 @@ export type Remix = {
   avisoMotor?: string;
   /** Frases del original coladas tal cual; solo con letra ajena. */
   calcos: string[];
+  /** Corchetes que no eran etiquetas de Suno y se quitaron de la letra. */
+  avisos: string[];
 };
 
 /** Un producto de Amazon: lo que se ensena y con que enlace se publica. */

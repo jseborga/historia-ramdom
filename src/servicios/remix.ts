@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { VOCABULARIO, etiquetaCanonica, revisarEtiquetas } from "./etiquetasSuno.js";
 import {
   extraerJSON,
   textoConMotor,
@@ -75,6 +76,8 @@ export const RITMOS = [
   { id: "psicodelico", nombre: "Psicodélico", familia: "Rock", estilo: "psychedelic rock, phaser, sitar-like leads, hazy vocals", bpm: "100-125" },
   { id: "stoner", nombre: "Stoner rock", familia: "Rock", estilo: "stoner rock, fuzz bass, downtuned riffs, desert groove", bpm: "90-120" },
   { id: "rock_latino", nombre: "Rock en español", familia: "Rock", estilo: "latin alternative rock, spanish vocals, ska-tinged guitars", bpm: "120-150" },
+  { id: "post_rock", nombre: "Post-rock", familia: "Rock", estilo: "post-rock, clean delayed guitars, slow build, cathartic climax", bpm: "80-120" },
+  { id: "shoegaze", nombre: "Shoegaze", familia: "Rock", estilo: "shoegaze, walls of reverbed guitar, buried vocals, dreamy haze", bpm: "100-130" },
 
   // ---- Metal ----
   { id: "metal", nombre: "Metal", familia: "Metal", estilo: "metal, double kick, heavy riffs, aggressive vocals", bpm: "140-170" },
@@ -92,12 +95,28 @@ export const RITMOS = [
   { id: "groove_metal", nombre: "Groove metal", familia: "Metal", estilo: "groove metal, mid-tempo chugging riffs, barked vocals", bpm: "110-140" },
   { id: "metal_industrial", nombre: "Metal industrial", familia: "Metal", estilo: "industrial metal, machine drums, electronic layers, harsh vocals", bpm: "110-140" },
 
+  // ---- Raíces ----
+  { id: "blues", nombre: "Blues", familia: "Raíces", estilo: "blues, slide guitar, shuffle groove, harmonica, smoky feel", bpm: "60-100" },
+  { id: "blues_rock", nombre: "Blues rock", familia: "Raíces", estilo: "blues rock, overdriven guitar, hammond organ, big shuffle", bpm: "100-130" },
+  { id: "funk", nombre: "Funk", familia: "Raíces", estilo: "funk, slap bass, wah guitar, tight horn stabs, pocket drums", bpm: "95-115" },
+  { id: "soul", nombre: "Soul", familia: "Raíces", estilo: "soul, warm rhodes, string pads, gospel-tinged vocals", bpm: "70-95" },
+  { id: "gospel", nombre: "Gospel", familia: "Raíces", estilo: "gospel, hammond organ, full choir, handclaps, uplifting", bpm: "80-110" },
+  { id: "reggae", nombre: "Reggae", familia: "Raíces", estilo: "reggae, offbeat skank guitar, deep bass, laid-back drums", bpm: "70-90" },
+  { id: "dub", nombre: "Dub", familia: "Raíces", estilo: "dub, cavernous delay, spring reverb, dropouts, heavy bass", bpm: "70-90" },
+  { id: "ska", nombre: "Ska", familia: "Raíces", estilo: "ska, upstroke guitar, bright horn section, walking bass", bpm: "140-165" },
+  { id: "bossa", nombre: "Bossa nova", familia: "Raíces", estilo: "bossa nova, nylon guitar, brushed drums, soft syncopation", bpm: "120-140" },
+  { id: "samba", nombre: "Samba", familia: "Raíces", estilo: "samba, cavaquinho, surdo, pandeiro, carnival energy", bpm: "95-110" },
+
   // ---- Electrónica ----
   { id: "house", nombre: "House", familia: "Electrónica", estilo: "house, four on the floor, warm bassline, vocal chops", bpm: "120-128" },
   { id: "amapiano", nombre: "Amapiano", familia: "Electrónica", estilo: "amapiano, log drum bass, shakers, spacious piano", bpm: "110-118" },
   { id: "edm", nombre: "EDM / Festival", familia: "Electrónica", estilo: "big room edm, huge build up, festival drop", bpm: "126-132" },
   { id: "dnb", nombre: "Drum and bass", familia: "Electrónica", estilo: "drum and bass, breakbeat, rolling sub bass", bpm: "172-176" },
   { id: "lofi", nombre: "Lo-fi", familia: "Electrónica", estilo: "lofi hip hop, dusty drums, vinyl crackle, mellow keys", bpm: "70-85" },
+  { id: "ambient", nombre: "Ambient", familia: "Electrónica", estilo: "ambient, slow evolving pads, field recordings, no drums", bpm: "60-80" },
+  { id: "synthwave", nombre: "Synthwave", familia: "Electrónica", estilo: "synthwave, analog arpeggios, gated reverb drums, neon mood", bpm: "100-120" },
+  { id: "trip_hop", nombre: "Trip hop", familia: "Electrónica", estilo: "trip hop, dusty breakbeat, deep bass, cinematic samples", bpm: "80-95" },
+  { id: "chiptune", nombre: "Chiptune", familia: "Electrónica", estilo: "chiptune, 8-bit square leads, arpeggios, retro game energy", bpm: "130-165" },
 
   // ---- Otros ----
   { id: "balada", nombre: "Balada pop", familia: "Otros", estilo: "pop ballad, piano, strings, big emotional chorus", bpm: "65-80" },
@@ -107,10 +126,46 @@ export const RITMOS = [
   { id: "kpop", nombre: "K-pop", familia: "Otros", estilo: "k-pop, glossy production, layered harmonies, dance break", bpm: "110-130" },
   { id: "acustico", nombre: "Acústico", familia: "Otros", estilo: "acoustic, single guitar, intimate close-mic vocals", bpm: "70-90" },
   { id: "coral", nombre: "Coral / Épico", familia: "Otros", estilo: "epic choir, orchestral percussion, cinematic build", bpm: "70-90" },
+  { id: "orquestal", nombre: "Orquestal / Cine", familia: "Otros", estilo: "orchestral score, strings, woodwinds, timpani, cinematic", bpm: "60-110" },
 ] as const;
 
 /** Las familias, en el orden en que se enseñan. */
-export const FAMILIAS = ["Latino", "Andino", "Urbano", "Rock", "Metal", "Electrónica", "Otros"] as const;
+export const FAMILIAS = ["Latino", "Andino", "Urbano", "Raíces", "Rock", "Metal", "Electrónica", "Otros"] as const;
+
+/**
+ * Mezclas que funcionan, con el porqué.
+ *
+ * Juntar dos géneros al azar suele dar un revoltijo: lo que hace que una
+ * fusión suene a algo es que cada uno aporte una cosa distinta —uno la base
+ * rítmica, otro la armonía o el timbre— y que compartan algo (el tempo, la
+ * escala, la actitud). Esta lista es de las que se sostienen; sirve de atajo y
+ * de ejemplo de lo que se le puede pedir.
+ */
+export const FUSIONES: { ids: [string, string]; nombre: string; nota: string }[] = [
+  { ids: ["jazz", "metal"], nombre: "Jazz + metal", nota: "Riff pesado de base y armonía de jazz encima: acordes con tensiones sobre palm mute, y el solo se lo lleva el saxo o el órgano en vez de la guitarra." },
+  { ids: ["blues", "stoner"], nombre: "Blues + stoner", nota: "El blues ya está dentro del stoner: baja la afinación, alarga el shuffle y deja la slide guitar al frente. Suena a desierto." },
+  { ids: ["blues", "trip_hop"], nombre: "Blues + trip hop", nota: "Para fondo: el breakbeat lento sostiene y la guitarra de blues aparece a ratos, con mucho espacio. Sale ambiente sin quedarse plano." },
+  { ids: ["blues", "gospel"], nombre: "Blues + gospel", nota: "Misma raíz, distinta luz: órgano hammond y coro sobre el shuffle. El clímax se construye solo." },
+  { ids: ["cumbia", "dub"], nombre: "Cumbia + dub", nota: "La cumbia da el patrón y el dub lo vacía: delays largos, bajo enorme y silencios. La mejor de las fusiones para fondo de vídeo." },
+  { ids: ["cumbia", "psicodelico"], nombre: "Cumbia + psicodélico", nota: "Cumbia peruana de manual: órgano con fuzz, guitarra con reverb de muelles y la percusión seca delante." },
+  { ids: ["huayno", "post_rock"], nombre: "Huayño + post-rock", nota: "La quena y el charango llevan la melodía y las guitarras limpias construyen debajo hasta el estallido. Épico sin voz." },
+  { ids: ["morenada", "metal_sinfonico"], nombre: "Morenada + metal sinfónico", nota: "Los metales de la banda y la matraca contra la orquesta: sale marcial de verdad. Cuidado con el tempo, que la morenada es lenta." },
+  { ids: ["saya", "funk"], nombre: "Saya + funk", nota: "Los tambores afrobolivianos con bajo slap y vientos cortados. Se baila desde el primer compás." },
+  { ids: ["tango", "drum_and_bass"], nombre: "Tango + drum and bass", nota: "El bandoneón sobre un breakbeat a 174: la melodía dramática se sostiene, el ritmo la empuja." },
+  { ids: ["bossa", "lofi"], nombre: "Bossa + lo-fi", nota: "Para estudiar o para fondo: guitarra de nylon, escobillas, ruido de vinilo y nada que llame la atención." },
+  { ids: ["flamenco", "metal"], nombre: "Flamenco + metal", nota: "Falsetas y palmas contra riffs: la escala frigia ya es común a los dos, así que casan sin esfuerzo." },
+  { ids: ["salsa", "hard_rock"], nombre: "Salsa + hard rock", nota: "Montuno de piano y timbales con guitarra distorsionada encima. Los vientos hacen de coro del riff." },
+  { ids: ["reggaeton", "rock"], nombre: "Reggaetón + rock", nota: "Dembow con guitarras: el patrón se mantiene y el riff sustituye al sintetizador. Funciona si el bajo no se pelea con el 808." },
+  { ids: ["ambient", "orquestal"], nombre: "Ambient + orquestal", nota: "Colchón de cuerdas y pads que no van a ninguna parte: música de fondo para hablar encima, sin melodía que distraiga." },
+  { ids: ["ambient", "andino"], nombre: "Ambient + andino", nota: "Pads largos con quena y viento grabado: paisaje de altiplano. Nada de percusión." },
+  { ids: ["synthwave", "metal"], nombre: "Synthwave + metal", nota: "Arpegios analógicos y guitarra a galope. Suena a película de los ochenta." },
+  { ids: ["jazz", "trip_hop"], nombre: "Jazz + trip hop", nota: "Contrabajo y trompeta con sordina sobre un break lento y sucio. Cine negro." },
+  { ids: ["chiptune", "punk_rock"], nombre: "Chiptune + punk", nota: "8 bits con batería rápida: dos minutos y fuera. Para intros y para vídeos de juegos." },
+  { ids: ["gospel", "house"], nombre: "Gospel + house", nota: "El coro y el órgano sobre el bombo a negras: es de donde salió el house, así que vuelve a casa." },
+];
+
+/** Las mezclas propuestas para un ritmo: el atajo de "¿con qué junto esto?". */
+export const fusionesDe = (id: string) => FUSIONES.filter((f) => f.ids.includes(id));
 
 export type Ritmo = (typeof RITMOS)[number]["id"];
 export const esRitmo = (v: string): v is Ritmo => RITMOS.some((r) => r.id === v);
@@ -154,6 +209,8 @@ export const RemixSchema = z.object({
   avisoMotor: z.string().max(300).optional(),
   /** Frases del original que se colaron tal cual (solo con letra ajena). */
   calcos: z.array(z.string().max(300)).max(20).default([]),
+  /** Acotaciones que se sacaron de la letra: Suno las habría cantado. */
+  avisos: z.array(z.string().max(300)).max(20).default([]),
 });
 
 export type VersionRemix = z.infer<typeof VersionRemixSchema>;
@@ -255,7 +312,11 @@ export async function generarRemix(p: PeticionRemix): Promise<Remix> {
     ...ritmos.map((r) => `- ${r.nombre} (id "${r.id}"): ${r.estilo} · ${r.bpm} BPM`),
     "",
     "Cada versión tiene que traer:",
-    `- "letra": la canción entera con las etiquetas de sección de Suno (${ETIQUETAS}). Nada de acordes ni acotaciones fuera de las etiquetas.`,
+    `- "letra": la canción entera con las etiquetas de sección de Suno (${ETIQUETAS}).`,
+    "  Entre corchetes SOLO van etiquetas que Suno entienda, en inglés y de esta lista:",
+    `  ${VOCABULARIO}.`,
+    "  Nada de acotaciones entre corchetes ('[la guitarra entra con rabia]'): Suno no las entiende y las CANTA.",
+    '  Todo lo que sea una indicación para quien lo monta va en "indicaciones", no en la letra.',
     '- "estilo": la caja "Style of Music" de Suno. MENOS DE 180 CARACTERES, en inglés, separada por comas:',
     "  género, instrumentos, tipo de voz, energía. Sin frases largas: Suno se pierde.",
     '- "excluir": lo que no se quiere oír, en inglés y corto (por ejemplo "no autotune, no edm drop").',
@@ -319,15 +380,28 @@ export async function generarRemix(p: PeticionRemix): Promise<Remix> {
   const remix = RemixSchema.parse({ ...datos, motorUsado: informe.motor, avisoMotor: informe.aviso });
 
   // El nombre del ritmo, el que eligió el usuario: el modelo a veces devuelve
-  // el id y a veces su propia etiqueta.
-  const versiones = remix.versiones.slice(0, ritmos.length).map((v, i) => ({
-    ...v,
-    ritmo: buscarRitmo(v.ritmo)?.nombre ?? ritmos[i]?.nombre ?? v.ritmo,
-  }));
+  // el id y a veces su propia etiqueta. Y de paso se revisan los corchetes: lo
+  // que no sea una etiqueta de Suno sale de la letra, porque se cantaría.
+  const avisos: string[] = [];
+  const versiones = remix.versiones.slice(0, ritmos.length).map((v, i) => {
+    const revision = revisarEtiquetas(v.letra);
+    for (const s of revision.sacadas) {
+      avisos.push(`"${s}" estaba entre corchetes en la letra y Suno lo habría cantado: se quitó.`);
+    }
+    for (const c of revision.cambiadas) {
+      avisos.push(`[${c.de}] se escribió como [${c.a}], que es la etiqueta que Suno entiende.`);
+    }
+    return {
+      ...v,
+      letra: revision.texto,
+      ritmo: buscarRitmo(v.ritmo)?.nombre ?? ritmos[i]?.nombre ?? v.ritmo,
+    };
+  });
 
   return {
     ...remix,
     versiones,
+    avisos: [...new Set(avisos)].slice(0, 20),
     // Con letra ajena, lo que de verdad importa: comprobar que no se coló.
     calcos: ajena && letra ? calcosDelOriginal(letra, versiones.map((v) => `${v.titulo}\n${v.letra}\n${v.gancho}`).join("\n")) : [],
   };
@@ -364,6 +438,9 @@ export function remixATexto(remix: Remix, titulo = "Remix"): string {
 
   if (remix.ganchos.length) partes.push("## Para publicar", ...remix.ganchos.map((g) => `- ${g}`), "");
   if (remix.hashtags.length) partes.push(remix.hashtags.map((h) => `#${h.replace(/^#/, "")}`).join(" "), "");
+  if (remix.avisos.length) {
+    partes.push("## Etiquetas revisadas", ...remix.avisos.map((a) => `- ${a}`), "");
+  }
   if (remix.calcos.length) {
     partes.push(
       "## Revisar antes de publicar",
@@ -383,4 +460,251 @@ export const INSTRUCCIONES_SUNO = [
   "4. Si hay **Exclude styles**, pégalo en ese campo.",
   "5. Pon el **título** de la versión y genera. Suele hacer falta más de un intento: cambia una palabra del estilo, no toda la caja.",
   "6. Cuando te guste, copia el enlace de la canción y tráelo a la pestaña Videoclip para montar el vídeo.",
+];
+
+// ------------------------------------------------- Instrumentales y fusiones
+
+/** Para qué es la pista: cambia la estructura, no solo el estilo. */
+export const USOS = [
+  { id: "ambiente", nombre: "Ambiente (fondo, sin llamar la atención)", pista: "nada de melodía pegadiza ni cambios bruscos; tiene que poder sonar debajo de una voz" },
+  { id: "concentracion", nombre: "Concentración / estudio", pista: "repetitiva a propósito, sin sorpresas, sin solos largos ni silencios raros" },
+  { id: "entrenamiento", nombre: "Entrenamiento", pista: "tempo estable y alto, energía constante, sin bajones a mitad" },
+  { id: "intro", nombre: "Intro de vídeo (10-20 s)", pista: "entra fuerte, dice lo suyo y termina con un remate claro" },
+  { id: "fondo_video", nombre: "Fondo de un vídeo hablado", pista: "rango medio despejado para que la voz se oiga encima; los graves y los agudos hacen el trabajo" },
+  { id: "club", nombre: "Club / fiesta", pista: "construcción y caída claras, la gente tiene que saber cuándo viene" },
+  { id: "cine", nombre: "Cine / épico", pista: "crece de menos a más, con un clímax que se ve venir y un final que baja" },
+] as const;
+
+export type Uso = (typeof USOS)[number]["id"];
+
+export const SeccionInstrumentalSchema = z.object({
+  /** Etiqueta de Suno, sin corchetes: "Intro", "Guitar Solo"... */
+  etiqueta: z.string().min(1).max(60),
+  segundos: z.number().min(2).max(300).optional(),
+  /** Qué pasa ahí, en español. Es una nota para quien lo monta, NO va a Suno. */
+  que: z.string().max(300).default(""),
+});
+
+export const InstrumentalSchema = z.object({
+  titulo: z.string().min(1).max(120),
+  /** Caja "Style of Music" con la mezcla ya descrita. */
+  estilo: z.string().min(3).max(200),
+  excluir: z.string().max(200).default(""),
+  bpm: z.string().max(20).default(""),
+  tonalidad: z.string().max(40).default(""),
+  /** Qué aporta cada género a la mezcla. Una línea por género. */
+  aportes: z.array(z.string().max(200)).max(6).default([]),
+  estructura: z.array(SeccionInstrumentalSchema).min(2).max(14),
+  /** Notas de arreglo para quien lo monta; nunca se pegan en Suno. */
+  indicaciones: z.string().max(800).default(""),
+  porQue: z.string().max(400).default(""),
+  /** Letra, solo si se pidió con voz. Vacío = instrumental de verdad. */
+  letra: z.string().max(4000).default(""),
+  motorUsado: z.string().max(20).optional(),
+  avisoMotor: z.string().max(300).optional(),
+});
+
+export type Instrumental = z.infer<typeof InstrumentalSchema> & {
+  /** Lo que se pega EN LA CAJA DE LETRA de Suno: etiquetas, o letra con ellas. */
+  cajaLetra: string;
+  /** Acotaciones que el modelo metió entre corchetes y se habrían cantado. */
+  avisos: string[];
+  /** Etiquetas que estaban mal escritas y se corrigieron. */
+  corregidas: { de: string; a: string }[];
+  conVoz: boolean;
+};
+
+export type PeticionInstrumental = {
+  motor?: string | null;
+  modelo?: string | null;
+  /** Los géneros que se mezclan: de dos a cuatro. */
+  ritmos: string[];
+  uso: string;
+  duracion?: number;
+  /** 1 = casi silencio, 5 = a tope. */
+  energia?: number;
+  /** Lo que quiera quien pide: instrumentos, referencias, qué evitar. */
+  notas?: string;
+  /** Con voz, en vez de instrumental puro. */
+  conLetra?: boolean;
+  tema?: string;
+  idioma?: string;
+  region?: string;
+  modismos?: boolean;
+};
+
+/**
+ * Escribe la pista: la mezcla descrita como Suno la entiende, la estructura en
+ * etiquetas y, si se pide, la letra.
+ *
+ * Lo que aporta de verdad esta función no es el texto, es la **separación**:
+ * lo que va en la caja de letra de Suno (etiquetas y, si acaso, versos) se
+ * devuelve aparte de lo que es una nota de arreglo para una persona. Un modelo
+ * de texto mezcla las dos cosas siempre —escribe `[la guitarra entra con
+ * rabia]` porque es lo natural en un guion— y Suno eso se lo canta.
+ */
+export async function generarInstrumental(p: PeticionInstrumental): Promise<Instrumental> {
+  const ritmos = p.ritmos.map(buscarRitmo).filter((r): r is (typeof RITMOS)[number] => r !== null).slice(0, 4);
+  if (ritmos.length < 1) throw new Error("Elige al menos un género (dos o tres si quieres una mezcla)");
+
+  const elegido = (p.motor && esMotor(p.motor) ? p.motor : null) ?? motorDisponible();
+  if (!elegido) {
+    throw new Error(
+      "No hay ningun motor de IA configurado: añade una clave de Groq, Gemini, OpenAI o Claude en Ajustes",
+    );
+  }
+
+  const uso = USOS.find((u) => u.id === p.uso) ?? USOS[0];
+  const duracion = p.duracion ?? 120;
+  const conLetra = Boolean(p.conLetra);
+  const idioma = p.idioma ?? "es";
+  const energia = Math.min(5, Math.max(1, Math.round(p.energia ?? 3)));
+  const conocida = ritmos.length === 2 ? FUSIONES.find((f) => f.ids.every((id) => ritmos.some((r) => r.id === id))) : null;
+
+  const prompt = [
+    conLetra
+      ? `Escribe una canción de unos ${duracion} segundos mezclando estos géneros, lista para generarla en Suno.`
+      : `Escribe una pista INSTRUMENTAL (sin voz) de unos ${duracion} segundos mezclando estos géneros, lista para generarla en Suno.`,
+    "",
+    "Los géneros que se mezclan, con su descriptor y su tempo habitual:",
+    ...ritmos.map((r) => `- ${r.nombre}: ${r.estilo} · ${r.bpm} BPM`),
+    conocida ? `Esta mezcla es conocida y funciona así: ${conocida.nota}` : "",
+    "",
+    `Para qué es: ${uso.nombre}. ${uso.pista}.`,
+    `Energía: ${energia} de 5.`,
+    p.tema ? `De qué habla o qué evoca: ${p.tema}.` : "",
+    (p.notas ?? "").trim() ? `Indicaciones de quien la pide, que mandan: ${p.notas}` : "",
+    "",
+    "Cómo se hace una mezcla que suene a algo y no a revoltijo:",
+    "- Cada género aporta UNA cosa: uno la base rítmica, otro la armonía, otro el timbre o el solo. Dilo en \"aportes\".",
+    "- Tiene que haber algo común (el tempo, la escala o la actitud) o las dos mitades se pelean.",
+    "- Un tempo y una tonalidad para toda la pista: si un género pide otro, se adapta él.",
+    conLetra ? "" : "- SIN VOZ: nada de versos, nada de coros, nada de 'la la la'. Si hace falta voz humana, que sea un pad de coros sin palabras y se dice en el estilo.",
+    "",
+    "Sobre las ETIQUETAS, que es donde todo el mundo se equivoca:",
+    "- En Suno, lo que va entre corchetes en la caja de letra es una INSTRUCCIÓN, no algo que se canta,",
+    "  y solo funciona si Suno la reconoce. Usa únicamente estas, en inglés y tal cual:",
+    `  ${VOCABULARIO}.`,
+    "  También vale una etiqueta corta en inglés con un instrumento: [Trumpet Solo], [Bass Drop], [Blast Beats].",
+    "- NUNCA escribas acotaciones entre corchetes ('[la guitarra entra con rabia]', '[se escucha una puerta]'):",
+    "  Suno no las entiende y acaba CANTÁNDOLAS dentro del tema. Todo eso va en \"que\" y en \"indicaciones\",",
+    "  que las lee una persona y no se pegan en Suno.",
+    "",
+    "Devuelve exactamente este JSON:",
+    "{",
+    '  "titulo": "título corto de la pista",',
+    '  "estilo": "style of music para Suno, EN INGLÉS, menos de 180 caracteres, separado por comas: géneros mezclados, instrumentos, energía",',
+    '  "excluir": "lo que no se quiere oír, en inglés y corto",',
+    '  "bpm": "tempo",  "tonalidad": "tonalidad y modo",',
+    `  "aportes": [${ritmos.map((r) => `"${r.nombre}: qué pone en la mezcla"`).join(", ")}],`,
+    '  "estructura": [ { "etiqueta": "Intro", "segundos": 8, "que": "qué pasa aquí, en español, para quien lo monta" } ],',
+    '  "indicaciones": "notas de arreglo en español: dinámica, mezcla, qué evitar",',
+    '  "porQue": "por qué esta mezcla funciona, una o dos frases",',
+    conLetra ? '  "letra": "la letra con sus etiquetas de sección"' : '  "letra": ""',
+    "}",
+    `La estructura tiene que sumar unos ${duracion} segundos.`,
+    ORTOGRAFIA,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const informe: InformeMotor = {};
+  const crudo = await textoConMotor(
+    elegido as Motor,
+    prompt,
+    p.modelo,
+    idioma,
+    p.region ?? "bolivia",
+    p.modismos ?? true,
+    informe,
+  );
+  if (!crudo) throw new Error(`El motor ${informe.motor ?? elegido} no devolvió contenido`);
+
+  const datos = InstrumentalSchema.parse({
+    ...(extraerJSON(crudo) as Record<string, unknown>),
+    motorUsado: informe.motor,
+    avisoMotor: informe.aviso,
+  });
+
+  // Aquí se separa lo que va a Suno de lo que no. Las etiquetas se pasan por
+  // el vocabulario real; lo que no lo sea, se saca y se avisa.
+  const avisos: string[] = [];
+  const corregidas: { de: string; a: string }[] = [];
+  const estructura = datos.estructura.map((s) => {
+    const canonica = etiquetaCanonica(s.etiqueta);
+    if (!canonica) {
+      avisos.push(`"${s.etiqueta}" no es una etiqueta que Suno entienda: se deja como nota de arreglo.`);
+      return { ...s, etiqueta: "", que: [s.etiqueta, s.que].filter(Boolean).join(" · ") };
+    }
+    if (canonica !== s.etiqueta.trim()) corregidas.push({ de: s.etiqueta.trim(), a: canonica });
+    return { ...s, etiqueta: canonica };
+  });
+
+  let cajaLetra: string;
+  if (conLetra && datos.letra.trim()) {
+    const revision = revisarEtiquetas(datos.letra);
+    cajaLetra = revision.texto;
+    corregidas.push(...revision.cambiadas);
+    for (const s of revision.sacadas) {
+      avisos.push(`Se sacó de la letra "[${s}]": Suno lo habría cantado. Está en las notas de arreglo.`);
+    }
+  } else {
+    // Instrumental: en la caja de letra van SOLO las etiquetas, una por línea.
+    cajaLetra = estructura.map((s) => s.etiqueta).filter(Boolean).map((e) => `[${e}]`).join("\n");
+  }
+
+  const notasSueltas = estructura
+    .filter((s) => !s.etiqueta && s.que)
+    .map((s) => s.que)
+    .join(" · ");
+
+  return {
+    ...datos,
+    estructura: estructura.filter((s) => s.etiqueta),
+    indicaciones: [datos.indicaciones, notasSueltas].filter(Boolean).join("\n"),
+    cajaLetra,
+    avisos,
+    corregidas,
+    conVoz: conLetra,
+  };
+}
+
+/** La pista entera en un texto, con cada caja de Suno separada. */
+export function instrumentalATexto(p: Instrumental): string {
+  const partes = [
+    `# ${p.titulo}`,
+    p.porQue,
+    "",
+    "## Suno · Style of Music",
+    p.estilo,
+    ...(p.excluir ? ["", "## Suno · Exclude styles", p.excluir] : []),
+    "",
+    "## Tempo y tono",
+    [p.bpm ? `${p.bpm} BPM` : "", p.tonalidad].filter(Boolean).join(" · ") || "(sin indicar)",
+    "",
+    `## Suno · Lyrics${p.conVoz ? "" : " (solo las etiquetas: la pista es instrumental)"}`,
+    p.cajaLetra,
+    "",
+  ];
+  if (p.aportes.length) partes.push("## Qué pone cada género", ...p.aportes.map((a) => `- ${a}`), "");
+  if (p.estructura.length) {
+    partes.push("## Estructura");
+    for (const s of p.estructura) {
+      partes.push(`- [${s.etiqueta}]${s.segundos ? ` · ${s.segundos}s` : ""}${s.que ? ` — ${s.que}` : ""}`);
+    }
+    partes.push("");
+  }
+  if (p.indicaciones) partes.push("## Notas de arreglo (NO se pegan en Suno)", p.indicaciones, "");
+  if (p.avisos.length) partes.push("## Revisado", ...p.avisos.map((a) => `- ${a}`), "");
+  return partes.join("\n");
+}
+
+/** Cómo pedir una instrumental en Suno. No es lo mismo que una canción. */
+export const INSTRUCCIONES_SUNO_INSTRUMENTAL = [
+  "1. En Suno, modo **Custom**.",
+  "2. Pega el **Style of Music** tal cual. Ahí está la mezcla: no la alargues.",
+  "3. En la caja de **Lyrics** pega SOLO las etiquetas, una por línea: son la estructura, y sin voz que cantar Suno las usa como guion de la pista.",
+  "4. Activa el interruptor **Instrumental**. Si lo dejas apagado y aun así quieres estructura, deja las etiquetas; si te canta algo igualmente, enciéndelo.",
+  "5. Las **notas de arreglo** no se pegan en ningún sitio: son para ti, para saber qué pedir si hay que repetir la generación.",
+  "6. Si sale bien a medias, cambia UNA cosa del estilo (un instrumento, una palabra de energía) y vuelve a generar. Cambiarlo entero es empezar de cero.",
 ];
