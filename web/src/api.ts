@@ -74,6 +74,8 @@ export type Catalogo = {
   tiktok: { configurado: boolean; cuentasConectadas: number; permisos: string[] };
   reddit: { configurado: boolean };
   idiomas: Idioma[];
+  /** Como se llama cada idioma en pantalla; lo manda el servidor. */
+  nombresIdioma?: Record<string, string>;
   regiones: { id: Region; nombre: string }[];
   generosIA: Record<string, Genero>;
   calidades: { id: Calidad; nombre: string; nota: string; escala: number; fps: number | null }[];
@@ -84,7 +86,11 @@ export type Catalogo = {
   retencionDias: number;
 };
 
-export type Idioma = "es" | "en";
+/**
+ * "spanglish" no es un idioma de diccionario, pero es como se canta media
+ * America: base en espanol con ingles dentro, sobre todo en el gancho.
+ */
+export type Idioma = "es" | "en" | "spanglish";
 
 /** Perfil de compresion del render. */
 export type Calidad = "alta" | "normal" | "ligera";
@@ -333,7 +339,7 @@ export type GuionDialogo = {
 };
 
 /** Un ritmo al que se puede llevar una cancion. */
-export type Ritmo = { id: string; nombre: string; estilo: string; bpm: string };
+export type Ritmo = { id: string; nombre: string; familia: string; estilo: string; bpm: string };
 
 /** Una version del remix: la cancion en un ritmo, con las cajas de Suno. */
 export type VersionRemix = {

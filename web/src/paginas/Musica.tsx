@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type Catalogo, type Idioma, type Preset, type Proyecto, type Sugerencia } from "../api";
 import { mensajeDe } from "../App";
+import { nombreIdioma } from "./comunes";
 import { EditorMontaje } from "./EditorMontaje";
 import { Remix } from "./Remix";
 import {
@@ -222,7 +223,7 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
             <select id="idiomaVc" value={idioma} onChange={(e) => setIdioma(e.target.value as Idioma)}>
               {catalogo.idiomas.map((i) => (
                 <option key={i} value={i}>
-                  {i === "es" ? "Espanol" : "Ingles"}
+                  {nombreIdioma(catalogo, i)}
                 </option>
               ))}
             </select>

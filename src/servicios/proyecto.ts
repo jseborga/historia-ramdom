@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { creditosLargos, armarDescripcion, FUENTES, MEDIOS } from "./clips.js";
+import { IdiomaCampo } from "./guion.js";
 import { DIVULGACION, ProductoSchema, type Producto } from "./amazon.js";
 import { VozSchema, VOZ_POR_DEFECTO } from "./voz.js";
 import { ESTILO_POR_DEFECTO, fragmentar, type EstiloTexto, type Lectura } from "../render/rotulos.js";
@@ -147,7 +148,7 @@ export const VozPistaSchema = z.object({
   modo: z.enum(["ninguna", "servidor", "archivo", "dialogo"]).default("servidor"),
   texto: z.string().max(20_000).default(""),
   /** En qué idioma está el texto: decide la voz local y el tono que se pide. */
-  idioma: z.enum(["es", "en"]).default("es"),
+  idioma: IdiomaCampo.default("es"),
   config: VozSchema.nullable().default(VOZ_POR_DEFECTO),
   /** Solo en modo diálogo: quiénes hablan y con qué voz. */
   hablantes: z.array(HablanteSchema).max(3).default([]),

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "../db.js";
 import { crearCarpetaProyecto } from "../almacen.js";
 import { buscarPreset } from "../render/presets.js";
-import { generarDialogo, GuionDialogoSchema, MOTORES } from "../servicios/guion.js";
+import { generarDialogo, GuionDialogoSchema, IdiomaCampo, MOTORES } from "../servicios/guion.js";
 import { VozSchema } from "../servicios/voz.js";
 import { ensamblarProyecto } from "../servicios/ensamblar.js";
 import { HablanteSchema, ProyectoSchema, clipVacio } from "../servicios/proyecto.js";
@@ -39,7 +39,7 @@ const PeticionDialogoSchema = z.object({
   motor: z.enum(MOTORES).default("groq"),
   modelo: z.string().max(80).nullable().default(null),
   duracion: z.number().int().min(20).max(900).default(90),
-  idioma: z.enum(["es", "en"]).default("es"),
+  idioma: IdiomaCampo.default("es"),
   region: z.enum(["bolivia", "latam", "eeuu"]).default("bolivia"),
   modismos: z.boolean().default(true),
   categoria: CategoriaCampo,
@@ -66,7 +66,7 @@ export async function rutasDialogos(app: FastifyInstance) {
       .object({
         guion: GuionDialogoSchema,
         /** El mismo con el que se escribió: fija la voz y el tono. */
-        idioma: z.enum(["es", "en"]).default("es"),
+        idioma: IdiomaCampo.default("es"),
         hablantes: z.array(HablantePeticion).min(2).max(3),
         formato: z.string().max(40).default("tiktok"),
         nombre: z.string().min(1).max(120).optional(),

@@ -181,7 +181,7 @@ servidor.registerTool(
       subcategoria: subcategoriaSchema,
       tema: z.string().max(200).optional(),
       duracion: z.number().int().min(15).max(900).optional(),
-      idioma: z.enum(["es", "en"]).optional(),
+      idioma: z.enum(["es", "en", "spanglish"]).optional(),
       region: z.enum(["bolivia", "latam", "eeuu"]).optional(),
       modismos: z.boolean().optional(),
       motor: z.enum(["groq", "openai", "gemini", "claude"]).optional(),
@@ -206,7 +206,7 @@ servidor.registerTool(
       miniserie: miniserieSchema.optional(),
       capitulo: z.number().int().min(1).max(12).describe("Qué capítulo de la miniserie escribir").optional(),
       duracion: z.number().int().min(15).max(900).optional(),
-      idioma: z.enum(["es", "en"]).optional(),
+      idioma: z.enum(["es", "en", "spanglish"]).optional(),
       region: z.enum(["bolivia", "latam", "eeuu"]).optional(),
       modismos: z.boolean().optional(),
       motor: z.enum(["groq", "openai", "gemini", "claude"]).optional(),
@@ -228,7 +228,7 @@ servidor.registerTool(
       tema: z.string().max(200).optional(),
       capitulos: z.number().int().min(2).max(12).describe("Cuántos capítulos (4 por defecto)").optional(),
       duracion: z.number().int().min(15).max(900).describe("Segundos por capítulo").optional(),
-      idioma: z.enum(["es", "en"]).optional(),
+      idioma: z.enum(["es", "en", "spanglish"]).optional(),
       region: z.enum(["bolivia", "latam", "eeuu"]).optional(),
       modismos: z.boolean().optional(),
       motor: z.enum(["groq", "openai", "gemini", "claude"]).optional(),
@@ -251,7 +251,7 @@ servidor.registerTool(
       subcategoria: subcategoriaSchema,
       premisa: premisaSchema.optional(),
       duracion: z.number().int().min(15).max(900).optional(),
-      idioma: z.enum(["es", "en"]).optional(),
+      idioma: z.enum(["es", "en", "spanglish"]).optional(),
       region: z.enum(["bolivia", "latam", "eeuu"]).optional(),
       modismos: z.boolean().optional(),
       motor: z.enum(["groq", "openai", "gemini", "claude"]).optional(),
@@ -297,7 +297,7 @@ servidor.registerTool(
     description: "Banco de historias: ideas pendientes, usadas o descartadas, con su puntuacion.",
     inputSchema: {
       estado: z.enum(["PENDIENTE", "USADA", "DESCARTADA"]).optional(),
-      idioma: z.enum(["es", "en"]).optional(),
+      idioma: z.enum(["es", "en", "spanglish"]).optional(),
     },
   },
   async ({ estado, idioma }) => {
@@ -318,7 +318,7 @@ servidor.registerTool(
           z.object({
             titulo: z.string().min(3).max(200),
             tema: z.string().min(3).max(200),
-            idioma: z.enum(["es", "en"]).optional(),
+            idioma: z.enum(["es", "en", "spanglish"]).optional(),
             notas: z.string().max(500).optional(),
           }),
         )
@@ -384,7 +384,7 @@ servidor.registerTool(
       letra: z.string().max(20_000).optional(),
       lineamientos: z.string().max(2000).describe("Lo poco que ya haya escrito el autor").optional(),
       instrumental: z.boolean().optional(),
-      idioma: z.enum(["es", "en"]).optional(),
+      idioma: z.enum(["es", "en", "spanglish"]).optional(),
     },
   },
   async (args) =>

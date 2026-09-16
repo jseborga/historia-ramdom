@@ -26,6 +26,7 @@ import {
   SelectorRegion,
   SelectorVoz,
   nombreCategoria,
+  nombreIdioma,
 } from "./comunes";
 import { SelectorClips } from "./SelectorClips";
 import { GuionTexto } from "./GuionTexto";
@@ -266,7 +267,7 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
             >
               {catalogo.idiomas.map((i) => (
                 <option key={i} value={i}>
-                  {i === "es" ? "Espanol" : "Ingles"}
+                  {nombreIdioma(catalogo, i)}
                 </option>
               ))}
             </select>

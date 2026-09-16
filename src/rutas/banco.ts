@@ -5,6 +5,7 @@ import { guardarIdeas } from "../servicios/banco.js";
 import { guardarMetrica, resumenRendimiento } from "../servicios/metricas.js";
 import { buscarIdeasAhora, sincronizarAhora } from "../cola/cola.js";
 import { redditConfigurado } from "../servicios/reddit.js";
+import { IdiomaCampo } from "../servicios/guion.js";
 import { diagnosticar } from "../servicios/diagnostico.js";
 
 const idParam = z.object({ id: z.string().uuid() });
@@ -12,7 +13,7 @@ const idParam = z.object({ id: z.string().uuid() });
 const IdeaSchema = z.object({
   titulo: z.string().min(3).max(200),
   tema: z.string().min(3).max(200),
-  idioma: z.enum(["es", "en"]).default("es"),
+  idioma: IdiomaCampo.default("es"),
   notas: z.string().max(500).optional(),
 });
 
@@ -33,7 +34,7 @@ export async function rutasBanco(app: FastifyInstance) {
     const { estado, idioma } = z
       .object({
         estado: z.enum(["PENDIENTE", "USADA", "DESCARTADA"]).optional(),
-        idioma: z.enum(["es", "en"]).optional(),
+        idioma: IdiomaCampo.optional(),
       })
       .parse(req.query);
 

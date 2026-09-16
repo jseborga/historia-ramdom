@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type Catalogo, type Gancho, type Idea, type Idioma, type Rendimiento } from "../api";
 import { mensajeDe } from "../App";
+import { nombreIdioma } from "./comunes";
 
 const nota = (v: number | null) => (v === null ? "sin datos" : `${v} pts`);
 
@@ -80,7 +81,7 @@ export function Banco({ catalogo }: { catalogo: Catalogo }) {
           >
             {catalogo.idiomas.map((i) => (
               <option key={i} value={i}>
-                {i === "es" ? "Espanol" : "Ingles"}
+                {nombreIdioma(catalogo, i)}
               </option>
             ))}
           </select>

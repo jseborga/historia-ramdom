@@ -32,9 +32,11 @@ Implementa la guía de `docs/guia-original.md`.
   bancos y se compone un montaje con lo elegido, en el orden elegido.
 - **Diálogos.** Dos o tres voces distintas discutiendo un tema, con el rótulo
   del que habla en su color.
-- **Remix de canciones.** La misma letra escrita en otros ritmos —cumbia,
-  drill, huayño, saya, bachata…— con las cajas de Suno listas para copiar y el
-  gancho de los primeros quince segundos.
+- **Remix de canciones.** La misma letra escrita en otros ritmos —64, del huayño
+  al thrash metal— con las cajas de Suno listas para copiar y el gancho de los
+  primeros quince segundos.
+- **Tres idiomas.** Español, inglés y **spanglish**: base en español con el
+  inglés en el gancho, que es como se canta la cumbia y el reggaetón.
 - **Productos con reflexión.** Un objeto real de Amazon como gancho y un giro
   final que habla de nosotros: enlace de afiliado y divulgación siempre en la
   descripción, y fotos solo si hay API oficial.
@@ -355,9 +357,21 @@ comportamiento, cambia `src/rutas/legales.ts` y su fecha de revisión.
 
 ## Idioma: dónde se elige y hasta dónde llega
 
-Se elige en cada pantalla que escribe algo —**Editor**, **Series**, **Diálogo**,
-**Producto**, **Música** (idioma de la letra) y **Remix**—, y el editor de
-montaje lo lleva también en la pestaña **Letra**.
+Hay tres: **español**, **inglés** y **spanglish**. Se eligen en cada pantalla que
+escribe algo —**Editor**, **Series**, **Diálogo**, **Producto**, **Música**
+(idioma de la letra) y **Remix**—, y el editor de montaje lo lleva también en la
+pestaña **Letra**.
+
+**Spanglish** no es un idioma de diccionario, pero es como se canta media
+América, y no sale solo: a un modelo al que se le pide "español" escribe español
+de manual, y al que se le pide "inglés" traduce. Pedido aparte, la instrucción
+dice qué es hacerlo bien —base y gramática en español, y el inglés en el remate,
+el gancho o el estribillo ("baby", "let's go", "te llamo later"), entre un tercio
+y la mitad de las frases— y qué es hacerlo mal: traducir la misma frase dos
+veces, o meter una palabra en inglés por quedar moderno. En el **Remix** hay
+además una nota por género: en cumbia y en reggaetón el estribillo en inglés es
+lo que se queda pegado; en una balada, mejor una frase suelta. Lo lee una voz en
+español, que es la que pronuncia bien la base.
 
 Lo que hace falta saber, porque no es obvio: **todos los prompts de la app están
 escritos en español**. Un modelo tiende a contestar en el idioma en el que se le
@@ -1082,14 +1096,22 @@ de arriba: **Videoclip** monta el vídeo sobre una canción que ya existe, y
 1. **La canción de partida.** Se pega la letra, o se deja vacía y se escribe
    solo de qué va. Lo primero que se pregunta es **de quién es la letra**, y no
    es burocracia: mira el recuadro de abajo.
-2. **A qué ritmos.** Hasta seis de los 36 del catálogo, con los andinos y los
-   latinos que Suno entiende bien: cumbia, cumbia villera, reggaetón, dembow,
-   trap, drill, salsa, bachata, merengue, vallenato, **huayño, saya/caporal,
-   morenada, cueca**, tango, ranchera, corrido tumbado, bolero, balada, pop,
-   rock, punk, metal, R&B, afrobeats, amapiano, house, EDM, drum and bass,
-   lo-fi, jazz, flamenco, country, K-pop, acústico y coral. Cada uno se escribe
-   con su propia métrica: la misma idea no se canta igual en una cumbia que en
-   un drill.
+2. **A qué ritmos.** Hasta seis de los **64** del catálogo, agrupados por
+   familia para poder encontrarlos:
+   - **Latino** (11): cumbia, cumbia villera, salsa, bachata, merengue,
+     vallenato, ranchera/banda, corrido tumbado, bolero, tango, flamenco.
+   - **Andino** (5): huayño, saya/caporal, morenada, cueca, tinku.
+   - **Urbano** (6): reggaetón, dembow, trap latino, drill, R&B, afrobeats.
+   - **Rock** (16): rock, rock and roll de los 50, rockabilly, surf, garage,
+     hard rock, glam, punk del 77, pop punk, post-punk, grunge, indie,
+     progresivo, psicodélico, stoner y rock en español.
+   - **Metal** (14): heavy metal (NWOBHM), thrash, death, black, doom, power,
+     sinfónico, folk, progresivo, metalcore, nu metal, groove e industrial.
+   - **Electrónica** (5) y **otros** (7): house, amapiano, EDM, drum and bass,
+     lo-fi, balada, pop, jazz, country, K-pop, acústico y coral.
+
+   Cada uno se escribe con su propia métrica: la misma idea no se canta igual en
+   una cumbia que en un thrash.
 3. **Para el formato corto** (activado por defecto): la primera frase tiene que
    parar el dedo, el estribillo llega antes de los 15 segundos y hay una frase
    corta que se repite y se queda pegada.

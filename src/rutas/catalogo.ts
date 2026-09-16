@@ -1,7 +1,7 @@
 import { stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import type { FastifyInstance } from "fastify";
-import { MOTORES, MODELOS } from "../servicios/guion.js";
+import { IDIOMAS, MOTORES, MODELOS } from "../servicios/guion.js";
 import {
   VOCES,
   VOZ_POR_DEFECTO,
@@ -133,7 +133,13 @@ export async function rutasCatalogo(app: FastifyInstance) {
         permisos: env.TIKTOK_SCOPES.split(",").map((s) => s.trim()),
       },
       reddit: { configurado: redditConfigurado() },
-      idiomas: ["es", "en"],
+      /** Los tres, con su nombre: el selector no tiene que saberlos de memoria. */
+      idiomas: IDIOMAS,
+      nombresIdioma: {
+        es: "Español",
+        en: "Inglés",
+        spanglish: "Spanglish (español con inglés dentro)",
+      },
       regiones: [
         { id: "bolivia", nombre: "Bolivia (con modismos bolivianos)" },
         { id: "latam", nombre: "Latinoamérica (neutro)" },

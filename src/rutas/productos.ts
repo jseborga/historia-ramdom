@@ -25,6 +25,7 @@ import {
 } from "../servicios/amazon.js";
 import {
   GuionProductoSchema,
+  IdiomaCampo,
   MOTORES,
   generarGuionProducto,
   narracionDeProducto,
@@ -191,7 +192,7 @@ export async function rutasProductos(app: FastifyInstance) {
         motor: z.enum(MOTORES).default("groq"),
         modelo: z.string().max(80).nullable().default(null),
         duracion: z.number().int().min(20).max(300).default(45),
-        idioma: z.enum(["es", "en"]).default("es"),
+        idioma: IdiomaCampo.default("es"),
         region: z.enum(["bolivia", "latam", "eeuu"]).default("bolivia"),
         modismos: z.boolean().default(true),
         categoria: CategoriaCampo,
@@ -222,7 +223,7 @@ export async function rutasProductos(app: FastifyInstance) {
         /** Abrir con la foto del producto (solo si vino de la API). */
         conFoto: z.boolean().default(true),
         /** El mismo con el que se escribió el guion: fija la voz y el tono. */
-        idioma: z.enum(["es", "en"]).default("es"),
+        idioma: IdiomaCampo.default("es"),
       })
       .parse(req.body);
 

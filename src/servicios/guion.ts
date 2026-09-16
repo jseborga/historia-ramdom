@@ -29,8 +29,36 @@ export const esMotor = (v: string): v is Motor => (MOTORES as readonly string[])
 export const REGIONES = ["bolivia", "latam", "eeuu"] as const;
 export type Region = (typeof REGIONES)[number];
 
+/**
+ * Idiomas en los que se puede escribir.
+ *
+ * "spanglish" no es un idioma de diccionario, pero sí es como se canta y se
+ * habla en media América: base en español con inglés dentro, sobre todo en el
+ * gancho y en el estribillo. Se pide aparte porque no sale solo: un modelo al
+ * que se le pide "español" escribe español de manual, y al que se le pide
+ * "inglés" traduce.
+ */
+export const IDIOMAS = ["es", "en", "spanglish"] as const;
+export type Idioma = (typeof IDIOMAS)[number];
+export const esIdioma = (v: string): v is Idioma => (IDIOMAS as readonly string[]).includes(v);
+
+/** El campo de idioma de las peticiones, en un sitio y no en veinte. */
+export const IdiomaCampo = z.enum(IDIOMAS);
+
+/**
+ * Con qué voz se lee un texto: el spanglish lo lee una voz en español, que es
+ * la que pronuncia bien la base; las palabras en inglés le salen con acento,
+ * que es exactamente como suenan en una cumbia.
+ */
+export const idiomaDeVoz = (idioma: string): "es" | "en" => (idioma === "en" ? "en" : "es");
+
 /** Cómo debe sonar el texto según la región y si se piden modismos. */
 export function descripcionRegion(region: string, modismos: boolean, idioma: string) {
+  if (idioma === "spanglish") {
+    return modismos
+      ? "spanglish: español latino de base con inglés mezclado con naturalidad, como se habla en la calle"
+      : "spanglish: español latino de base con algunas frases en inglés";
+  }
   if (idioma === "en" || region === "eeuu") {
     // Descrito EN inglés: si la única frase que fija el idioma está en
     // español, el modelo tiende a seguir escribiendo en español.
@@ -90,6 +118,22 @@ export function reglaDeIdioma(idioma: string): string {
       "The only exception is the fields this prompt explicitly asks for in English anyway",
       "(search keywords, image prompts, music style): those were already English and stay as they are.",
       ORTOGRAFIA_EN,
+    ].join(" ");
+  }
+  if (idioma === "spanglish") {
+    return [
+      "IDIOMA: escribe en SPANGLISH, que es español latino con inglés dentro, no español con dos palabras",
+      "sueltas ni inglés traducido.",
+      "Cómo se hace bien: la base y la gramática, en español; en inglés van los remates, el gancho, el",
+      "estribillo o media frase que ya se dice así ('baby', 'let's go', 'no way', 'te llamo later',",
+      "'estoy ready'). Entre un tercio y la mitad de las frases llevan algo en inglés.",
+      "Cómo se hace mal, y no se hace: traducir la misma frase dos veces, poner una palabra en inglés",
+      "por quedar moderno, o escribir párrafos enteros en inglés.",
+      "Que suene a persona bilingüe hablando rápido, no a ejercicio de clase.",
+      "Lo único que se queda en inglés por otro motivo es lo que este mismo prompt pide en inglés",
+      "(palabras de búsqueda, prompts de imagen, estilo musical).",
+      ORTOGRAFIA,
+      "Las palabras en inglés van con su ortografía inglesa, sin tildes.",
     ].join(" ");
   }
   return [

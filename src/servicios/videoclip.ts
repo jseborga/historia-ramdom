@@ -8,7 +8,7 @@ import { env } from "../env.js";
 import { ESTILO_POR_DEFECTO } from "../render/rotulos.js";
 import { rutaSubidaSegura, rutaMusicaSegura } from "../almacen.js";
 import { buscarClips, CLIP_LARGO, type ClipInfo, type OpcionesMedios } from "./clips.js";
-import { extraerJSON, textoConMotor, esMotor, motorDisponible, ORTOGRAFIA, type Motor } from "./guion.js";
+import { extraerJSON, textoConMotor, esMotor, motorDisponible, IdiomaCampo, ORTOGRAFIA, type Idioma, type Motor } from "./guion.js";
 import {
   ClipPistaSchema,
   RotuloPistaSchema,
@@ -55,7 +55,7 @@ export const LetraSchema = z.object({
   /** Instrucciones del usuario: estilo visual, que buscar, que evitar. */
   lineamientos: z.string().max(2000).default(""),
   /** En que idioma esta la letra: manda en el analisis y en los rotulos. */
-  idioma: z.enum(["es", "en"]).default("es"),
+  idioma: IdiomaCampo.default("es"),
   /** Como debe verse el videoclip entero, en una frase. */
   estiloVisual: z.string().max(300).default(""),
   /** Quemar la letra sobre el video. Se recuerda para los montajes siguientes. */
@@ -488,7 +488,7 @@ export async function guardarLetra(
     instrumental?: boolean;
     mostrarLetra?: boolean;
     titulo?: string;
-    idioma?: "es" | "en";
+    idioma?: Idioma;
   },
 ): Promise<Letra> {
   const p = await db.proyecto.findUniqueOrThrow({ where: { id: proyectoId } });

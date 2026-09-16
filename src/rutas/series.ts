@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { db } from "../db.js";
 import { VozSchema } from "../servicios/voz.js";
-import { MOTORES } from "../servicios/guion.js";
+import { IdiomaCampo, MOTORES } from "../servicios/guion.js";
 import { esCategoriaValida } from "../servicios/categorias.js";
 import { esBanco, esMedio } from "../servicios/clips.js";
 import { programarSerie, quitarSerie, generarAhora } from "../cola/cola.js";
@@ -19,7 +19,7 @@ const SerieSchema = z.object({
   tipo: z.enum(["Reflexion", "Historia"]),
   temas: z.array(z.string().min(1).max(120)).max(50).default([]),
   duracion: z.number().int().min(15).max(MAX_LARGO_SEG).default(65),
-  idioma: z.enum(["es", "en"]).default("es"),
+  idioma: IdiomaCampo.default("es"),
   region: z.enum(["bolivia", "latam", "eeuu"]).default("bolivia"),
   modismos: z.boolean().default(true),
   /** Historias por partes: cada ejecución produce N partes seguidas. */

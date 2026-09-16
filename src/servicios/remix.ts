@@ -24,45 +24,93 @@ import {
  *    cual, se avisa por su nombre para corregirla antes de publicar nada.
  */
 
-/** Ritmos que Suno entiende bien, con su descriptor y su tempo habitual. */
+/**
+ * Ritmos que Suno entiende bien, con su descriptor, su tempo habitual y la
+ * familia con la que se agrupan en pantalla (sesenta botones sueltos no los
+ * mira nadie).
+ */
 export const RITMOS = [
-  { id: "cumbia", nombre: "Cumbia", estilo: "cumbia, accordion, güira, warm bass, danceable", bpm: "95-105" },
-  { id: "cumbia_villera", nombre: "Cumbia villera", estilo: "cumbia villera, raw synths, street attitude", bpm: "95-105" },
-  { id: "reggaeton", nombre: "Reggaetón", estilo: "reggaeton, dembow beat, deep 808, catchy hook", bpm: "88-96" },
-  { id: "dembow", nombre: "Dembow", estilo: "dominican dembow, fast percussion, chant vocals", bpm: "115-125" },
-  { id: "trap", nombre: "Trap latino", estilo: "latin trap, dark 808s, hi-hat rolls, autotune", bpm: "70-85" },
-  { id: "drill", nombre: "Drill", estilo: "drill, sliding 808s, menacing piano, hard flow", bpm: "138-145" },
-  { id: "salsa", nombre: "Salsa", estilo: "salsa dura, piano montuno, brass section, timbales", bpm: "180-200" },
-  { id: "bachata", nombre: "Bachata", estilo: "bachata, requinto guitar, bongo, romantic vocals", bpm: "120-130" },
-  { id: "merengue", nombre: "Merengue", estilo: "merengue, tambora, güira, brass, party energy", bpm: "130-150" },
-  { id: "vallenato", nombre: "Vallenato", estilo: "vallenato, accordion, caja vallenata, storytelling", bpm: "95-110" },
-  { id: "huayno", nombre: "Huayño", estilo: "huayno andino, quena, charango, zampoña, andean vocals", bpm: "100-120" },
-  { id: "saya", nombre: "Saya / Caporal", estilo: "saya caporal, afro-bolivian drums, bombo, brass, festive", bpm: "100-115" },
-  { id: "morenada", nombre: "Morenada", estilo: "morenada, matraca, heavy brass band, andean folk", bpm: "80-95" },
-  { id: "cueca", nombre: "Cueca", estilo: "cueca boliviana, guitar, charango, melancholic waltz feel", bpm: "90-105" },
-  { id: "tango", nombre: "Tango", estilo: "tango, bandoneon, strings, dramatic phrasing", bpm: "60-80" },
-  { id: "ranchera", nombre: "Ranchera / Banda", estilo: "ranchera banda, mariachi brass, powerful vocals", bpm: "80-100" },
-  { id: "corrido", nombre: "Corrido tumbado", estilo: "corrido tumbado, requinto, tuba, raspy vocals", bpm: "75-95" },
-  { id: "bolero", nombre: "Bolero", estilo: "bolero, nylon guitar, strings, intimate crooning", bpm: "60-75" },
-  { id: "balada", nombre: "Balada pop", estilo: "pop ballad, piano, strings, big emotional chorus", bpm: "65-80" },
-  { id: "pop", nombre: "Pop", estilo: "modern pop, bright synths, tight drums, radio chorus", bpm: "100-120" },
-  { id: "rock", nombre: "Rock", estilo: "rock, distorted guitars, live drums, anthemic chorus", bpm: "120-140" },
-  { id: "punk", nombre: "Pop punk", estilo: "pop punk, fast power chords, shouted gang vocals", bpm: "150-175" },
-  { id: "metal", nombre: "Metal", estilo: "metal, double kick, heavy riffs, aggressive vocals", bpm: "140-170" },
-  { id: "rnb", nombre: "R&B", estilo: "r&b, silky vocals, rhodes, laid-back groove", bpm: "70-90" },
-  { id: "afrobeats", nombre: "Afrobeats", estilo: "afrobeats, log drum, airy synths, smooth vocals", bpm: "100-115" },
-  { id: "amapiano", nombre: "Amapiano", estilo: "amapiano, log drum bass, shakers, spacious piano", bpm: "110-118" },
-  { id: "house", nombre: "House", estilo: "house, four on the floor, warm bassline, vocal chops", bpm: "120-128" },
-  { id: "edm", nombre: "EDM / Festival", estilo: "big room edm, huge build up, festival drop", bpm: "126-132" },
-  { id: "dnb", nombre: "Drum and bass", estilo: "drum and bass, breakbeat, rolling sub bass", bpm: "172-176" },
-  { id: "lofi", nombre: "Lo-fi", estilo: "lofi hip hop, dusty drums, vinyl crackle, mellow keys", bpm: "70-85" },
-  { id: "jazz", nombre: "Jazz", estilo: "jazz, upright bass, brushed drums, smoky vocals", bpm: "90-120" },
-  { id: "flamenco", nombre: "Flamenco", estilo: "flamenco, spanish guitar, palmas, cante jondo", bpm: "90-120" },
-  { id: "country", nombre: "Country", estilo: "country, acoustic guitar, pedal steel, storytelling", bpm: "90-120" },
-  { id: "kpop", nombre: "K-pop", estilo: "k-pop, glossy production, layered harmonies, dance break", bpm: "110-130" },
-  { id: "acustico", nombre: "Acústico", estilo: "acoustic, single guitar, intimate close-mic vocals", bpm: "70-90" },
-  { id: "coral", nombre: "Coral / Épico", estilo: "epic choir, orchestral percussion, cinematic build", bpm: "70-90" },
+  // ---- Latino ----
+  { id: "cumbia", nombre: "Cumbia", familia: "Latino", estilo: "cumbia, accordion, güira, warm bass, danceable", bpm: "95-105" },
+  { id: "cumbia_villera", nombre: "Cumbia villera", familia: "Latino", estilo: "cumbia villera, raw synths, street attitude", bpm: "95-105" },
+  { id: "salsa", nombre: "Salsa", familia: "Latino", estilo: "salsa dura, piano montuno, brass section, timbales", bpm: "180-200" },
+  { id: "bachata", nombre: "Bachata", familia: "Latino", estilo: "bachata, requinto guitar, bongo, romantic vocals", bpm: "120-130" },
+  { id: "merengue", nombre: "Merengue", familia: "Latino", estilo: "merengue, tambora, güira, brass, party energy", bpm: "130-150" },
+  { id: "vallenato", nombre: "Vallenato", familia: "Latino", estilo: "vallenato, accordion, caja vallenata, storytelling", bpm: "95-110" },
+  { id: "ranchera", nombre: "Ranchera / Banda", familia: "Latino", estilo: "ranchera banda, mariachi brass, powerful vocals", bpm: "80-100" },
+  { id: "corrido", nombre: "Corrido tumbado", familia: "Latino", estilo: "corrido tumbado, requinto, tuba, raspy vocals", bpm: "75-95" },
+  { id: "bolero", nombre: "Bolero", familia: "Latino", estilo: "bolero, nylon guitar, strings, intimate crooning", bpm: "60-75" },
+  { id: "tango", nombre: "Tango", familia: "Latino", estilo: "tango, bandoneon, strings, dramatic phrasing", bpm: "60-80" },
+  { id: "flamenco", nombre: "Flamenco", familia: "Latino", estilo: "flamenco, spanish guitar, palmas, cante jondo", bpm: "90-120" },
+
+  // ---- Andino ----
+  { id: "huayno", nombre: "Huayño", familia: "Andino", estilo: "huayno andino, quena, charango, zampoña, andean vocals", bpm: "100-120" },
+  { id: "saya", nombre: "Saya / Caporal", familia: "Andino", estilo: "saya caporal, afro-bolivian drums, bombo, brass, festive", bpm: "100-115" },
+  { id: "morenada", nombre: "Morenada", familia: "Andino", estilo: "morenada, matraca, heavy brass band, andean folk", bpm: "80-95" },
+  { id: "cueca", nombre: "Cueca", familia: "Andino", estilo: "cueca boliviana, guitar, charango, melancholic waltz feel", bpm: "90-105" },
+  { id: "tinku", nombre: "Tinku", familia: "Andino", estilo: "tinku andino, bombo, charango, driving ritual rhythm", bpm: "110-125" },
+
+  // ---- Urbano ----
+  { id: "reggaeton", nombre: "Reggaetón", familia: "Urbano", estilo: "reggaeton, dembow beat, deep 808, catchy hook", bpm: "88-96" },
+  { id: "dembow", nombre: "Dembow", familia: "Urbano", estilo: "dominican dembow, fast percussion, chant vocals", bpm: "115-125" },
+  { id: "trap", nombre: "Trap latino", familia: "Urbano", estilo: "latin trap, dark 808s, hi-hat rolls, autotune", bpm: "70-85" },
+  { id: "drill", nombre: "Drill", familia: "Urbano", estilo: "drill, sliding 808s, menacing piano, hard flow", bpm: "138-145" },
+  { id: "rnb", nombre: "R&B", familia: "Urbano", estilo: "r&b, silky vocals, rhodes, laid-back groove", bpm: "70-90" },
+  { id: "afrobeats", nombre: "Afrobeats", familia: "Urbano", estilo: "afrobeats, log drum, airy synths, smooth vocals", bpm: "100-115" },
+
+  // ---- Rock ----
+  { id: "rock", nombre: "Rock", familia: "Rock", estilo: "rock, distorted guitars, live drums, anthemic chorus", bpm: "120-140" },
+  { id: "rocknroll", nombre: "Rock and roll (50s)", familia: "Rock", estilo: "1950s rock and roll, boogie piano, slapback echo, sax solo", bpm: "150-175" },
+  { id: "rockabilly", nombre: "Rockabilly", familia: "Rock", estilo: "rockabilly, upright slap bass, twangy guitar, hiccup vocals", bpm: "160-185" },
+  { id: "surf", nombre: "Surf rock", familia: "Rock", estilo: "surf rock, reverb-drenched guitar, tremolo picking, tom beat", bpm: "150-170" },
+  { id: "garage", nombre: "Garage rock", familia: "Rock", estilo: "garage rock, fuzzy guitars, raw room drums, shouted vocals", bpm: "130-160" },
+  { id: "hard_rock", nombre: "Hard rock", familia: "Rock", estilo: "hard rock, riff-driven guitars, wailing vocals, big drums", bpm: "115-140" },
+  { id: "glam", nombre: "Glam rock", familia: "Rock", estilo: "glam rock, stomping beat, layered guitars, sing-along chorus", bpm: "120-140" },
+  { id: "punk_rock", nombre: "Punk rock (77)", familia: "Rock", estilo: "77 punk rock, buzzsaw guitars, snotty vocals, no solos", bpm: "160-190" },
+  { id: "punk", nombre: "Pop punk", familia: "Rock", estilo: "pop punk, fast power chords, shouted gang vocals", bpm: "150-175" },
+  { id: "post_punk", nombre: "Post-punk", familia: "Rock", estilo: "post-punk, cold bassline, chorused guitar, detached vocals", bpm: "130-150" },
+  { id: "grunge", nombre: "Grunge", familia: "Rock", estilo: "grunge, quiet-loud dynamics, sludgy guitars, weary vocals", bpm: "95-125" },
+  { id: "indie", nombre: "Indie rock", familia: "Rock", estilo: "indie rock, jangly guitars, warm lo-fi mix, earnest vocals", bpm: "110-135" },
+  { id: "rock_progresivo", nombre: "Rock progresivo", familia: "Rock", estilo: "progressive rock, odd time signatures, organ, long build", bpm: "90-140" },
+  { id: "psicodelico", nombre: "Psicodélico", familia: "Rock", estilo: "psychedelic rock, phaser, sitar-like leads, hazy vocals", bpm: "100-125" },
+  { id: "stoner", nombre: "Stoner rock", familia: "Rock", estilo: "stoner rock, fuzz bass, downtuned riffs, desert groove", bpm: "90-120" },
+  { id: "rock_latino", nombre: "Rock en español", familia: "Rock", estilo: "latin alternative rock, spanish vocals, ska-tinged guitars", bpm: "120-150" },
+
+  // ---- Metal ----
+  { id: "metal", nombre: "Metal", familia: "Metal", estilo: "metal, double kick, heavy riffs, aggressive vocals", bpm: "140-170" },
+  { id: "heavy_metal", nombre: "Heavy metal (NWOBHM)", familia: "Metal", estilo: "classic heavy metal, galloping riffs, twin guitar harmonies, soaring vocals", bpm: "140-170" },
+  { id: "thrash", nombre: "Thrash metal", familia: "Metal", estilo: "thrash metal, palm-muted riffing, blistering solos, shouted vocals", bpm: "180-220" },
+  { id: "death_metal", nombre: "Death metal", familia: "Metal", estilo: "death metal, tremolo riffs, blast beats, guttural growls", bpm: "180-240" },
+  { id: "black_metal", nombre: "Black metal", familia: "Metal", estilo: "black metal, raw tremolo guitars, blast beats, shrieked vocals", bpm: "180-220" },
+  { id: "doom", nombre: "Doom metal", familia: "Metal", estilo: "doom metal, glacial tempo, massive fuzz riffs, mournful vocals", bpm: "60-80" },
+  { id: "power_metal", nombre: "Power metal", familia: "Metal", estilo: "power metal, galloping double kick, keyboards, epic clean vocals", bpm: "160-190" },
+  { id: "metal_sinfonico", nombre: "Metal sinfónico", familia: "Metal", estilo: "symphonic metal, orchestra, choir, operatic female vocals", bpm: "120-160" },
+  { id: "folk_metal", nombre: "Folk metal", familia: "Metal", estilo: "folk metal, fiddle and flute over heavy riffs, tavern chorus", bpm: "140-170" },
+  { id: "metal_progresivo", nombre: "Metal progresivo", familia: "Metal", estilo: "progressive metal, odd meters, technical riffs, dynamic clean vocals", bpm: "120-170" },
+  { id: "metalcore", nombre: "Metalcore", familia: "Metal", estilo: "metalcore, breakdowns, screamed verses, clean sung chorus", bpm: "150-190" },
+  { id: "nu_metal", nombre: "Nu metal", familia: "Metal", estilo: "nu metal, downtuned 7-string groove, scratching, rapped verses", bpm: "90-120" },
+  { id: "groove_metal", nombre: "Groove metal", familia: "Metal", estilo: "groove metal, mid-tempo chugging riffs, barked vocals", bpm: "110-140" },
+  { id: "metal_industrial", nombre: "Metal industrial", familia: "Metal", estilo: "industrial metal, machine drums, electronic layers, harsh vocals", bpm: "110-140" },
+
+  // ---- Electrónica ----
+  { id: "house", nombre: "House", familia: "Electrónica", estilo: "house, four on the floor, warm bassline, vocal chops", bpm: "120-128" },
+  { id: "amapiano", nombre: "Amapiano", familia: "Electrónica", estilo: "amapiano, log drum bass, shakers, spacious piano", bpm: "110-118" },
+  { id: "edm", nombre: "EDM / Festival", familia: "Electrónica", estilo: "big room edm, huge build up, festival drop", bpm: "126-132" },
+  { id: "dnb", nombre: "Drum and bass", familia: "Electrónica", estilo: "drum and bass, breakbeat, rolling sub bass", bpm: "172-176" },
+  { id: "lofi", nombre: "Lo-fi", familia: "Electrónica", estilo: "lofi hip hop, dusty drums, vinyl crackle, mellow keys", bpm: "70-85" },
+
+  // ---- Otros ----
+  { id: "balada", nombre: "Balada pop", familia: "Otros", estilo: "pop ballad, piano, strings, big emotional chorus", bpm: "65-80" },
+  { id: "pop", nombre: "Pop", familia: "Otros", estilo: "modern pop, bright synths, tight drums, radio chorus", bpm: "100-120" },
+  { id: "jazz", nombre: "Jazz", familia: "Otros", estilo: "jazz, upright bass, brushed drums, smoky vocals", bpm: "90-120" },
+  { id: "country", nombre: "Country", familia: "Otros", estilo: "country, acoustic guitar, pedal steel, storytelling", bpm: "90-120" },
+  { id: "kpop", nombre: "K-pop", familia: "Otros", estilo: "k-pop, glossy production, layered harmonies, dance break", bpm: "110-130" },
+  { id: "acustico", nombre: "Acústico", familia: "Otros", estilo: "acoustic, single guitar, intimate close-mic vocals", bpm: "70-90" },
+  { id: "coral", nombre: "Coral / Épico", familia: "Otros", estilo: "epic choir, orchestral percussion, cinematic build", bpm: "70-90" },
 ] as const;
+
+/** Las familias, en el orden en que se enseñan. */
+export const FAMILIAS = ["Latino", "Andino", "Urbano", "Rock", "Metal", "Electrónica", "Otros"] as const;
 
 export type Ritmo = (typeof RITMOS)[number]["id"];
 export const esRitmo = (v: string): v is Ritmo => RITMOS.some((r) => r.id === v);
@@ -221,6 +269,15 @@ export async function generarRemix(p: PeticionRemix): Promise<Remix> {
     "- El estribillo tiene que poder cantarse a la primera: frases cortas, palabras comunes, una imagen que se vea.",
     "- Nada de rimas de relleno ni de versos que no digan nada por cuadrar la métrica.",
     "- Nada de marcas, ni de personas reales identificables, ni de menciones a otros artistas.",
+    idioma === "spanglish"
+      ? [
+          "- SPANGLISH: es como se canta media América. La base va en español y el inglés entra donde",
+          "  entra de verdad: el gancho, el estribillo, el remate de una frase ('baby', 'let's go',",
+          "  'one more time', 'te escribo later'). En cumbia y en reggaetón el estribillo en inglés es",
+          "  lo que se queda pegado; en una balada, mejor una frase suelta. Nunca la misma frase en los",
+          "  dos idiomas, y nada de inglés puesto por quedar bien.",
+        ].join("\n")
+      : "",
     p.viral
       ? [
           "- FORMATO CORTO: cada versión empieza por lo más fuerte. La primera frase que se oye tiene que parar el dedo,",

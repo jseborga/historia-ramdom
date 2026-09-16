@@ -13,6 +13,7 @@ import {
   PremisaSchema,
   MiniserieSchema,
   MOTORES,
+  IdiomaCampo,
   type ContextoCapitulo,
 } from "../servicios/guion.js";
 import { esCategoriaValida, buscarCategoria } from "../servicios/categorias.js";
@@ -81,7 +82,7 @@ const PeticionGuionSchema = z.object({
   /** Miniserie ya planeada y el capítulo que toca escribir de ella. */
   miniserie: MiniserieSchema.nullable().default(null),
   capitulo: z.number().int().min(1).max(12).nullable().default(null),
-  idioma: z.enum(["es", "en"]).default("es"),
+  idioma: IdiomaCampo.default("es"),
   region: z.enum(["bolivia", "latam", "eeuu"]).default("bolivia"),
   modismos: z.boolean().default(true),
   duracion: z.number().int().min(15).max(MAX_LARGO_SEG).default(65),

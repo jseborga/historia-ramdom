@@ -21,6 +21,7 @@ import {
   SelectorRegion,
   SelectorVoz,
   motorInicial,
+  nombreIdioma,
 } from "./comunes";
 import { EditorMontaje } from "./EditorMontaje";
 
@@ -388,7 +389,7 @@ export function Producto({ catalogo }: { catalogo: Catalogo }) {
               <select id="idiomaProducto" value={idioma} onChange={(e) => setIdioma(e.target.value as Idioma)}>
                 {catalogo.idiomas.map((i) => (
                   <option key={i} value={i}>
-                    {i === "es" ? "Espanol" : "Ingles"}
+                    {nombreIdioma(catalogo, i)}
                   </option>
                 ))}
               </select>

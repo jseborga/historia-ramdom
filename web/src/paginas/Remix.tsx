@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type Catalogo, type Idioma, type Region, type Remix as RemixDatos, type Ritmo } from "../api";
 import { mensajeDe } from "../App";
-import { SelectorMotor, SelectorRegion, motorInicial } from "./comunes";
+import { SelectorMotor, SelectorRegion, motorInicial, nombreIdioma } from "./comunes";
 
 /**
  * Remix: la misma canción en otros ritmos, con todo listo para Suno.
@@ -44,6 +44,7 @@ export function Remix({
   const [modelo, setModelo] = useState<string | null>(null);
 
   const [catalogoRitmos, setCatalogoRitmos] = useState<Ritmo[]>([]);
+  const [familias, setFamilias] = useState<string[]>([]);
   const [instrucciones, setInstrucciones] = useState<string[]>([]);
   const [remix, setRemix] = useState<RemixDatos | null>(null);
   const [abierta, setAbierta] = useState(0);
@@ -53,9 +54,10 @@ export function Remix({
 
   useEffect(() => {
     api
-      .get<{ ritmos: Ritmo[]; instrucciones: string[] }>("/api/remix/ritmos")
+      .get<{ ritmos: Ritmo[]; familias: string[]; instrucciones: string[] }>("/api/remix/ritmos")
       .then((r) => {
         setCatalogoRitmos(r.ritmos);
+        setFamilias(r.familias ?? []);
         setInstrucciones(r.instrucciones);
       })
       .catch((err) => setError(mensajeDe(err)));
@@ -198,22 +200,33 @@ export function Remix({
           Hasta seis. Cada uno se escribe con su propia metrica: la misma idea no se canta igual en
           una cumbia que en un drill.
         </p>
-        <div className="fila" style={{ flexWrap: "wrap", gap: 6 }}>
-          {catalogoRitmos.map((r) => {
-            const puesto = ritmos.indexOf(r.id);
-            return (
-              <button
-                key={r.id}
-                className={puesto >= 0 ? "primario" : ""}
-                title={`${r.estilo} · ${r.bpm} BPM`}
-                onClick={() => alternarRitmo(r.id)}
-              >
-                {r.nombre}
-                {puesto >= 0 ? ` (${puesto + 1})` : ""}
-              </button>
-            );
-          })}
-        </div>
+        {(familias.length ? familias : [...new Set(catalogoRitmos.map((r) => r.familia))]).map((familia) => {
+          const dentro = catalogoRitmos.filter((r) => r.familia === familia);
+          if (!dentro.length) return null;
+          return (
+            <div key={familia} style={{ marginBottom: 10 }}>
+              <p className="suave" style={{ margin: "6px 0 4px" }}>
+                {familia}
+              </p>
+              <div className="fila" style={{ flexWrap: "wrap", gap: 6 }}>
+                {dentro.map((r) => {
+                  const puesto = ritmos.indexOf(r.id);
+                  return (
+                    <button
+                      key={r.id}
+                      className={puesto >= 0 ? "primario" : ""}
+                      title={`${r.estilo} · ${r.bpm} BPM`}
+                      onClick={() => alternarRitmo(r.id)}
+                    >
+                      {r.nombre}
+                      {puesto >= 0 ? ` (${puesto + 1})` : ""}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
 
         <div className="campos" style={{ marginTop: 12 }}>
           <div>
@@ -228,7 +241,7 @@ export function Remix({
             <select id="idiomaRemix" value={idioma} onChange={(e) => setIdioma(e.target.value as Idioma)}>
               {catalogo.idiomas.map((i) => (
                 <option key={i} value={i}>
-                  {i === "es" ? "Espanol" : "Ingles"}
+                  {nombreIdioma(catalogo, i)}
                 </option>
               ))}
             </select>

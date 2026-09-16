@@ -4,6 +4,7 @@ import {
   urlMuestra,
   type Catalogo,
   type Genero,
+  type Idioma,
   type ModoAudio,
   type ModoPublicacion,
   type Region,
@@ -16,6 +17,14 @@ import { mensajeDe } from "../App";
  * historias—, y si no, el primero que la tenga. Si no hay ninguno, se deja
  * Groq elegido y el selector lo dice.
  */
+/** El nombre del idioma para el selector; el del servidor manda si lo trae. */
+export function nombreIdioma(catalogo: Catalogo, idioma: string): string {
+  return (
+    catalogo.nombresIdioma?.[idioma] ??
+    ({ es: "Español", en: "Inglés", spanglish: "Spanglish (español con inglés dentro)" }[idioma] ?? idioma)
+  );
+}
+
 export function motorInicial(catalogo: Catalogo): string {
   const conClave = catalogo.motores.filter((m) => m.disponible);
   return conClave.find((m) => m.id === "groq")?.id ?? conClave[0]?.id ?? "groq";
@@ -124,22 +133,26 @@ export function SelectorVoz({
   valor: Voz;
   alCambiar: (v: Voz) => void;
   /** Idioma del texto: deja solo las voces locales que lo hablan. */
-  idioma?: "es" | "en";
+  idioma?: Idioma;
 }) {
   const [genero, setGenero] = useState<Genero | "todas">("todas");
   const [modelos, setModelos] = useState<ModelosVoz | null>(null);
 
+  // El spanglish lo lee una voz en español: es la que pronuncia bien la base,
+  // y las palabras en inglés le salen con acento, que es como suenan igual.
+  const idiomaVoz = idioma === "en" ? "en" : idioma ? "es" : undefined;
+
   // Cambiar el idioma sin cambiar la voz deja una voz espanola leyendo ingles.
   // Aqui, en cuanto cambia, la voz local salta a la mejor de ese idioma.
   useEffect(() => {
-    if (!idioma || valor.proveedor !== "local") return;
+    if (!idiomaVoz || valor.proveedor !== "local") return;
     const actual = (catalogo.vocesLocales ?? []).find((v) => v.id === valor.nombre);
-    if (actual && actual.idioma === idioma) return;
+    if (actual && actual.idioma === idiomaVoz) return;
     const mejor = (catalogo.vocesLocales ?? [])
-      .filter((v) => v.idioma === idioma)
+      .filter((v) => v.idioma === idiomaVoz)
       .sort((a, b) => b.calidad - a.calidad)[0];
     if (mejor && mejor.id !== valor.nombre) alCambiar({ ...valor, nombre: mejor.id });
-  }, [idioma, valor.proveedor]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [idiomaVoz, valor.proveedor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Google renombra los modelos de voz cada pocos meses: en vez de escribir el
   // nombre a mano, se listan los que tiene la clave. Solo se pregunta cuando
@@ -167,7 +180,7 @@ export function SelectorVoz({
     (n) => genero === "todas" || (catalogo.generosIA?.[n] ?? "desconocido") === genero,
   );
   const locales = (catalogo.vocesLocales ?? []).filter(
-    (v) => (!idioma || v.idioma === idioma) && (genero === "todas" || v.genero === genero),
+    (v) => (!idiomaVoz || v.idioma === idiomaVoz) && (genero === "todas" || v.genero === genero),
   );
   return (
     <>
@@ -182,7 +195,7 @@ export function SelectorVoz({
             // Si la voz actual no es de ese género, salta a la mejor que sí lo sea.
             if (valor.proveedor === "local") {
               const cand = (catalogo.vocesLocales ?? [])
-                .filter((v) => (!idioma || v.idioma === idioma) && (g === "todas" || v.genero === g))
+                .filter((v) => (!idiomaVoz || v.idioma === idiomaVoz) && (g === "todas" || v.genero === g))
                 .sort((a, b) => b.calidad - a.calidad)[0];
               if (cand && cand.id !== valor.nombre) alCambiar({ ...valor, nombre: cand.id });
             } else {
@@ -262,7 +275,7 @@ export function SelectorVoz({
             ? locales.map((v) => (
                 <option key={v.id} value={v.id}>
                   {"★".repeat(v.calidad)} {v.nombre}
-                  {idioma ? "" : ` · ${v.idioma}`}
+                  {idiomaVoz ? "" : ` · ${v.idioma}`}
                 </option>
               ))
             : nombres.map((n) => (

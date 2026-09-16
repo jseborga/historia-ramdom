@@ -11,7 +11,7 @@ import { estimarSalida } from "../servicios/estimacion.js";
 import { MAX_AUDIO_BYTES, MAX_AUDIO_MB } from "../env.js";
 import { tieneAudio, duracionAudio } from "../render/ffmpeg.js";
 import { fuentesDisponibles, archivoDeFuente } from "../render/fuentes.js";
-import { GuionSchema, generarKeywords, escribirNarracion, guionComoNarracion } from "../servicios/guion.js";
+import { GuionSchema, IdiomaCampo, generarKeywords, escribirNarracion, guionComoNarracion } from "../servicios/guion.js";
 import { ensamblarProyecto } from "../servicios/ensamblar.js";
 import { elegirClips } from "../servicios/clips.js";
 import {
@@ -312,7 +312,7 @@ export async function rutasProyectos(app: FastifyInstance) {
       .object({
         estilo: z.enum(["plano", "expresivo", "guion"]).default("plano"),
         texto: z.string().max(20_000).optional(),
-        idioma: z.enum(["es", "en"]).default("es"),
+        idioma: IdiomaCampo.default("es"),
         region: z.enum(["bolivia", "latam", "eeuu"]).default("bolivia"),
         modismos: z.boolean().default(true),
       })
@@ -364,7 +364,7 @@ export async function rutasProyectos(app: FastifyInstance) {
       .object({
         escenas: z.array(z.object({ id: z.string(), texto: z.string(), tieneClip: z.boolean() })).max(120),
         soloVacias: z.boolean().default(true),
-        idioma: z.enum(["es", "en"]).default("es"),
+        idioma: IdiomaCampo.default("es"),
       })
       .parse(req.body);
     await db.proyecto.findUniqueOrThrow({ where: { id } });
@@ -459,7 +459,7 @@ export async function rutasProyectos(app: FastifyInstance) {
         lineamientos: z.string().max(2000).optional(),
         instrumental: z.boolean().default(false),
         mostrarLetra: z.boolean().default(true),
-        idioma: z.enum(["es", "en"]).default("es"),
+        idioma: IdiomaCampo.default("es"),
         motor: z.string().max(40).nullable().default(null),
         modelo: z.string().max(80).nullable().default(null),
       })
@@ -544,7 +544,7 @@ export async function rutasProyectos(app: FastifyInstance) {
         instrumental: z.boolean().optional(),
         mostrarLetra: z.boolean().optional(),
         /** Sin esto manda el idioma con el que se guardó la letra. */
-        idioma: z.enum(["es", "en"]).optional(),
+        idioma: IdiomaCampo.optional(),
         motor: z.string().max(40).nullable().default(null),
         modelo: z.string().max(80).nullable().default(null),
         reanalizar: z.boolean().default(false),
@@ -645,7 +645,7 @@ export async function rutasProyectos(app: FastifyInstance) {
         lineamientos: z.string().max(2000).optional(),
         instrumental: z.boolean().optional(),
         titulo: z.string().max(120).optional(),
-        idioma: z.enum(["es", "en"]).default("es"),
+        idioma: IdiomaCampo.default("es"),
         motor: z.string().max(40).nullable().default(null),
         modelo: z.string().max(80).nullable().default(null),
       })
@@ -670,7 +670,7 @@ export async function rutasProyectos(app: FastifyInstance) {
         lineamientos: z.string().max(2000).optional(),
         instrumental: z.boolean().optional(),
         /** Sin esto manda el idioma con el que se guardó la letra. */
-        idioma: z.enum(["es", "en"]).optional(),
+        idioma: IdiomaCampo.optional(),
         motor: z.string().max(40).nullable().default(null),
         modelo: z.string().max(80).nullable().default(null),
       })

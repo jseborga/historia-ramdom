@@ -10,7 +10,7 @@ import {
   type Voz,
 } from "../api";
 import { mensajeDe } from "../App";
-import { SelectorCategoria, SelectorMotor, SelectorRegion, SelectorVoz, motorInicial } from "./comunes";
+import { SelectorCategoria, SelectorMotor, SelectorRegion, SelectorVoz, motorInicial, nombreIdioma } from "./comunes";
 import { EditorMontaje } from "./EditorMontaje";
 
 /**
@@ -191,7 +191,7 @@ export function Dialogo({ catalogo }: { catalogo: Catalogo }) {
             <select id="idiomaDialogo" value={idioma} onChange={(e) => setIdioma(e.target.value as Idioma)}>
               {catalogo.idiomas.map((i) => (
                 <option key={i} value={i}>
-                  {i === "es" ? "Espanol" : "Ingles"}
+                  {nombreIdioma(catalogo, i)}
                 </option>
               ))}
             </select>

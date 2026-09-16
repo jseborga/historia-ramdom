@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { db } from "../db.js";
-import { generarKeywords, GuionSchema, criteriosVisuales } from "./guion.js";
+import { generarKeywords, GuionSchema, criteriosVisuales, idiomaDeVoz, type Idioma } from "./guion.js";
 import { buscarClips, CLIP_LARGO, type ClipInfo, type OpcionesMedios } from "./clips.js";
 import { mediosDeCategoria } from "./categorias.js";
 import { generarNarracion } from "./narracion.js";
@@ -30,7 +30,7 @@ export type OpcionesEnsamblado = {
   /** Dónde buscar y si entran fotos; vacío = lo que diga la categoría. */
   medios?: OpcionesMedios;
   /** Idioma del texto: fija la voz de reserva y el tono que se le pide. */
-  idioma?: "es" | "en";
+  idioma?: Idioma;
   /**
    * Clips que van al principio sí o sí, en este orden: la foto del producto,
    * lo que se haya subido para enseñarlo. El relleno automático solo cubre lo
@@ -122,7 +122,7 @@ export async function ensamblarProyecto(proyectoId: string, opciones: OpcionesEn
   if (!esDialogo && (!voz.config || voz.config.proveedor === "local")) {
     // La voz de reserva, en el idioma de la pista: una historia en inglés
     // leída por una voz española no se entiende.
-    const idiomaVoz = voz.idioma === "en" ? "en" : "es";
+    const idiomaVoz = idiomaDeVoz(voz.idioma);
     voz = {
       ...voz,
       config: { proveedor: "local", modelo: "local", nombre: voz.config?.nombre ?? (await mejorVozLocal(idiomaVoz)) },

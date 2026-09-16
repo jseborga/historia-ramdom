@@ -5,7 +5,9 @@ import { listarMusica, rutaMusica, rutaMusicaSegura, nombreMusicaLibre } from ".
 import { tieneAudio, duracionAudio } from "../render/ffmpeg.js";
 import { MAX_AUDIO_BYTES, MAX_AUDIO_MB } from "../env.js";
 import { importarSunoABiblioteca, enlaceSuno } from "../servicios/suno.js";
+import { IdiomaCampo } from "../servicios/guion.js";
 import {
+  FAMILIAS,
   INSTRUCCIONES_SUNO,
   ORIGENES,
   RITMOS,
@@ -26,7 +28,7 @@ const PeticionRemix = z.object({
   ritmos: z.array(z.string().max(40)).min(1).max(6),
   viral: z.boolean().default(true),
   notas: z.string().max(600).default(""),
-  idioma: z.enum(["es", "en"]).default("es"),
+  idioma: IdiomaCampo.default("es"),
   region: z.enum(["bolivia", "latam", "eeuu"]).default("bolivia"),
   modismos: z.boolean().default(true),
   motor: z.string().max(40).nullable().default(null),
@@ -56,7 +58,9 @@ export async function rutasMusica(app: FastifyInstance) {
 
   /** Los ritmos a los que se puede llevar una canción, y cómo usarlos en Suno. */
   app.get("/api/remix/ritmos", async () => ({
-    ritmos: RITMOS.map((r) => ({ id: r.id, nombre: r.nombre, estilo: r.estilo, bpm: r.bpm })),
+    ritmos: RITMOS.map((r) => ({ id: r.id, nombre: r.nombre, familia: r.familia, estilo: r.estilo, bpm: r.bpm })),
+    /** El orden en el que se agrupan en pantalla. */
+    familias: FAMILIAS,
     instrucciones: INSTRUCCIONES_SUNO,
   }));
 

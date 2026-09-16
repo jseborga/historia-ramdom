@@ -22,6 +22,7 @@ import {
   SelectorRegion,
   SelectorVoz,
   nombreCategoria,
+  nombreIdioma,
 } from "./comunes";
 
 const EJEMPLOS_CRON: [string, string][] = [
@@ -200,7 +201,7 @@ export function Series({ catalogo }: { catalogo: Catalogo }) {
             >
               {catalogo.idiomas.map((i) => (
                 <option key={i} value={i}>
-                  {i === "es" ? "Espanol" : "Ingles"}
+                  {nombreIdioma(catalogo, i)}
                 </option>
               ))}
             </select>
