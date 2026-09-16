@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type Catalogo, type Preset, type Proyecto, type Sugerencia } from "../api";
 import { mensajeDe } from "../App";
 import { EditorMontaje } from "./EditorMontaje";
+import { Remix } from "./Remix";
 import {
   ListaCanciones,
   entradaVacia,
@@ -18,6 +19,8 @@ type Resumen = Pick<Proyecto, "id" | "nombre" | "tipo" | "formato" | "estado" | 
  * instrumental, lo deciden los lineamientos, que la IA puede proponer.
  */
 export function Musica({ catalogo }: { catalogo: Catalogo }) {
+  /** Las dos mitades del area: montar el videoclip, o escribir la cancion. */
+  const [seccion, setSeccion] = useState<"videoclip" | "remix">("videoclip");
   const [proyectos, setProyectos] = useState<Resumen[]>([]);
   const [presets, setPresets] = useState<Preset[]>([]);
   const [abierto, setAbierto] = useState<string | null>(null);
@@ -49,8 +52,8 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
   }, []);
 
   useEffect(() => {
-    if (!abierto) cargar();
-  }, [cargar, abierto]);
+    if (!abierto && seccion === "videoclip") cargar();
+  }, [cargar, abierto, seccion]);
 
   // Mientras algo se monta o se renderiza, la lista se actualiza sola.
   useEffect(() => {
@@ -61,6 +64,40 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
 
   if (abierto) {
     return <EditorMontaje id={abierto} catalogo={catalogo} alSalir={() => setAbierto(null)} />;
+  }
+
+  /** Una version del remix pasa a ser la cancion del videoclip. */
+  function usarLetra(tituloVersion: string, letraVersion: string) {
+    setNombre(tituloVersion);
+    setInstrumental(false);
+    setCanciones([{ ...(canciones[0] ?? entradaVacia()), titulo: tituloVersion, letra: letraVersion }]);
+    setSeccion("videoclip");
+    setOk("Letra puesta en el videoclip. Falta la cancion: generala en Suno y pega su enlace.");
+  }
+
+  const submenu = (
+    <div className="fila" style={{ marginBottom: 12 }}>
+      <button className={seccion === "videoclip" ? "primario" : ""} onClick={() => setSeccion("videoclip")}>
+        Videoclip
+      </button>
+      <button className={seccion === "remix" ? "primario" : ""} onClick={() => setSeccion("remix")}>
+        Remix de canciones
+      </button>
+      <span className="suave">
+        {seccion === "videoclip"
+          ? "Monta el video sobre una cancion que ya tienes."
+          : "Escribe la cancion en otros ritmos, lista para pedirsela a Suno."}
+      </span>
+    </div>
+  );
+
+  if (seccion === "remix") {
+    return (
+      <>
+        {submenu}
+        <Remix catalogo={catalogo} alUsarLetra={usarLetra} />
+      </>
+    );
   }
 
   const listas = canciones.filter(entradaLista);
@@ -143,6 +180,7 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
 
   return (
     <>
+      {submenu}
       {error && <p className="aviso error">{error}</p>}
       {ok && <p className="aviso ok">{ok}</p>}
 

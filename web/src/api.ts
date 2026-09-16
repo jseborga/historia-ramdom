@@ -330,6 +330,38 @@ export type GuionDialogo = {
   avisoMotor?: string;
 };
 
+/** Un ritmo al que se puede llevar una cancion. */
+export type Ritmo = { id: string; nombre: string; estilo: string; bpm: string };
+
+/** Una version del remix: la cancion en un ritmo, con las cajas de Suno. */
+export type VersionRemix = {
+  ritmo: string;
+  titulo: string;
+  /** Caja "Style of Music" de Suno. */
+  estilo: string;
+  /** Caja "Exclude styles". */
+  excluir: string;
+  bpm: string;
+  tonalidad: string;
+  /** Letra con las etiquetas de seccion ([Verse], [Chorus]...). */
+  letra: string;
+  indicaciones: string;
+  /** El trozo que va en los 15 segundos del corto. */
+  gancho: string;
+  porQue: string;
+};
+
+export type Remix = {
+  esencia: string;
+  versiones: VersionRemix[];
+  ganchos: string[];
+  hashtags: string[];
+  motorUsado?: string;
+  avisoMotor?: string;
+  /** Frases del original coladas tal cual; solo con letra ajena. */
+  calcos: string[];
+};
+
 /** Un producto de Amazon: lo que se ensena y con que enlace se publica. */
 export type Producto = {
   asin: string;

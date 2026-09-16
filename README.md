@@ -32,6 +32,9 @@ Implementa la guía de `docs/guia-original.md`.
   bancos y se compone un montaje con lo elegido, en el orden elegido.
 - **Diálogos.** Dos o tres voces distintas discutiendo un tema, con el rótulo
   del que habla en su color.
+- **Remix de canciones.** La misma letra escrita en otros ritmos —cumbia,
+  drill, huayño, saya, bachata…— con las cajas de Suno listas para copiar y el
+  gancho de los primeros quince segundos.
 - **Productos con reflexión.** Un objeto real de Amazon como gancho y un giro
   final que habla de nosotros: enlace de afiliado y divulgación siempre en la
   descripción, y fotos solo si hay API oficial.
@@ -1035,6 +1038,56 @@ canciones tuyas: en el plan gratuito de Suno son de uso no comercial, y en los
 de pago la licencia es tuya. Si Suno no deja descargar una canción (privada o
 borrada), la app lo dice y la subes tú con «Subir un archivo»; en ese caso el
 crédito de la canción lo pones a mano, porque el archivo ya no lleva el enlace.
+
+## Remix: la misma canción en otros ritmos
+
+La pestaña **Música** tiene dos mitades, y se cambia entre ellas con el submenú
+de arriba: **Videoclip** monta el vídeo sobre una canción que ya existe, y
+**Remix de canciones** escribe la canción, lista para pedírsela a Suno.
+
+1. **La canción de partida.** Se pega la letra, o se deja vacía y se escribe
+   solo de qué va. Lo primero que se pregunta es **de quién es la letra**, y no
+   es burocracia: mira el recuadro de abajo.
+2. **A qué ritmos.** Hasta seis de los 36 del catálogo, con los andinos y los
+   latinos que Suno entiende bien: cumbia, cumbia villera, reggaetón, dembow,
+   trap, drill, salsa, bachata, merengue, vallenato, **huayño, saya/caporal,
+   morenada, cueca**, tango, ranchera, corrido tumbado, bolero, balada, pop,
+   rock, punk, metal, R&B, afrobeats, amapiano, house, EDM, drum and bass,
+   lo-fi, jazz, flamenco, country, K-pop, acústico y coral. Cada uno se escribe
+   con su propia métrica: la misma idea no se canta igual en una cumbia que en
+   un drill.
+3. **Para el formato corto** (activado por defecto): la primera frase tiene que
+   parar el dedo, el estribillo llega antes de los 15 segundos y hay una frase
+   corta que se repite y se queda pegada.
+
+De cada versión sale todo lo que pide Suno, listo para copiar caja por caja:
+
+- la **letra** con sus etiquetas de sección (`[Verse]`, `[Chorus]`, `[Drop]`…),
+- el **Style of Music** en inglés y por debajo de 200 caracteres (más largo se
+  diluye y Suno deja de hacerte caso),
+- el **Exclude styles**, el tempo y la tonalidad,
+- cómo cantarla, **los 15 segundos que van en el corto** y por qué ese ritmo le
+  sienta bien al tema,
+- y los ganchos y hashtags para publicarlo.
+
+Hay un botón para descargarlo **todo en un .txt** (una sección por versión) y
+otro, **«Usar en un videoclip»**, que lleva esa letra a la otra mitad de la
+pestaña: cuando Suno te dé la canción, pegas su enlace y el vídeo se monta solo.
+
+> **Letra propia y letra ajena.** Reescribir la canción de otra persona es hacer
+> una **obra derivada**, y eso necesita su permiso: no lo arregla cambiar el
+> ritmo ni las palabras. Por eso el desplegable manda. Con *«es mía»* se
+> reescribe, se recorta y se adapta con libertad. Con *«es de otro autor»* no se
+> reescribe nada: de esa letra se toma solo el **tema** y se escribe una canción
+> **original**, con imágenes y estribillos nuevos. Y como el modelo puede decir
+> que escribió algo original y colar igualmente el estribillo, la respuesta se
+> revisa: cualquier frase de seis palabras o más del original que aparezca tal
+> cual —sin tildes ni puntuación, que es como se reconoce un verso aunque le
+> cambien una coma— sale marcada en rojo para que la cambies antes de publicar.
+
+- **API**: `GET /api/remix/ritmos` (catálogo e instrucciones de Suno),
+  `POST /api/remix` (escribe las versiones; devuelve `calcos` con lo que haya
+  que revisar) y `POST /api/remix/texto` (el .txt).
 
 ## Videoclips musicales
 
