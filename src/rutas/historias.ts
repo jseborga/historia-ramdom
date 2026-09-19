@@ -23,7 +23,7 @@ import {
   buscarClips,
   buscarConEstado,
   creditosDe,
-  esBanco,
+  esBancoElegible,
   esMedio,
   bancosDisponibles,
   type Banco,
@@ -61,7 +61,7 @@ export const SubcategoriaCampo = z.string().max(40).nullable().default(null);
 
 /** Bancos de imagen elegidos a mano; vacío = los que use la categoría. */
 export const BancosCampo = z
-  .array(z.string().max(20).refine(esBanco, "Banco desconocido"))
+  .array(z.string().max(20).refine(esBancoElegible, "Banco desconocido"))
   .max(3)
   .default([]);
 
@@ -342,7 +342,7 @@ export async function rutasHistorias(app: FastifyInstance) {
       .slice(0, 3);
 
     const opciones = {
-      bancos: (bancos ?? "").split(",").map((b) => b.trim()).filter(esBanco) as Banco[],
+      bancos: (bancos ?? "").split(",").map((b) => b.trim()).filter(esBancoElegible),
       medios: (medios ?? "").split(",").map((m) => m.trim()).filter(esMedio) as TipoMedio[],
     };
     const resultados = await Promise.all(lista.map((k) => buscarConEstado(k, opciones)));

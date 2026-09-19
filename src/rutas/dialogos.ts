@@ -8,7 +8,7 @@ import { VozSchema } from "../servicios/voz.js";
 import { ensamblarProyecto } from "../servicios/ensamblar.js";
 import { HablanteSchema, ProyectoSchema, clipVacio } from "../servicios/proyecto.js";
 import { CategoriaCampo, SubcategoriaCampo, BancosCampo, MediosCampo } from "./historias.js";
-import { esBanco, esMedio, type Banco, type TipoMedio } from "../servicios/clips.js";
+import { esBancoElegible, esMedio, type TipoMedio } from "../servicios/clips.js";
 import { conMotivo } from "./errores.js";
 
 /**
@@ -137,7 +137,7 @@ export async function rutasDialogos(app: FastifyInstance) {
         idioma: idioma === "en" ? "en" : "es",
         criterios: guion.keywords,
         medios: {
-          bancos: bancos.filter(esBanco) as Banco[],
+          bancos: bancos.filter(esBancoElegible),
           medios: medios.filter(esMedio) as TipoMedio[],
         },
       });

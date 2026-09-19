@@ -4,7 +4,7 @@ import { db } from "../db.js";
 import { VozSchema } from "../servicios/voz.js";
 import { IdiomaCampo, MOTORES } from "../servicios/guion.js";
 import { esCategoriaValida } from "../servicios/categorias.js";
-import { esBanco, esMedio } from "../servicios/clips.js";
+import { esBancoElegible, esMedio } from "../servicios/clips.js";
 import { programarSerie, quitarSerie, generarAhora } from "../cola/cola.js";
 import { MAX_LARGO_SEG } from "../render/presets.js";
 
@@ -25,7 +25,7 @@ const SerieSchema = z.object({
   /** Historias por partes: cada ejecución produce N partes seguidas. */
   partes: z.number().int().min(1).max(6).default(1),
   /** Dónde buscar imagen: pexels, pixabay, nasa. Vacío = lo que use la categoría. */
-  bancos: z.array(z.string().max(20).refine(esBanco, "Banco desconocido")).max(3).default([]),
+  bancos: z.array(z.string().max(20).refine(esBancoElegible, "Banco desconocido")).max(3).default([]),
   /** Medios admitidos: video, imagen. Vacío = lo que use la categoría. */
   medios: z.array(z.string().max(20).refine(esMedio, "Medio desconocido")).max(2).default([]),
   /** Categoría fija, "aleatoria" (una distinta cada vez) o vacía (tema libre). */

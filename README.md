@@ -539,7 +539,8 @@ contradicen ni repiten.
 
 ## De dónde salen las imágenes
 
-Tres bancos, y se eligen a mano o los elige la categoría:
+Seis bancos, y se eligen a mano, los elige la categoría o los elige **al azar**
+la propia app:
 
 | Banco | Qué tiene | Clave |
 |---|---|---|
@@ -597,14 +598,39 @@ nube—, CGNAT y las equivalentes en IPv6), se revisa cada redirección igual, y
 que llega tiene que ser del tipo que se pidió: una página de error HTML no puede
 acabar guardada como si fuera una foto.
 
-Se elige en tres sitios, y siempre gana lo que se marque a mano:
+### Al azar: que no salgan siempre las mismas imágenes
 
-- **Editor** y **Series**: *Dónde buscar la imagen* (casillas por banco) y *Qué
-  admitir* (vídeos, fotos). Vacío = lo que use la categoría.
-- **Montaje**: el buscador de clips lleva las mismas casillas más *incluir
-  fotos*, para elegir plano a plano.
+La primera casilla de todas las listas es **Al azar**, y es exclusiva: al
+marcarla se apagan las demás. Con ella, *cada búsqueda* —no cada vídeo, cada
+búsqueda— mira en **dos o tres bibliotecas distintas**, sorteadas en ese
+momento. Dos escenas seguidas del mismo guion pueden acabar una en Commons y
+otra en Internet Archive, y el mismo montaje repetido mañana no trae el mismo
+material.
+
+Sirve para lo que más cansa de estos vídeos: que todos se parezcan. Marcando
+siempre Pexels, el canal entero acaba con el mismo aire de banco de imágenes;
+dejándolo al azar entran grabados, archivo histórico, satélite y museo sin
+tener que acordarse de pedirlo.
+
+Se puede combinar: si marcas *Al azar* estando ya marcada NASA, la NASA se
+respeta como fija y el sorteo completa el resto hasta tres. Los créditos y las
+licencias no cambian —cada pieza sigue trayendo su autor y su licencia—, así
+que una CC BY-SA que llegue por sorteo obliga igual (mira arriba).
+
+Se elige en cuatro sitios, y siempre gana lo que se marque a mano:
+
+- **Editor** y **Series**: *Dónde buscar la imagen* (casillas por banco, con
+  *Al azar* la primera) y *Qué admitir* (vídeos, fotos). Vacío = lo que use la
+  categoría.
+- **Montaje → buscador de clips**: las mismas casillas más *incluir fotos*,
+  para elegir plano a plano.
+- **Montaje → panel Clip**: las mismas casillas dentro del editor, y valen
+  tanto para *Buscar clips que faltan* como para el botón de cambiar un plano
+  por otro al azar. Antes ese panel buscaba siempre donde dijera la categoría y
+  no había forma de decirle otra cosa sin salir del editor.
 - **API**: `bancos` y `medios` en `POST /api/historias` y en las series;
-  `GET /api/clips?bancos=nasa&medios=video,imagen` para buscar.
+  `GET /api/clips?bancos=aleatorio&medios=video,imagen` para buscar;
+  `POST /api/proyectos/:id/clips-automaticos` acepta los mismos dos campos.
 
 ### Las fotos se mueven
 
@@ -870,6 +896,7 @@ Para componer con fotos, el panel **Clip** tiene lo que hace falta:
 | **Encuadre** | *recortar* (llena el lienzo) o *ajustar* (cabe entera, con el fondo desenfocado detrás) |
 | **Transición** | al clip siguiente: corte seco, fundido cruzado, desplazar, barrido o círculo, con su duración |
 | **Añadir de la galería** | abre la biblioteca dentro del editor y mete lo elegido detrás del clip actual o al final |
+| **Bibliotecas** | dónde buscar (Pexels, Pixabay, NASA, Openverse, Commons, Internet Archive o *Al azar*) y si admitir fotos, sin salir del editor |
 | **Aplicar a todos** | la duración a todas las fotos, o el encuadre o la transición a todos los clips |
 
 Las transiciones **no acortan el vídeo**: cada cruce sale a partes iguales de

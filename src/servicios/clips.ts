@@ -86,10 +86,47 @@ export type ClipInfo = {
   archivo?: string;
 };
 
+/**
+ * "Al azar": en vez de fijar bibliotecas, que las elija la app y cambien de
+ * una búsqueda a otra.
+ *
+ * Buscar siempre en los mismos dos bancos da vídeos que se parecen entre sí,
+ * y el canal acaba teniendo una cara sola. Con esto, cada búsqueda mira en
+ * dos o tres bibliotecas distintas de las que estén disponibles, así que el
+ * mismo montaje mezcla archivo histórico, foto libre y vídeo de banco sin que
+ * haya que pensarlo.
+ */
+export const BANCO_ALEATORIO = "aleatorio";
+
+/** Un id de banco válido en una petición: uno real, o "aleatorio". */
+export const esBancoElegible = (v: string): boolean => v === BANCO_ALEATORIO || esBanco(v);
+
+/** Cuántas bibliotecas se miran cuando toca elegir al azar. */
+const BANCOS_AL_AZAR = 3;
+
+/**
+ * Los bancos de una búsqueda. Con "aleatorio" se barajan los disponibles y se
+ * cogen unos pocos: distintos en cada llamada, que es la gracia.
+ */
+export function resolverBancos(pedidos: string[] | undefined, disponibles: Banco[]): Banco[] {
+  if (!pedidos?.length) return disponibles;
+  if (!pedidos.includes(BANCO_ALEATORIO)) {
+    return pedidos.filter((b): b is Banco => esBanco(b) && disponibles.includes(b));
+  }
+  // Los que se hayan marcado a mano se respetan y el azar completa el resto.
+  const fijos = pedidos.filter((b): b is Banco => esBanco(b) && disponibles.includes(b));
+  const resto = disponibles.filter((b) => !fijos.includes(b)).sort(() => Math.random() - 0.5);
+  return [...fijos, ...resto].slice(0, Math.max(BANCOS_AL_AZAR, fijos.length));
+}
+
 /** Qué buscar y dónde. Vacío = lo de siempre: vídeo de Pexels y Pixabay. */
 export type OpcionesMedios = {
-  /** Bancos donde buscar; vacío = todos los que tengan clave. */
-  bancos?: Banco[];
+  /**
+   * Bancos donde buscar; vacío = todos los que tengan clave. Admite
+   * "aleatorio". Se acepta cualquier cadena porque quien llama viene de una
+   * petición: `resolverBancos` se queda solo con los que existen.
+   */
+  bancos?: string[];
   /** Vídeo, foto o las dos cosas; vacío = solo vídeo. */
   medios?: TipoMedio[];
   /** Poner delante los clips de 30 s o más. */
@@ -556,7 +593,7 @@ export type Busqueda = { clips: ClipInfo[]; bancos: EstadoBanco[] };
 export async function buscarConEstado(keyword: string, o: OpcionesMedios = {}): Promise<Busqueda> {
   const largos = o.largos ?? false;
   const disponibles = bancosDisponibles();
-  const bancos = (o.bancos?.length ? o.bancos : disponibles).filter((b) => disponibles.includes(b));
+  const bancos = resolverBancos(o.bancos, disponibles);
   const medios = o.medios?.length ? o.medios : (["video"] as TipoMedio[]);
   const clave = `clips:v3:${bancos.join("+")}:${medios.join("+")}:${largos ? "largos:" : ""}${keyword
     .toLowerCase()

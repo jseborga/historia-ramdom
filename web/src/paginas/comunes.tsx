@@ -664,27 +664,44 @@ export function SelectorBancos({
   if (!lista.length) return null;
 
   const alternar = (xs: string[], v: string) => (xs.includes(v) ? xs.filter((x) => x !== v) : [...xs, v]);
+  /** Con "al azar" marcado, elige la app: marcar bibliotecas concretas sobra. */
+  const alAzar = bancos.includes("aleatorio");
 
   return (
     <>
       <div>
         <label>Dónde buscar la imagen</label>
         <div className="fila" style={{ flexWrap: "wrap", gap: 10 }}>
-          {lista.map((b) => (
-            <label key={b.id} className="casilla suave" title={b.nota} style={{ opacity: b.listo ? 1 : 0.5 }}>
-              <input
-                type="checkbox"
-                disabled={!b.listo}
-                checked={bancos.includes(b.id)}
-                onChange={() => alCambiar(alternar(bancos, b.id), medios)}
-              />{" "}
-              {b.nombre}
-              {b.listo ? "" : " (sin clave)"}
-            </label>
-          ))}
+          {lista.map((b) => {
+            const esAzar = b.id === "aleatorio";
+            return (
+              <label
+                key={b.id}
+                className="casilla suave"
+                title={b.nota}
+                style={{ opacity: b.listo && (esAzar || !alAzar) ? 1 : 0.5 }}
+              >
+                <input
+                  type="checkbox"
+                  disabled={!b.listo || (alAzar && !esAzar)}
+                  checked={bancos.includes(b.id)}
+                  onChange={() =>
+                    // "Al azar" es excluyente: si se marca, se queda solo.
+                    alCambiar(esAzar ? (alAzar ? [] : ["aleatorio"]) : alternar(bancos, b.id), medios)
+                  }
+                />{" "}
+                {b.nombre}
+                {b.listo ? "" : " (sin clave)"}
+              </label>
+            );
+          })}
         </div>
         <p className="suave">
-          {bancos.length ? "" : "Vacío = lo que use la categoría; la ciencia busca también en la NASA."}
+          {alAzar
+            ? "La app elige: cada búsqueda mira en dos o tres bibliotecas distintas, así que el montaje no sale todo con la misma cara."
+            : bancos.length
+              ? ""
+              : "Vacío = lo que use la categoría; la ciencia busca también en la NASA."}
         </p>
       </div>
       <div>

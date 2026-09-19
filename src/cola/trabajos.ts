@@ -17,7 +17,7 @@ import {
   elegirClips,
   elegirYDescargarClips,
   crearDescripcion,
-  esBanco,
+  esBancoElegible,
   esMedio,
   type EscenaPreparada,
   type OpcionesMedios,
@@ -99,7 +99,7 @@ export function mediosDe(
   categoria?: string | null,
 ): OpcionesMedios {
   const porCategoria = mediosDeCategoria(categoria);
-  const bancos = (o.bancos ?? []).filter(esBanco);
+  const bancos = (o.bancos ?? []).filter(esBancoElegible);
   const medios = (o.medios ?? []).filter(esMedio);
   return {
     bancos: bancos.length ? bancos : porCategoria.bancos,

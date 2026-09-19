@@ -37,6 +37,8 @@ export function BuscadorClips({
   const [bancos, setBancos] = useState<string[]>([]);
   const [conFotos, setConFotos] = useState(false);
   const disponibles = (catalogo?.bancos ?? BANCOS_BASE).filter((b) => b.listo);
+  /** Con "al azar" elige la app, y marcar bibliotecas concretas sobra. */
+  const alAzar = bancos.includes("aleatorio");
 
   async function buscar() {
     if (!consulta.trim()) return;
@@ -57,7 +59,9 @@ export function BuscadorClips({
   }
 
   const alternar = (v: string) =>
-    setBancos(bancos.includes(v) ? bancos.filter((b) => b !== v) : [...bancos, v]);
+    v === "aleatorio"
+      ? setBancos(alAzar ? [] : ["aleatorio"])
+      : setBancos(bancos.includes(v) ? bancos.filter((b) => b !== v) : [...bancos, v]);
 
   return (
     <>
@@ -77,16 +81,20 @@ export function BuscadorClips({
 
       <div className="fila" style={{ flexWrap: "wrap", gap: 10, marginTop: 6 }}>
         <span className="suave">Buscar en:</span>
-        {disponibles.map((b) => (
-          <label key={b.id} className="casilla suave" title={b.nota}>
-            <input
-              type="checkbox"
-              checked={bancos.length === 0 || bancos.includes(b.id)}
-              onChange={() => alternar(b.id)}
-            />{" "}
-            {b.nombre}
-          </label>
-        ))}
+        {disponibles.map((b) => {
+          const esAzar = b.id === "aleatorio";
+          return (
+            <label key={b.id} className="casilla suave" title={b.nota} style={{ opacity: esAzar || !alAzar ? 1 : 0.5 }}>
+              <input
+                type="checkbox"
+                disabled={alAzar && !esAzar}
+                checked={esAzar ? alAzar : !alAzar && (bancos.length === 0 || bancos.includes(b.id))}
+                onChange={() => alternar(b.id)}
+              />{" "}
+              {b.nombre}
+            </label>
+          );
+        })}
         <label className="casilla suave" title="Las fotos se animan solas en el render">
           <input type="checkbox" checked={conFotos} onChange={(e) => setConFotos(e.target.checked)} /> incluir
           fotos

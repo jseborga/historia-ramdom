@@ -18,10 +18,9 @@ import {
 import {
   buscarClips,
   destinoAdmitido,
-  esBanco,
+  esBancoElegible,
   esMedio,
   hostPermitido,
-  type Banco,
   type TipoMedio,
 } from "../servicios/clips.js";
 import { ClipPistaSchema, ProyectoSchema, efectoDeClip, type ClipPista } from "../servicios/proyecto.js";
@@ -218,7 +217,7 @@ export async function rutasMedios(app: FastifyInstance) {
       .parse(req.body);
 
     const opciones = {
-      bancos: bancos.filter(esBanco) as Banco[],
+      bancos: bancos.filter(esBancoElegible),
       medios: (medios.filter(esMedio) as TipoMedio[]).length
         ? (medios.filter(esMedio) as TipoMedio[])
         : (["video", "imagen"] as TipoMedio[]),

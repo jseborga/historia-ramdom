@@ -14,7 +14,7 @@ import { fuentesDisponibles, archivoDeFuente } from "../render/fuentes.js";
 import { GuionSchema, IdiomaCampo, generarKeywords, escribirNarracion, guionComoNarracion } from "../servicios/guion.js";
 import { conMotivo } from "./errores.js";
 import { ensamblarProyecto } from "../servicios/ensamblar.js";
-import { elegirClips } from "../servicios/clips.js";
+import { elegirClips, esBancoElegible, esMedio, type TipoMedio } from "../servicios/clips.js";
 import {
   ProyectoSchema,
   pistasDesdeGuion,
@@ -365,11 +365,14 @@ export async function rutasProyectos(app: FastifyInstance) {
    */
   app.post("/api/proyectos/:id/clips-automaticos", async (req) => {
     const { id } = idParam.parse(req.params);
-    const { escenas, soloVacias, idioma } = z
+    const { escenas, soloVacias, idioma, bancos, medios } = z
       .object({
         escenas: z.array(z.object({ id: z.string(), texto: z.string(), tieneClip: z.boolean() })).max(120),
         soloVacias: z.boolean().default(true),
         idioma: IdiomaCampo.default("es"),
+        /** Bibliotecas donde buscar; admite "aleatorio". Vacío = las de siempre. */
+        bancos: z.array(z.string().max(20)).max(7).default([]),
+        medios: z.array(z.string().max(20)).max(2).default([]),
       })
       .parse(req.body);
     await db.proyecto.findUniqueOrThrow({ where: { id } });
@@ -377,7 +380,10 @@ export async function rutasProyectos(app: FastifyInstance) {
     const objetivo = escenas.filter((e) => e.texto.trim() && (!soloVacias || !e.tieneClip));
     if (!objetivo.length) return { clips: {}, keywords: {} };
     const keywords = await generarKeywords(objetivo.map((e) => e.texto), idioma);
-    const elegidos = await elegirClips(keywords.map((k) => ({ keywords: k })), new Set());
+    const elegidos = await elegirClips(keywords.map((k) => ({ keywords: k })), new Set(), {}, {
+      bancos: bancos.filter(esBancoElegible),
+      medios: medios.filter(esMedio) as TipoMedio[],
+    });
     return {
       clips: Object.fromEntries(objetivo.map((e, i) => [e.id, elegidos[i]])),
       keywords: Object.fromEntries(objetivo.map((e, i) => [e.id, keywords[i]])),

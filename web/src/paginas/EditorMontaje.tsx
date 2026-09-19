@@ -22,7 +22,7 @@ import {
   type VozPista,
 } from "../api";
 import { mensajeDe } from "../App";
-import { SelectorRegion, SelectorVoz, ImportarSuno, SubirMusica } from "./comunes";
+import { SelectorBancos, SelectorRegion, SelectorVoz, ImportarSuno, SubirMusica } from "./comunes";
 import { Lienzo } from "./Lienzo";
 import { BuscadorClips } from "./BuscadorClips";
 import { LineaDeTiempo, type Sel } from "./LineaDeTiempo";
@@ -84,6 +84,12 @@ export function EditorMontaje({
   const [t, setT] = useState(0);
   const [seek, setSeek] = useState({ t: 0, n: 0 });
   const [buscando, setBuscando] = useState(false);
+  /**
+   * De qué bibliotecas saca clips el propio editor. Antes buscaba siempre en
+   * las de serie: cambiar de fuente obligaba a abrir el buscador clip a clip.
+   */
+  const [bancos, setBancos] = useState<string[]>([]);
+  const [tiposMedio, setTiposMedio] = useState<string[]>([]);
   /** Panel de la galeria dentro del editor, para añadir material propio. */
   const [galeria, setGaleria] = useState<Medio[] | null>(null);
   const [elegidosGaleria, setElegidosGaleria] = useState<string[]>([]);
@@ -285,7 +291,10 @@ export function EditorMontaje({
     setError("");
     try {
       const objetivo = (soloEste && clipSel ? [clipSel] : video).map((c) => ({ id: c.id, texto: textoSobre(video.indexOf(c)) || proyecto!.nombre, tieneClip: Boolean(c.clip) }));
-      const r = await api.post<{ clips: Record<string, ClipCandidato | null> }>(`/api/proyectos/${proyecto!.id}/clips-automaticos`, { escenas: objetivo, soloVacias });
+      const r = await api.post<{ clips: Record<string, ClipCandidato | null> }>(
+        `/api/proyectos/${proyecto!.id}/clips-automaticos`,
+        { escenas: objetivo, soloVacias, bancos, medios: tiposMedio },
+      );
       const n = Object.values(r.clips).filter(Boolean).length;
       act({ video: video.map((c) => (r.clips[c.id] ? { ...c, clip: r.clips[c.id], recorte: 0, duracion: r.clips[c.id]!.duracion ? Math.min(r.clips[c.id]!.duracion!, c.duracion) : c.duracion } : c)) });
       setOk(n ? `${n} clip(s) encontrados.` : "No habia clips que rellenar.");
@@ -295,7 +304,10 @@ export function EditorMontaje({
     if (!clipSel) return;
     try {
       const consulta = (textoSobre(iClip) || proyecto!.nombre).split(" ").slice(0, 3).join(" ");
-      const { clips: lista } = await api.get<Busqueda>(`/api/clips?keywords=${encodeURIComponent(consulta)}`);
+      const parametros = new URLSearchParams({ keywords: consulta });
+      if (bancos.length) parametros.set("bancos", bancos.join(","));
+      if (tiposMedio.length) parametros.set("medios", tiposMedio.join(","));
+      const { clips: lista } = await api.get<Busqueda>(`/api/clips?${parametros}`);
       const otros = lista.filter((c) => c.id !== clipSel.clip?.id);
       if (!otros.length) { setError("No hay mas clips para ese texto."); return; }
       const elegido = otros[Math.floor(Math.random() * otros.length)];
@@ -580,6 +592,17 @@ export function EditorMontaje({
                         <input id="col" type="color" value={clipSel.color} onChange={(e) => actClip({ color: e.target.value })} />
                       </div>
                     )}
+                  </div>
+                  <div className="campos">
+                    <SelectorBancos
+                      catalogo={catalogo}
+                      bancos={bancos}
+                      medios={tiposMedio}
+                      alCambiar={(b, m) => {
+                        setBancos(b);
+                        setTiposMedio(m);
+                      }}
+                    />
                   </div>
                   <div className="pie">
                     <button onClick={() => setBuscando(!buscando)}>{buscando ? "Cerrar" : clipSel.clip ? "Cambiar clip" : "Elegir clip"}</button>

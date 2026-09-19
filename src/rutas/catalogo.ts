@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { IDIOMAS, MOTORES, MODELOS } from "../servicios/guion.js";
+import { BANCO_ALEATORIO } from "../servicios/clips.js";
 import {
   VOCES,
   VOZ_POR_DEFECTO,
@@ -132,6 +133,12 @@ export async function rutasCatalogo(app: FastifyInstance) {
       },
       /** Bancos donde se puede buscar ahora mismo, con su nombre y su licencia. */
       bancos: [
+        {
+          id: BANCO_ALEATORIO,
+          nombre: "Al azar",
+          nota: "Que la app elija: cada búsqueda mira en dos o tres bibliotecas distintas de las disponibles. Evita que todos los vídeos se parezcan.",
+          listo: true,
+        },
         { id: "pexels", nombre: "Pexels", nota: "Vídeos y fotos libres, con autor.", listo: Boolean(env.PEXELS_API_KEY) },
         { id: "pixabay", nombre: "Pixabay", nota: "Vídeos y fotos libres, con autor.", listo: Boolean(env.PIXABAY_API_KEY) },
         { id: "nasa", nombre: "NASA", nota: "Espacio, planetas y misiones; dominio público y sin clave.", listo: true },
