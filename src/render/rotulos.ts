@@ -7,8 +7,12 @@ import { FUENTE_POR_DEFECTO } from "./fuentes.js";
  */
 
 export type Posicion = "arriba" | "centro" | "abajo";
-/** `resaltar` ilumina palabra a palabra al ritmo del fragmento (karaoke ASS). */
-export type Animacion = "ninguna" | "fundido" | "subir" | "zoom" | "resaltar";
+/**
+ * `resaltar` ilumina palabra a palabra al ritmo del fragmento (karaoke ASS).
+ * `apareciendo` las va enseñando una a una, como si se escribieran mientras la
+ * voz en off las lee.
+ */
+export type Animacion = "ninguna" | "fundido" | "subir" | "zoom" | "resaltar" | "apareciendo";
 /** Como se va mostrando un texto largo dentro de su escena. */
 export type Lectura = "todo" | "frases" | "bloques";
 
@@ -31,7 +35,18 @@ export const ESTILO_POR_DEFECTO: EstiloTexto = {
   negrita: false,
 };
 
-export const ANIMACIONES: Animacion[] = ["ninguna", "fundido", "subir", "zoom", "resaltar"];
+export const ANIMACIONES: Animacion[] = [
+  "ninguna",
+  "fundido",
+  "subir",
+  "zoom",
+  "resaltar",
+  "apareciendo",
+];
+
+/** Las que se calculan palabra a palabra en vez de para el rotulo entero. */
+export const esPorPalabra = (a: Animacion) => a === "resaltar" || a === "apareciendo";
+
 export const LECTURAS: Lectura[] = ["todo", "frases", "bloques"];
 
 /** Palabras por bloque cuando la lectura es "bloques". */
@@ -102,13 +117,68 @@ export function repartirTiempo(fragmentos: string[], duracion: number): number[]
   return tiempos;
 }
 
+/**
+ * Cuánto ocupa cada palabra al decirla en voz alta.
+ *
+ * Contar letras (lo de antes) mide la palabra escrita, no la hablada: "de" y
+ * "oí" tienen las mismas letras y no duran lo mismo, y "aproximadamente" tarda
+ * lo que tardan sus sílabas, no sus quince caracteres. Los grupos de vocales
+ * son una aproximación decente a las sílabas en español y en inglés, y la
+ * puntuación suma lo que dura el respiro: quien lee se para en la coma y se
+ * para más en el punto.
+ */
+export function pesosDePalabras(ws: string[]): number[] {
+  return ws.map((w) => {
+    const silabas = (w.toLowerCase().match(/[aeiouáéíóúüàèìòùâêîôûäëïö]+/g) ?? []).length || 1;
+    const pausa = /[.!?…]["»')\]]?$/.test(w) ? 1 : /[,;:—–-]$/.test(w) ? 0.5 : 0;
+    return silabas + pausa;
+  });
+}
+
+/** Segundo (relativo al fragmento) en que le toca a cada palabra. */
+export function retardosDePalabras(ws: string[], segundos: number): number[] {
+  const pesos = pesosDePalabras(ws);
+  const total = pesos.reduce((a, b) => a + b, 0) || 1;
+  let t = 0;
+  return pesos.map((p) => {
+    const inicio = t;
+    t += (segundos * p) / total;
+    return inicio;
+  });
+}
+
 /** Karaoke ASS: cada palabra se ilumina durante su parte del fragmento. */
 function conKaraoke(texto: string, segundos: number) {
   const ws = palabras(texto);
-  const pesos = ws.map((w) => w.length + 1);
-  const total = pesos.reduce((a, b) => a + b, 0);
+  const pesos = pesosDePalabras(ws);
+  const total = pesos.reduce((a, b) => a + b, 0) || 1;
   return ws
     .map((w, i) => `{\\kf${Math.max(1, Math.round((segundos * 100 * pesos[i]) / total))}}${w}`)
+    .join(" ");
+}
+
+/** Lo que tarda una palabra en terminar de aparecer, en milisegundos. */
+const ASOMO_MS = 120;
+
+/**
+ * Texto que se va escribiendo al ritmo de la voz.
+ *
+ * Cada palabra empieza transparente (`\alpha&HFF&`) y se destapa en su
+ * instante con `\t`. El truco está en que **todas ocupan su sitio desde el
+ * principio**, aunque no se vean: si se fueran añadiendo de verdad, el texto
+ * centrado se recolocaría con cada palabra y el rótulo entero iría dando
+ * saltos y cambiando de línea. Así lo único que cambia es qué se ve.
+ */
+function conApariciones(texto: string, segundos: number) {
+  const ws = palabras(texto);
+  const retardos = retardosDePalabras(ws, segundos);
+  return ws
+    .map((w, i) => {
+      // La primera entra con el rótulo: si no, el hueco empieza vacío.
+      if (i === 0) return w;
+      const desde = Math.round(retardos[i] * 1000);
+      return `{\\alpha&HFF&\\t(${desde},${desde + ASOMO_MS},\\alpha&H00&)}${w}`;
+    })
     .join(" ");
 }
 
@@ -155,6 +225,9 @@ function etiquetas(estilo: EstiloTexto, animacion: Animacion, p: Preset) {
       return `${base}\\pos(${x},${y})\\fscx82\\fscy82\\t(0,350,\\fscx100\\fscy100)\\fad(200,200)`;
     case "resaltar":
       return `${base}\\pos(${x},${y})\\2c${SECUNDARIO_APAGADO}\\fad(150,150)`;
+    // Sin entrada: las palabras ya entran una a una. Solo se va al final.
+    case "apareciendo":
+      return `${base}\\pos(${x},${y})\\fad(0,250)`;
     default:
       return `${base}\\pos(${x},${y})`;
   }
@@ -169,7 +242,7 @@ export type Rotulo = {
   lectura?: Lectura;
 };
 
-/** Una linea ASS por fragmento; con `resaltar`, ademas, karaoke por palabra. */
+/** Una linea ASS por fragmento; con `resaltar` y `apareciendo`, por palabra. */
 function lineasDe(r: Rotulo, p: Preset): string[] {
   const fragmentos = fragmentar(r.texto, r.lectura ?? "todo");
   if (!fragmentos.length) return [];
@@ -182,7 +255,12 @@ function lineasDe(r: Rotulo, p: Preset): string[] {
     const ini = t;
     const fin = i === fragmentos.length - 1 ? r.fin : t + tiempos[i];
     t = fin;
-    const cuerpo = r.animacion === "resaltar" ? conKaraoke(limpiar(f), fin - ini) : limpiar(f);
+    const cuerpo =
+      r.animacion === "resaltar"
+        ? conKaraoke(limpiar(f), fin - ini)
+        : r.animacion === "apareciendo"
+          ? conApariciones(limpiar(f), fin - ini)
+          : limpiar(f);
     return `Dialogue: 0,${tiempo(ini)},${tiempo(fin)},Rotulo,,0,0,0,,{${tags}}${cuerpo}`;
   });
 }

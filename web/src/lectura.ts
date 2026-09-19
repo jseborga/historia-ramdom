@@ -57,11 +57,22 @@ export function repartirTiempo(fragmentos: string[], duracion: number): number[]
   return tiempos;
 }
 
-/** Retardo de encendido de cada palabra dentro de un fragmento (karaoke). */
-export function retardosKaraoke(fragmento: string, segundos: number): number[] {
-  const ws = palabras(fragmento);
-  const pesos = ws.map((w) => w.length + 1);
-  const total = pesos.reduce((a, b) => a + b, 0);
+/**
+ * Cuánto ocupa cada palabra al decirla (misma cuenta que el servidor): grupos
+ * de vocales como aproximación a las sílabas, más el respiro de la puntuación.
+ */
+function pesosDePalabras(ws: string[]): number[] {
+  return ws.map((w) => {
+    const silabas = (w.toLowerCase().match(/[aeiouáéíóúüàèìòùâêîôûäëïö]+/g) ?? []).length || 1;
+    const pausa = /[.!?…]["»')\]]?$/.test(w) ? 1 : /[,;:—–-]$/.test(w) ? 0.5 : 0;
+    return silabas + pausa;
+  });
+}
+
+/** Segundo, dentro del fragmento, en que le toca a cada palabra. */
+export function retardosDePalabras(fragmento: string, segundos: number): number[] {
+  const pesos = pesosDePalabras(palabras(fragmento));
+  const total = pesos.reduce((a, b) => a + b, 0) || 1;
   let t = 0;
   return pesos.map((p) => {
     const inicio = t;

@@ -336,7 +336,7 @@ export async function rutasProyectos(app: FastifyInstance) {
         preferirLargos: z.boolean().default(true),
         ganchoSeg: z.number().min(2).max(10).default(4),
         lectura: z.enum(["frases", "bloques"]).default("frases"),
-        animacion: z.enum(["fundido", "resaltar", "ninguna"]).default("fundido"),
+        animacion: z.enum(["fundido", "resaltar", "apareciendo", "ninguna"]).default("fundido"),
         /** Dejar las imágenes como están y solo cuadrar la duración. */
         conservarVideo: z.boolean().default(false),
       })

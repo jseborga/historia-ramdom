@@ -239,6 +239,10 @@ form.login { max-width: 340px; margin: 15vh auto 0; display: grid; gap: 12px; }
 .cabezal { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--acento); pointer-events: none; z-index: 2; }
 .palabra.apagada { opacity: 0.45; filter: saturate(0.3); }
 .palabra.viva { opacity: 1; }
+/* Apareciendo: la que aun no se ha dicho guarda su sitio, invisible */
+@keyframes asomar { from { opacity: 0; } to { opacity: 1; } }
+.palabra.oculta { opacity: 0; }
+.palabra.asoma { opacity: 1; animation: asomar 0.12s ease both; }
 
 .bloque {
   flex: 0 0 auto;

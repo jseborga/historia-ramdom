@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { urlMuestra, type ClipPista, type Preset, type RotuloPista } from "../api";
-import { fragmentar, repartirTiempo, retardosKaraoke } from "../lectura";
+import { fragmentar, repartirTiempo, retardosDePalabras } from "../lectura";
 
 /**
  * Vista previa por tiempo, como un reproductor de verdad: un reloj recorre el
@@ -136,11 +136,14 @@ export function Lienzo({
           let i = 0;
           for (; i < frs.length - 1 && rel >= tiempos[i]; i++) rel -= tiempos[i];
           const texto = frs[i] ?? "";
-          const encendidas =
-            r.animacion === "resaltar"
-              ? retardosKaraoke(texto, tiempos[i] ?? r.duracion).filter((d) => d <= rel).length
-              : Infinity;
-          return { r, texto, trozo: i, encendidas };
+          // `resaltar` y `apareciendo` se cuentan igual —cuántas palabras van
+          // dichas— y solo cambia qué se hace con las que faltan: apagarlas o
+          // no enseñarlas todavía.
+          const porPalabra = r.animacion === "resaltar" || r.animacion === "apareciendo";
+          const encendidas = porPalabra
+            ? retardosDePalabras(texto, tiempos[i] ?? r.duracion).filter((d) => d <= rel).length
+            : Infinity;
+          return { r, texto, trozo: i, encendidas, porPalabra };
         }),
     [textos, t],
   );
@@ -222,10 +225,10 @@ export function Lienzo({
         )}
         {clip?.efecto === "vineta" && <div className="vineta" />}
 
-        {activos.map(({ r, texto, trozo, encendidas }) => (
+        {activos.map(({ r, texto, trozo, encendidas, porPalabra }) => (
           <div
             key={`${r.id}-${trozo}`}
-            className={`rotulo ${r.estilo.posicion} anim-${r.animacion === "resaltar" ? "ninguna" : r.animacion}`}
+            className={`rotulo ${r.estilo.posicion} anim-${porPalabra ? "ninguna" : r.animacion}`}
             style={{
               fontSize: `${(r.estilo.tamano / preset.alto) * 100}cqh`,
               color: r.estilo.color,
@@ -235,12 +238,26 @@ export function Lienzo({
               WebkitTextStroke: `1px ${r.estilo.contorno}`,
             }}
           >
-            {r.animacion === "resaltar"
-              ? texto.split(/\s+/).map((w, i) => (
-                  <span key={i} className={i < encendidas ? "palabra viva" : "palabra apagada"}>
-                    {w}{" "}
-                  </span>
-                ))
+            {porPalabra
+              ? texto.split(/\s+/).map((w, i) => {
+                  const dicha = i < encendidas;
+                  // Al aparecer, la que falta sigue ocupando su hueco (solo se
+                  // vuelve invisible): si no, el texto centrado se recolocaria
+                  // con cada palabra, que es justo lo que no debe pasar.
+                  const clase =
+                    r.animacion === "resaltar"
+                      ? dicha
+                        ? "palabra viva"
+                        : "palabra apagada"
+                      : dicha
+                        ? "palabra asoma"
+                        : "palabra oculta";
+                  return (
+                    <span key={i} className={clase}>
+                      {w}{" "}
+                    </span>
+                  );
+                })
               : texto}
           </div>
         ))}

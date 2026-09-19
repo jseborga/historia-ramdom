@@ -313,7 +313,7 @@ los trozos se reparten sobre esa duración real.
 
 ## Animaciones
 
-Cuatro, elegidas porque ffmpeg las reproduce **exactamente** igual que la vista
+Seis, elegidas porque ffmpeg las reproduce **exactamente** igual que la vista
 previa, vía etiquetas ASS:
 
 | Animación | Qué hace | En el render |
@@ -323,6 +323,29 @@ previa, vía etiquetas ASS:
 | `subir` | Sube 70 px al entrar | `\move(...)` + fundido |
 | `zoom` | Entra al 82 % y crece | `\t(\fscx\fscy)` + fundido |
 | `resaltar` | Ilumina palabra a palabra al ritmo del trozo | Karaoke ASS `\kf` por palabra, con color secundario apagado |
+| `apareciendo` | Cada palabra se enseña cuando la voz la dice | `\alpha&HFF&` + `\t(...\alpha&H00&)` por palabra, 120 ms |
+
+### Por qué `apareciendo` no añade palabras, sino que las destapa
+
+Lo obvio sería ir escribiendo el texto: una línea ASS por palabra, cada una con
+una palabra más. No sirve. El rótulo está centrado (`\an5`), así que al crecer
+se recoloca entero: el texto se mueve en horizontal con cada palabra y salta de
+línea cuando cambia el ajuste, y eso se ve como un fallo, no como un efecto.
+
+Por eso las palabras van todas desde el primer fotograma, ocupando su sitio, y
+lo único que cambia es la transparencia de cada una. La primera entra visible
+—si no, el hueco empieza vacío— y las demás pasan de `\alpha&HFF&` (invisible)
+a `\alpha&H00&` en su instante. La vista previa hace lo mismo con
+`opacity: 0`, no con `display: none`, por la misma razón.
+
+El instante de cada palabra sale de sus **sílabas** (grupos de vocales) más el
+respiro de la puntuación —la coma vale medio y el punto uno entero—, repartidas
+sobre lo que dure su trozo. Contar letras, que es lo que se hacía antes para el
+karaoke, mide la palabra escrita y no la hablada: "de" y "oí" tienen las mismas
+letras y no duran lo mismo. No es alineación forzada contra el audio —eso pide
+un reconocedor—, pero el trozo sí dura exactamente lo que dura su parte de la
+narración, así que la palabra cae donde la voz la dice, con el error dentro de
+la propia frase.
 
 ## Efectos de imagen
 

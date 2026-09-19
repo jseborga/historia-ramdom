@@ -24,7 +24,7 @@ export type OpcionesEnsamblado = {
   ganchoSeg?: number;
   /** Rotulos con la frase entera o por bloques. */
   lectura?: "frases" | "bloques";
-  animacion?: "fundido" | "resaltar" | "ninguna";
+  animacion?: "fundido" | "resaltar" | "apareciendo" | "ninguna";
   /** Criterios de búsqueda EN INGLÉS del ambiente general (categoría, planteamiento). */
   criterios?: string[];
   /** Dónde buscar y si entran fotos; vacío = lo que diga la categoría. */

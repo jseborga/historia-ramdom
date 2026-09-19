@@ -30,9 +30,23 @@ import { Cortes } from "./Cortes";
 import { PanelLetra } from "./PanelLetra";
 import { PanelCanciones } from "./PanelCanciones";
 
+/** Lo que el ensamblado sabe volver a poner; el resto se deja como estaba. */
+const ANIMACIONES_ENSAMBLADO = ["fundido", "resaltar", "apareciendo", "ninguna"];
+const LECTURAS_ENSAMBLADO = ["frases", "bloques"];
+
+/** La opcion que llevan mas rotulos, para no perderla al reensamblar. */
+function masRepetida<T extends string>(valores: T[], admitidos: string[]): T | null {
+  const cuenta = new Map<T, number>();
+  for (const v of valores) if (admitidos.includes(v)) cuenta.set(v, (cuenta.get(v) ?? 0) + 1);
+  let mejor: T | null = null;
+  for (const [v, n] of cuenta) if (!mejor || n > (cuenta.get(mejor) ?? 0)) mejor = v;
+  return mejor;
+}
+
 const ANIMACIONES: [Animacion, string][] = [
   ["ninguna", "ninguna"], ["fundido", "fundido"], ["subir", "subir"], ["zoom", "zoom"],
   ["resaltar", "resaltar palabra a palabra"],
+  ["apareciendo", "aparece a la vez que la voz"],
 ];
 const EFECTOS: [Efecto, string][] = [
   ["ninguno", "ninguno"], ["zoomLento", "acercar (zoom lento)"], ["alejar", "alejar"],
@@ -350,6 +364,8 @@ export function EditorMontaje({
    */
   async function ensamblar(conservarVideo: boolean) {
     if (!(await guardar(true))) return;
+    const anim = masRepetida(textos.map((t) => t.animacion), ANIMACIONES_ENSAMBLADO);
+    const lect = masRepetida(textos.map((t) => t.lectura), LECTURAS_ENSAMBLADO);
     setOcupado(conservarVideo ? "ensamblar" : "ensamblarTodo");
     setError("");
     try {
@@ -357,6 +373,11 @@ export function EditorMontaje({
         preferirLargos: true,
         ganchoSeg: 4,
         conservarVideo,
+        // Ensamblar vuelve a escribir los rotulos, asi que sin esto se perdia
+        // la animacion y el corte elegidos: eliges "aparece con la voz",
+        // ensamblas y vuelve a salir en fundido. Se manda lo que ya hay.
+        ...(anim ? { animacion: anim } : {}),
+        ...(lect ? { lectura: lect } : {}),
       });
       await cargar();
       setOk(

@@ -118,7 +118,9 @@ export const RotuloPistaSchema = z.object({
   duracion: z.number().min(0.2).max(300).default(DURACION_CLIP),
   texto: z.string().max(2000).default(""),
   estilo: EstiloSchema.default({}),
-  animacion: z.enum(["ninguna", "fundido", "subir", "zoom", "resaltar"]).default("fundido"),
+  animacion: z
+    .enum(["ninguna", "fundido", "subir", "zoom", "resaltar", "apareciendo"])
+    .default("fundido"),
   lectura: z.enum(["todo", "frases", "bloques"]).default("frases"),
 });
 

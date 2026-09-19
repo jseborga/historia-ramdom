@@ -881,7 +881,7 @@ y un vídeo dura meses.
 La pestaña **Montaje** abre una línea de tiempo al estilo CapCut: se crea desde
 una historia, desde una composición de la galería o desde un diálogo, con todo
 ya colocado en orden, y desde ahí se cambia cada pieza. Texto con tamaño, color,
-posición y cuatro animaciones; el clip de cada escena buscable por palabras o
+posición y seis animaciones; el clip de cada escena buscable por palabras o
 traído de la galería; voz de IA, diálogo a varias voces o archivo propio; música
 de la biblioteca o subida; y un preset de formato por red (TikTok, Instagram
 feed, cuadrado, YouTube, Facebook, y los dos largos de miniserie). Al final, un
@@ -904,8 +904,37 @@ los dos clips vecinos, así que el montaje sigue durando lo que dice la línea d
 tiempo y la voz no se descoloca. Y cuando no hay ninguna transición se usa el
 camino rápido de siempre, pegando sin recodificar.
 
-Las cuatro animaciones están elegidas porque ffmpeg las reproduce igual que la
-vista previa, con etiquetas ASS (`\fad`, `\move`, `\t`), en vez de aproximarlas.
+Las animaciones están elegidas porque ffmpeg las reproduce igual que la vista
+previa, con etiquetas ASS (`\fad`, `\move`, `\t`), en vez de aproximarlas.
+
+### El texto que se escribe mientras la voz lo lee
+
+Dos de esas animaciones van **palabra a palabra**, al ritmo de la narración:
+
+- **resaltar**: el texto está entero desde el principio y cada palabra se
+  ilumina cuando le toca, como un karaoke.
+- **aparece a la vez que la voz**: las palabras se van enseñando una a una,
+  como si se escribieran a la vez que se oyen. Es el efecto de subtítulo de
+  TikTok, y es lo que hace que alguien que mira sin sonido siga leyendo al
+  mismo ritmo al que otro escucha.
+
+El truco de la segunda está en que las palabras que todavía no se han dicho
+**ya ocupan su sitio**, invisibles. Si se fueran añadiendo de verdad, el rótulo
+—que va centrado— se recolocaría con cada palabra y el texto daría saltos y
+cambiaría de línea a media frase: se vería como un fallo, no como un efecto.
+Así lo único que cambia es qué se ve.
+
+Cuándo le toca a cada palabra se calcula por **sílabas** (grupos de vocales)
+más el respiro de la puntuación: la coma suma medio y el punto uno entero.
+Contar letras, que es lo que se hacía antes, mide la palabra escrita y no la
+hablada —"de" y "oí" tienen las mismas letras y no duran lo mismo—. El trozo,
+además, dura exactamente lo que dura su parte de la narración, así que la
+palabra cae donde la voz la dice. No es alineación forzada contra el audio (eso
+pide un reconocedor), pero el desfase se queda dentro de la propia frase.
+
+Se elige por rótulo en **Montaje → Texto → Animación**, o de golpe para todos
+con *Aplicar a todos*. Sirve igual sin voz: entonces el reparto va sobre lo que
+dure la escena.
 
 El detalle completo —incluida la lista de lo que este editor todavía **no**
 hace— está en [`docs/editor.md`](docs/editor.md).
