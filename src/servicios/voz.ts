@@ -295,25 +295,15 @@ export function vozLocal(
 }
 
 /** Una llamada de sintesis; devuelve el WAV ya escrito o lanza el error de la API. */
-async function pedirVozGemini(modelo: string, voz: string, texto: string, destino: string, idioma = "es") {
-  // El estilo va delante como indicacion, igual que en los ejemplos de Google
-  // ("Say cheerfully: ..."), y el texto que se lee va limpio de corchetes.
-  const { directiva, limpio } = estiloDesdeMarcas(texto);
-  const instruccion = `${instruccionDeVoz(idioma)}${directiva ? `, ${directiva}` : ""}`;
-
+/** Manda el cuerpo a Gemini TTS y escribe el WAV que devuelva. */
+async function pedirAGemini(modelo: string, cuerpo: Record<string, unknown>, destino: string) {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY! },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: `${instruccion}:\n${limpio}` }] }],
-        generationConfig: {
-          responseModalities: ["AUDIO"],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voz } } },
-        },
-      }),
-      signal: AbortSignal.timeout(120_000),
+      body: JSON.stringify(cuerpo),
+      signal: AbortSignal.timeout(180_000),
     },
   );
   const data = await leerJSON(res);
@@ -337,6 +327,25 @@ async function pedirVozGemini(modelo: string, voz: string, texto: string, destin
   }
   const rate = Number(parte.inlineData.mimeType?.match(/rate=(\d+)/)?.[1]) || 24000;
   await writeFile(destino, pcmAWav(Buffer.from(parte.inlineData.data, "base64"), rate));
+}
+
+/** Una voz sola leyendo un texto. */
+function pedirVozGemini(modelo: string, voz: string, texto: string, destino: string, idioma = "es") {
+  // El estilo va delante como indicacion, igual que en los ejemplos de Google
+  // ("Say cheerfully: ..."), y el texto que se lee va limpio de corchetes.
+  const { directiva, limpio } = estiloDesdeMarcas(texto);
+  const instruccion = `${instruccionDeVoz(idioma)}${directiva ? `, ${directiva}` : ""}`;
+  return pedirAGemini(
+    modelo,
+    {
+      contents: [{ parts: [{ text: `${instruccion}:\n${limpio}` }] }],
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voz } } },
+      },
+    },
+    destino,
+  );
 }
 
 export async function vozGemini(
@@ -603,4 +612,99 @@ export async function repartirVoces(
         .join(" · "),
     };
   });
+}
+
+// ------------------------------------------ Conversación entera con Gemini
+
+/** Gemini solo admite dos voces en una misma conversación. */
+export const MAX_HABLANTES_GEMINI = 2;
+
+export type TurnoDialogo = { hablante: number; texto: string };
+
+/**
+ * Se puede pedir la conversación entera de una vez: hacen falta exactamente
+ * dos hablantes, los dos con voz de Gemini y con voces distintas.
+ */
+export function cabeEnGeminiDialogo(
+  hablantes: { config: VozConfig }[],
+): boolean {
+  if (hablantes.length !== MAX_HABLANTES_GEMINI) return false;
+  if (!hablantes.every((h) => h.config?.proveedor === "gemini")) return false;
+  return new Set(hablantes.map((h) => h.config.nombre)).size === hablantes.length;
+}
+
+/** Etiquetas para el guion que se le manda: únicas y sin nada raro. */
+function etiquetasHablantes(nombres: string[]): string[] {
+  const usadas = new Set<string>();
+  return nombres.map((n, i) => {
+    const limpio = (n || `Voz${i + 1}`).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9 ]+/g, "").trim();
+    let etiqueta = (limpio.split(/\s+/)[0] || `Voz${i + 1}`).slice(0, 20);
+    while (usadas.has(etiqueta.toLowerCase())) etiqueta = `${etiqueta}${i + 1}`;
+    usadas.add(etiqueta.toLowerCase());
+    return etiqueta;
+  });
+}
+
+/**
+ * La conversación entera en una sola petición, con una voz por hablante.
+ *
+ * Es lo que hace que un diálogo suene a diálogo: pedido turno a turno, cada
+ * intervención se graba sin saber qué dijo la anterior, así que no hay
+ * reacción, ni ritmo, ni interrupción — suena a dos monólogos alternos.
+ * Mandado entero, el modelo oye la conversación completa y la interpreta como
+ * tal.
+ *
+ * El precio es que vuelve **un solo archivo**: dónde empieza cada turno hay
+ * que medirlo después, por las pausas (ver `repartirPorSilencios`).
+ */
+export async function vozGeminiDialogo(
+  turnos: TurnoDialogo[],
+  hablantes: { nombre: string; config: VozConfig }[],
+  destino: string,
+  modelo = VOZ_GEMINI_POR_DEFECTO.modelo,
+  idioma = "es",
+) {
+  if (!env.GEMINI_API_KEY) throw new Error("Falta GEMINI_API_KEY");
+  if (!cabeEnGeminiDialogo(hablantes)) {
+    throw new Error("La conversación entera necesita exactamente dos voces de Gemini, distintas");
+  }
+
+  const etiquetas = etiquetasHablantes(hablantes.map((h) => h.nombre));
+  const guion = turnos
+    .map((t) => `${etiquetas[Math.min(t.hablante, etiquetas.length - 1)]}: ${limpiarMarcas(t.texto)}`)
+    .join("\n");
+  const instruccion =
+    idioma === "en"
+      ? `Read this conversation between ${etiquetas.join(" and ")} out loud, naturally, as a real back-and-forth`
+      : `Lee en voz alta esta conversación entre ${etiquetas.join(" y ")}, con naturalidad, como una charla de verdad`;
+
+  const cuerpo = {
+    contents: [{ parts: [{ text: `${instruccion}:\n${guion}` }] }],
+    generationConfig: {
+      responseModalities: ["AUDIO"],
+      speechConfig: {
+        multiSpeakerVoiceConfig: {
+          speakerVoiceConfigs: hablantes.map((h, i) => ({
+            speaker: etiquetas[i],
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: h.config.nombre } },
+          })),
+        },
+      },
+    },
+  };
+
+  await conReintentos(() =>
+    enFila("voz:gemini", async () => {
+      const elegido = await modeloVozGemini(modelo);
+      try {
+        await pedirAGemini(elegido, cuerpo, destino);
+      } catch (err) {
+        if (!(err as { modeloMal?: boolean }).modeloMal) throw err;
+        const disponibles = await modelosVozGemini(true).catch(() => [] as string[]);
+        const alternativo = disponibles.find((n) => n !== elegido);
+        if (!alternativo) throw err;
+        await pedirAGemini(alternativo, cuerpo, destino);
+      }
+    }, { separacionMs: 250 }),
+  );
 }

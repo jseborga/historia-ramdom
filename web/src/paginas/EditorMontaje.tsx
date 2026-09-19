@@ -331,14 +331,27 @@ export function EditorMontaje({
       setOk(estilo === "guion" ? "Guion cargado como narracion." : `Narracion ${estilo} redactada. Genera la voz para medirla.`);
     } catch (err) { setError(mensajeDe(err)); } finally { setOcupado(""); }
   }
-  async function ensamblar() {
+  /**
+   * `conservarVideo` es la diferencia entre "cuadra los textos con la voz" y
+   * "empieza el montaje de cero": sin él, ensamblar despues de corregir una
+   * frase borraba las imagenes elegidas a mano.
+   */
+  async function ensamblar(conservarVideo: boolean) {
     if (!(await guardar(true))) return;
-    setOcupado("ensamblar");
+    setOcupado(conservarVideo ? "ensamblar" : "ensamblarTodo");
     setError("");
     try {
-      await api.post(`/api/proyectos/${proyecto!.id}/ensamblar`, { preferirLargos: true, ganchoSeg: 4 });
+      await api.post(`/api/proyectos/${proyecto!.id}/ensamblar`, {
+        preferirLargos: true,
+        ganchoSeg: 4,
+        conservarVideo,
+      });
       await cargar();
-      setOk("Ensamblado: la voz manda, los textos caen donde suenan y el video se rellena con clips largos.");
+      setOk(
+        conservarVideo
+          ? "Ensamblado: la voz manda y los textos caen donde suenan. Las imagenes se quedaron como estaban."
+          : "Ensamblado de cero: la voz manda y el video se relleno con clips nuevos.",
+      );
     } catch (err) { setError(mensajeDe(err)); } finally { setOcupado(""); }
   }
   function moverClip(desde: number, hacia: number) {
@@ -417,9 +430,22 @@ export function EditorMontaje({
           {proyecto.estado === "RENDER" ? "Renderizando..." : "Renderizar MP4"}
         </button>
         {!esVideoclip && (
-          <button onClick={ensamblar} disabled={ocupado === "ensamblar" || !voz.texto.trim()} title="La voz manda: genera la narracion, coloca los textos donde suenan y rellena el video con clips largos al azar">
-            {ocupado === "ensamblar" ? "Ensamblando..." : "Ensamblar con la narracion"}
-          </button>
+          <>
+            <button
+              onClick={() => ensamblar(true)}
+              disabled={ocupado !== "" || !voz.texto.trim()}
+              title="Genera la voz y coloca los textos donde suenan, sin tocar las imagenes que ya elegiste"
+            >
+              {ocupado === "ensamblar" ? "Ensamblando..." : "Ensamblar (sin tocar las imagenes)"}
+            </button>
+            <button
+              onClick={() => ensamblar(false)}
+              disabled={ocupado !== "" || !voz.texto.trim()}
+              title="Empieza el montaje de cero: vuelve a buscar clips y reemplaza los que haya"
+            >
+              {ocupado === "ensamblarTodo" ? "Montando..." : "Ensamblar y buscar imagenes nuevas"}
+            </button>
+          </>
         )}
         <button onClick={() => completarClips(true)} disabled={ocupado === "clips"}>
           {ocupado === "clips" ? "Buscando clips..." : "Completar clips vacios"}

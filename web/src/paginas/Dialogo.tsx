@@ -52,6 +52,8 @@ export function Dialogo({ catalogo }: { catalogo: Catalogo }) {
   const [categoria, setCategoria] = useState<string | null>(null);
   const [subcategoria, setSubcategoria] = useState<string | null>(null);
   const [formato, setFormato] = useState("tiktok");
+  /** Pedir la conversación entera a Gemini: suena a charla, no a dos monólogos. */
+  const [vozNatural, setVozNatural] = useState(true);
   const [presets, setPresets] = useState<Preset[]>([]);
   const [hablantes, setHablantes] = useState<Hablante[]>([
     { nombre: NOMBRES[0], papel: "", config: vozInicial(catalogo, 0), color: COLORES[0] },
@@ -167,6 +169,7 @@ export function Dialogo({ catalogo }: { catalogo: Catalogo }) {
         hablantes: hablantes.map((h) => ({ nombre: h.nombre, papel: h.papel, config: h.config, color: h.color })),
         formato,
         idioma,
+        vozNatural,
       });
       if (p.aviso) setError(p.aviso);
       setAbierto(p.id);
@@ -267,7 +270,25 @@ export function Dialogo({ catalogo }: { catalogo: Catalogo }) {
             modelo={modelo}
             alCambiarModelo={setModelo}
           />
+          <div>
+            <label htmlFor="vozNatural">Como se graba la conversacion</label>
+            <select
+              id="vozNatural"
+              value={vozNatural ? "entera" : "turnos"}
+              onChange={(e) => setVozNatural(e.target.value === "entera")}
+            >
+              <option value="entera">Entera, de una vez (Gemini: suena natural)</option>
+              <option value="turnos">Turno a turno (cualquier voz)</option>
+            </select>
+          </div>
         </div>
+        {vozNatural && (
+          <p className="suave">
+            La conversacion entera se le pide a Gemini de una sola vez, asi que cada uno oye al otro y
+            reacciona. Necesita <strong>dos voces de Gemini distintas</strong>; con tres voces, o con
+            voces locales, se graba turno a turno sin avisar.
+          </p>
+        )}
 
         <div className="lista" style={{ marginTop: 12 }}>
           {hablantes.map((h, i) => (
@@ -416,7 +437,8 @@ export function Dialogo({ catalogo }: { catalogo: Catalogo }) {
               {ocupado === "crear" ? "Montando (genera las voces)..." : "Crear el video del dialogo"}
             </button>
             <span className="suave">
-              Cada intervencion se lee con la voz de quien habla; el rotulo sale con su nombre y su color.
+              Cada intervencion se lee con la voz de quien habla. En pantalla el rotulo NO lleva el
+            nombre: a cada uno lo identifica su color, que ocupa menos y se lee mejor en vertical.
             </span>
           </div>
         </section>

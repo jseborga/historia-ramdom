@@ -74,11 +74,13 @@ export async function rutasDialogos(app: FastifyInstance) {
    * clips del tema). Devuelve el proyecto para abrirlo en el editor.
    */
   app.post("/api/dialogos", async (req, reply) => {
-    const { guion, hablantes, formato, nombre, bancos, medios, idioma } = z
+    const { guion, hablantes, formato, nombre, bancos, medios, idioma, vozNatural } = z
       .object({
         guion: GuionDialogoSchema,
         /** El mismo con el que se escribió: fija la voz y el tono. */
         idioma: IdiomaCampo.default("es"),
+        /** Pedir la conversación entera a Gemini (dos voces): suena natural. */
+        vozNatural: z.boolean().default(true),
         hablantes: z.array(HablantePeticion).min(2).max(3),
         formato: z.string().max(40).default("tiktok"),
         nombre: z.string().min(1).max(120).optional(),
@@ -109,6 +111,7 @@ export async function rutasDialogos(app: FastifyInstance) {
       voz: {
         modo: "dialogo",
         idioma: idioma === "en" ? "en" : "es",
+        vozNatural,
         // El texto seguido sirve para buscar imagen y para leerlo de un vistazo.
         texto: guion.intervenciones.map((i) => i.texto).join("\n\n"),
         hablantes: voces,
@@ -156,7 +159,7 @@ export async function rutasDialogos(app: FastifyInstance) {
    */
   app.post("/api/proyectos/:id/dialogo", async (req, reply) => {
     const { id } = idParam.parse(req.params);
-    const { hablantes, dialogo, remontar } = z
+    const { hablantes, dialogo, remontar, conservarVideo, vozNatural } = z
       .object({
         hablantes: z.array(HablantePeticion).min(2).max(3),
         dialogo: z
@@ -164,6 +167,13 @@ export async function rutasDialogos(app: FastifyInstance) {
           .min(1)
           .max(120),
         remontar: z.boolean().default(true),
+        /**
+         * Por defecto NO se tocan las imágenes: corregir una réplica no puede
+         * costar el montaje que ya estaba hecho. Se ponen a false para volver
+         * a buscar clips.
+         */
+        conservarVideo: z.boolean().default(true),
+        vozNatural: z.boolean().optional(),
       })
       .parse(req.body);
 
@@ -175,17 +185,19 @@ export async function rutasDialogos(app: FastifyInstance) {
     const voces = hablantes.map((h, i) =>
       HablanteSchema.parse({ ...h, color: h.color ?? COLORES[i % COLORES.length] }),
     );
+    const guardada = (p.voz ?? {}) as { vozNatural?: boolean };
     const voz = {
-      ...((p.voz ?? {}) as object),
+      ...guardada,
       modo: "dialogo",
       texto: dialogo.map((i) => i.texto).join("\n\n"),
       hablantes: voces,
       dialogo,
+      vozNatural: vozNatural ?? guardada.vozNatural ?? true,
     };
     await db.proyecto.update({ where: { id }, data: { voz } });
     if (!remontar) return { guardado: true };
 
-    await ensamblarProyecto(id);
+    await ensamblarProyecto(id, { conservarVideo });
     return db.proyecto.findUniqueOrThrow({ where: { id } });
   });
 }

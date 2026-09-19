@@ -119,3 +119,110 @@ export function mejoresMomentos(
   }
   return elegidos;
 }
+
+/**
+ * Los tramos de silencio de un audio.
+ *
+ * Sirve para saber dónde termina una frase y empieza la siguiente cuando el
+ * audio viene de una sola pieza: si a Gemini se le pide la conversación
+ * entera —que es lo que hace que suene natural—, vuelve un único archivo sin
+ * marcas, y los rótulos no tendrían dónde caer. Las pausas entre turnos son
+ * esas marcas.
+ */
+export function silencios(
+  archivo: string,
+  o: { umbralDb?: number; minimoSeg?: number; timeoutMs?: number } = {},
+): Promise<{ inicio: number; fin: number }[]> {
+  const umbral = o.umbralDb ?? -35;
+  const minimo = o.minimoSeg ?? 0.25;
+  return new Promise((resolve, reject) => {
+    const p = spawn("ffmpeg", [
+      "-hide_banner", "-i", archivo, "-map", "0:a:0",
+      "-af", `silencedetect=noise=${umbral}dB:d=${minimo}`,
+      "-f", "null", "-",
+    ]);
+    // silencedetect escribe por stderr, mezclado con el resto del informe.
+    let salida = "";
+    p.stderr.on("data", (d) => (salida = (salida + d).slice(-200_000)));
+    const t = setTimeout(() => p.kill("SIGKILL"), o.timeoutMs ?? 120_000);
+    p.on("error", (err) => {
+      clearTimeout(t);
+      reject(new Error(`No se pudo ejecutar ffmpeg: ${err.message}`));
+    });
+    p.on("close", () => {
+      clearTimeout(t);
+      const tramos: { inicio: number; fin: number }[] = [];
+      let abierto: number | null = null;
+      for (const linea of salida.split("\n")) {
+        const empieza = /silence_start:\s*(-?[\d.]+)/.exec(linea);
+        if (empieza) abierto = Number(empieza[1]);
+        const acaba = /silence_end:\s*([\d.]+)/.exec(linea);
+        if (acaba && abierto !== null) {
+          tramos.push({ inicio: Math.max(0, abierto), fin: Number(acaba[1]) });
+          abierto = null;
+        }
+      }
+      resolve(tramos);
+    });
+  });
+}
+
+/**
+ * Reparte un audio de una sola pieza entre los textos que lo componen, usando
+ * las pausas como frontera.
+ *
+ * Hacen falta `textos.length - 1` cortes. Si hay más pausas que cortes (las
+ * hay: también se respira a mitad de frase), se elige para cada frontera la
+ * pausa más cercana a donde *debería* estar según lo que ocupa cada texto, y
+ * cada pausa se usa una sola vez. Si hay menos, se reparte proporcionalmente:
+ * peor, pero nunca deja los rótulos sin sitio.
+ */
+export function repartirPorSilencios(
+  textos: string[],
+  duracion: number,
+  pausas: { inicio: number; fin: number }[],
+): { inicio: number; duracion: number; medido: boolean }[] {
+  const pesos = textos.map((t) => Math.max(1, t.trim().length));
+  const total = pesos.reduce((s, p) => s + p, 0);
+
+  // Dónde caería cada frontera si todos hablaran al mismo ritmo.
+  const esperadas: number[] = [];
+  let acumulado = 0;
+  for (let i = 0; i < textos.length - 1; i++) {
+    acumulado += pesos[i];
+    esperadas.push((acumulado / total) * duracion);
+  }
+
+  // Candidatas: el FINAL de cada pausa, que es donde arranca la voz siguiente
+  // (y donde tiene que aparecer su rótulo; el anterior se queda durante la
+  // pausa, que es lo natural). Las de los extremos no cuentan.
+  const candidatas = pausas
+    .map((p) => Math.min(p.fin, duracion))
+    .filter((c) => c > 0.25 && c < duracion - 0.25)
+    .sort((a, b) => a - b);
+
+  let cortes: number[];
+  let medido = false;
+  if (candidatas.length >= esperadas.length) {
+    const libres = [...candidatas];
+    cortes = esperadas.map((e) => {
+      let mejor = 0;
+      for (let i = 1; i < libres.length; i++) {
+        if (Math.abs(libres[i] - e) < Math.abs(libres[mejor] - e)) mejor = i;
+      }
+      return libres.splice(mejor, 1)[0];
+    });
+    // Que no se crucen: si dos fronteras eligieron mal, se ordenan.
+    cortes.sort((a, b) => a - b);
+    medido = true;
+  } else {
+    cortes = esperadas;
+  }
+
+  const limites = [0, ...cortes, duracion];
+  return textos.map((_, i) => ({
+    inicio: limites[i],
+    duracion: Math.max(0.2, limites[i + 1] - limites[i]),
+    medido,
+  }));
+}

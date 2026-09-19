@@ -32,6 +32,12 @@ export type OpcionesEnsamblado = {
   /** Idioma del texto: fija la voz de reserva y el tono que se le pide. */
   idioma?: Idioma;
   /**
+   * No tocar las imágenes que ya tiene el proyecto: solo ajustar la duración a
+   * la voz nueva. Es lo que hace que se pueda corregir una réplica sin perder
+   * el montaje que ya estaba hecho a mano.
+   */
+  conservarVideo?: boolean;
+  /**
    * Clips que van al principio sí o sí, en este orden: la foto del producto,
    * lo que se haya subido para enseñarlo. El relleno automático solo cubre lo
    * que quede de narración después de ellos.
@@ -40,6 +46,31 @@ export type OpcionesEnsamblado = {
 };
 
 const barajar = <T>(xs: T[]) => [...xs].sort(() => Math.random() - 0.5);
+
+/**
+ * Estira o recorta una pista de vídeo ya montada hasta que dure `total`.
+ *
+ * Recortar quita los planos que sobran y acorta el último; estirar alarga el
+ * último, que es lo que menos se nota. No se buscan clips nuevos: quien hizo
+ * el montaje eligió esos.
+ */
+export function ajustarADuracion(video: ClipPista[], total: number): ClipPista[] {
+  if (!video.length) return video;
+  const salida: ClipPista[] = [];
+  let puesto = 0;
+  for (const c of video) {
+    const hueco = total - puesto;
+    if (hueco <= 0.05) break;
+    salida.push(c.duracion <= hueco ? c : { ...c, duracion: hueco });
+    puesto += Math.min(c.duracion, hueco);
+  }
+  const falta = total - puesto;
+  if (falta > 0.05 && salida.length) {
+    const ultimo = salida[salida.length - 1];
+    salida[salida.length - 1] = { ...ultimo, duracion: ultimo.duracion + falta };
+  }
+  return salida;
+}
 
 /**
  * Rellena la pista de video hasta `total` segundos con clips al azar del
@@ -142,7 +173,20 @@ export async function ensamblarProyecto(proyectoId: string, opciones: OpcionesEn
     textos[0] = { ...textos[0], animacion: "zoom", estilo: { ...textos[0].estilo, tamano: 84, color: "#FFE500", posicion: "centro", negrita: true } };
   }
 
-  // 3. El video es la ultima capa: clips largos al azar hasta cubrir la voz
+  // 3. El video es la ultima capa.
+  //
+  // Si se pide conservar lo que hay, no se busca nada: las imágenes elegidas
+  // (o editadas a mano) se quedan y solo se estira o recorta el final para que
+  // cuadren con la voz nueva. Sin esto, corregir una frase del diálogo
+  // borraba el montaje entero.
+  const yaPuestos = (p.escenas as ClipPista[] | null) ?? [];
+  const conImagen = yaPuestos.filter((c) => c?.clip);
+  if (opciones.conservarVideo && conImagen.length) {
+    const video = ajustarADuracion(yaPuestos, total);
+    await db.proyecto.update({ where: { id: proyectoId }, data: { escenas: video, textos, voz } });
+    return { video, textos, voz, total };
+  }
+
   const frases = voz.tramos.map((t) => t.texto);
   const keywords = await generarKeywords([frases[0] ?? texto, ...frases.slice(1, 8)], "es");
   const largos = opciones.preferirLargos ?? true;

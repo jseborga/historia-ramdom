@@ -1,8 +1,9 @@
 import { readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { generarVoz, limpiarMarcas } from "./voz.js";
+import { generarVoz, limpiarMarcas, cabeEnGeminiDialogo, vozGeminiDialogo } from "./voz.js";
 import { huellaVoz, type VozPista } from "./proyecto.js";
 import { ffmpeg, duracionAudio, concatenarWav } from "../render/ffmpeg.js";
+import { silencios, repartirPorSilencios } from "../render/audio.js";
 import { crearCarpetaProyecto, crearCarpetaTrabajo, borrarCarpetaTemporal } from "../almacen.js";
 import { enFila } from "../util/fila.js";
 import { fragmentar } from "../render/rotulos.js";
@@ -108,6 +109,63 @@ export async function generarNarracion(
   return enFila(`narracion:${proyectoId}`, () => generar(proyectoId, voz, huella, nombreFinal, opciones));
 }
 
+/**
+ * La conversación entera en una sola petición a Gemini, y los tiempos de cada
+ * turno sacados de las pausas del propio audio.
+ *
+ * Los rótulos tienen que caer donde suena cada réplica: con un archivo por
+ * intervención eso era gratis, aquí hay que medirlo. Si las pausas no dan
+ * (voces que se solapan, una charla sin aire), se reparte proporcionalmente a
+ * lo que ocupa cada texto: menos exacto, pero nunca deja un rótulo colgado.
+ */
+async function generarDialogoDeUnaVez(
+  voz: VozPista,
+  dir: string,
+  nombreFinal: string,
+  huella: string,
+  idioma: string,
+) {
+  const trabajo = await crearCarpetaTrabajo(`voz-dialogo-${nombreFinal}`);
+  const parcial = join(dir, `${nombreFinal}.parcial`);
+  try {
+    const crudo = join(trabajo, "conversacion.wav");
+    await vozGeminiDialogo(
+      voz.dialogo,
+      voz.hablantes.map((h) => ({ nombre: h.nombre, config: h.config })),
+      crudo,
+      voz.hablantes[0]?.config?.modelo,
+      idioma,
+    );
+    // Al formato de la app, como el resto de la voz de IA.
+    await ffmpeg(["-i", crudo, "-ar", "48000", "-ac", "2", "-f", "wav", parcial], trabajo);
+
+    const duracion = await duracionAudio(parcial);
+    const pausas = await silencios(parcial).catch(() => []);
+    const reparto = repartirPorSilencios(voz.dialogo.map((d) => d.texto), duracion, pausas);
+
+    // Dentro de cada turno, las frases se reparten por su largo: así un rótulo
+    // no se come dos réplicas.
+    const tramos: Tramo[] = voz.dialogo.flatMap((d, i) =>
+      conHablante(
+        tramosDeTrozo(
+          { texto: d.texto, frases: fragmentar(d.texto, "frases") },
+          reparto[i].inicio,
+          reparto[i].duracion,
+        ),
+        { hablante: d.hablante },
+      ),
+    );
+
+    await rename(parcial, join(dir, nombreFinal));
+    await guardarMedidas(join(dir, nombreFinal), duracion, tramos);
+    await limpiarNarracionesViejas(dir, nombreFinal);
+    return { archivo: nombreFinal, duracion, huella, tramos, reutilizada: false };
+  } finally {
+    await rm(parcial, { force: true }).catch(() => {});
+    await borrarCarpetaTemporal(trabajo);
+  }
+}
+
 async function generar(
   proyectoId: string,
   voz: VozPista,
@@ -145,6 +203,23 @@ async function generar(
   const idioma = voz.idioma ?? "es";
   const trabajo = await crearCarpetaTrabajo(`voz-${proyectoId}`);
   const esDialogo = voz.modo === "dialogo";
+
+  // Un diálogo pedido turno a turno suena a dos monólogos alternos: cada
+  // intervención se graba sin haber oído la anterior. Gemini admite la
+  // conversación entera en una sola petición (dos voces como mucho), y ahí sí
+  // hay reacción y ritmo. A cambio vuelve un solo archivo: dónde empieza cada
+  // turno se mide después, por las pausas.
+  if (esDialogo && voz.vozNatural !== false && cabeEnGeminiDialogo(voz.hablantes)) {
+    try {
+      return await generarDialogoDeUnaVez(voz, dir, nombreFinal, huella, idioma);
+    } catch (err) {
+      // Si falla (cuota, modelo sin multivoz, dos voces iguales), se sigue por
+      // el camino de siempre en vez de dejar al usuario sin narración.
+      console.warn(
+        `La conversación entera con Gemini no salió (${err instanceof Error ? err.message : err}); se graba turno a turno.`,
+      );
+    }
+  }
   // En un diálogo cada intervención va aparte aunque sea corta: la voz cambia
   // de una a otra, así que no se pueden agrupar. Dentro de cada una sí se
   // reparten las frases para que los rótulos caigan donde suenan.

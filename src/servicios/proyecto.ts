@@ -152,6 +152,12 @@ export const VozPistaSchema = z.object({
   config: VozSchema.nullable().default(VOZ_POR_DEFECTO),
   /** Solo en modo diálogo: quiénes hablan y con qué voz. */
   hablantes: z.array(HablanteSchema).max(3).default([]),
+  /**
+   * Pedir la conversación entera de una vez (Gemini, dos voces) en vez de
+   * turno a turno. Suena a charla de verdad; si no se puede, se graba turno a
+   * turno igualmente.
+   */
+  vozNatural: z.boolean().default(true),
   /** Solo en modo diálogo: la conversación, en orden. */
   dialogo: z.array(IntervencionSchema).max(120).default([]),
   /** Archivo dentro de la carpeta del proyecto: generado o subido. */
@@ -242,12 +248,14 @@ export const duracionProyecto = (p: Pick<ProyectoDatos, "video" | "textos" | "vo
  * los hablantes y la conversación entera: cambiar una réplica o una voz tiene
  * que obligar a regenerar.
  */
-export const huellaVoz = (voz: Pick<VozPista, "texto" | "config"> & Partial<Pick<VozPista, "modo" | "hablantes" | "dialogo">>) =>
+export const huellaVoz = (
+  voz: Pick<VozPista, "texto" | "config"> & Partial<Pick<VozPista, "modo" | "hablantes" | "dialogo" | "vozNatural">>,
+) =>
   createHash("sha1")
     .update(
       JSON.stringify(
         voz.modo === "dialogo"
-          ? ["dialogo", voz.hablantes ?? [], voz.dialogo ?? []]
+          ? ["dialogo", voz.hablantes ?? [], voz.dialogo ?? [], voz.vozNatural !== false]
           : [voz.texto.trim(), voz.config],
       ),
     )
@@ -306,15 +314,16 @@ export function textosDesdeNarracion(
 ): RotuloPista[] {
   if (voz.modo !== "ninguna" && voz.tramos.length) {
     return voz.tramos.map((t) => {
-      // En un diálogo, el rótulo dice quién habla y toma su color: sin eso,
-      // dos voces seguidas se leen como un monólogo.
+      // En un diálogo, a cada uno lo identifica SU COLOR y nada más: el
+      // nombre delante de cada frase roba espacio en pantalla, se lee como un
+      // chat y en un vertical ocupa media línea. El color ya dice quién habla.
       const quien = t.hablante !== undefined ? voz.hablantes[t.hablante] : null;
       return RotuloPistaSchema.parse({
         ...base,
         id: randomUUID(),
         inicio: voz.inicio + t.inicio,
         duracion: Math.max(t.duracion, 0.2),
-        texto: quien ? `${quien.nombre}: ${t.texto}` : t.texto,
+        texto: t.texto,
         ...(quien ? { estilo: { ...(base.estilo ?? {}), color: quien.color } } : {}),
         lectura: lectura === "bloques" ? "bloques" : "todo",
       });

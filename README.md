@@ -718,11 +718,39 @@ discutiendo un tema, cada una con **su propia voz**.
    y se corrige: cambiar quién dice qué, reordenar, reescribir o borrar
    intervenciones. Corregir una réplica sale mucho más barato que rehacer el
    vídeo.
-3. **Crear el vídeo.** Cada intervención se sintetiza con la voz de quien habla
-   (una petición cada vez, como toda la voz de la app), se pegan en orden con
-   algo más de aire entre turnos que entre frases, y el rótulo de cada una sale
-   con **el nombre y el color** de quien la dice. El resto es un montaje normal:
-   se abre en el editor y de ahí al render.
+3. **Crear el vídeo.** El rótulo de cada réplica sale **solo con el color** de
+   quien la dice: sin el nombre delante. El nombre robaba media línea en un
+   vertical y hacía que se leyera como un chat; el color ya dice quién habla.
+   El resto es un montaje normal: se abre en el editor y de ahí al render.
+
+**Cómo se graba la conversación.** Dos maneras, y se elige al crearla:
+
+- **Entera, de una vez** (por defecto). La conversación se le manda a Gemini
+  completa, con una voz por hablante, así que cada uno *oye* al otro: hay
+  reacción, ritmo y turnos que se pisan un poco. Es lo que hace que suene a
+  charla. Necesita **dos voces de Gemini distintas**; con tres hablantes, con
+  voces locales o si Gemini falla, se graba turno a turno sin avisar y sin
+  perder nada.
+- **Turno a turno.** Una petición por intervención, con cualquier voz. Cada
+  réplica se graba sin haber oído la anterior, así que suena a dos monólogos
+  alternos — pero funciona con cualquier proveedor.
+
+**La sincronización.** Pedida entera, la conversación vuelve en **un solo
+archivo**, sin marcas de dónde empieza cada turno. Los tiempos se miden del
+propio audio: se detectan las pausas con ffmpeg y se usa el **final** de cada
+pausa como frontera (que es donde arranca la voz siguiente, y donde tiene que
+aparecer su rótulo). Como también se respira a mitad de frase, para cada
+frontera se elige la pausa más cercana a donde *debería* caer según lo que
+ocupa cada réplica, y cada pausa se usa una sola vez. Si no hay pausas
+suficientes, se reparte proporcionalmente: menos exacto, pero ningún rótulo se
+queda colgado. Medido contra una conversación de tres turnos con pausas
+conocidas, el error con pausas fue de **0,00 s** y el proporcional de 0,2 s.
+
+**Las imágenes se editan aparte.** Corregir una réplica ya no cuesta el montaje:
+al volver a montar se conservan los clips que hubiera y solo se ajusta la
+duración a la voz nueva (se recorta lo que sobra, o se alarga el último plano).
+En el editor hay dos botones distintos: *Ensamblar (sin tocar las imágenes)* y
+*Ensamblar y buscar imágenes nuevas*.
 
 **Repartir las voces con IA.** Elegir voz para dos o tres personajes es tedioso,
 y el error de siempre —dejar la misma para todos— hace que el diálogo suene a
