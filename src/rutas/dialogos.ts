@@ -9,6 +9,7 @@ import { ensamblarProyecto } from "../servicios/ensamblar.js";
 import { HablanteSchema, ProyectoSchema, clipVacio } from "../servicios/proyecto.js";
 import { CategoriaCampo, SubcategoriaCampo, BancosCampo, MediosCampo } from "./historias.js";
 import { esBanco, esMedio, type Banco, type TipoMedio } from "../servicios/clips.js";
+import { conMotivo } from "./errores.js";
 
 /**
  * Diálogos: dos o tres voces hablando de un tema, tipo pódcast corto.
@@ -33,9 +34,18 @@ const HablantePeticion = z.object({
     .optional(),
 });
 
+/**
+ * Para ESCRIBIR la conversación solo hacen falta los nombres y los papeles:
+ * la voz no se usa hasta montar el vídeo. Pedirla aquí rompía el botón
+ * "Escribir el diálogo" —el navegador manda nombre y papel, que es lo que
+ * hace falta— y el error salía como "Datos invalidos", que parece culpa de
+ * quien escribe y no lo es.
+ */
+const HablanteTexto = HablantePeticion.partial({ config: true });
+
 const PeticionDialogoSchema = z.object({
   tema: z.string().min(3).max(300),
-  hablantes: z.array(HablantePeticion).min(2).max(3),
+  hablantes: z.array(HablanteTexto).min(2).max(3),
   motor: z.enum(MOTORES).default("groq"),
   modelo: z.string().max(80).nullable().default(null),
   duracion: z.number().int().min(20).max(900).default(90),
@@ -48,12 +58,14 @@ const PeticionDialogoSchema = z.object({
 
 export async function rutasDialogos(app: FastifyInstance) {
   /** Escribe la conversación sin montar nada, para leerla y corregirla. */
-  app.post("/api/dialogo", async (req) => {
+  app.post("/api/dialogo", async (req, reply) => {
     const p = PeticionDialogoSchema.parse(req.body);
-    return generarDialogo({
-      ...p,
-      hablantes: p.hablantes.map((h) => ({ nombre: h.nombre, papel: h.papel })),
-    });
+    return conMotivo(reply, () =>
+      generarDialogo({
+        ...p,
+        hablantes: p.hablantes.map((h) => ({ nombre: h.nombre, papel: h.papel })),
+      }),
+    );
   });
 
   /**

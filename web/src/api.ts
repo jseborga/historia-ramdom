@@ -59,6 +59,8 @@ export type Catalogo = {
   vozPorDefecto: Voz;
   vozGeminiPorDefecto: Voz;
   vozOpenAIPorDefecto: Voz;
+  /** Que proveedores de voz tienen clave; sin ella la sintesis falla despues. */
+  vozDisponible?: { local: boolean; gemini: boolean; openai: boolean };
   musica: string[];
   clips: {
     pexels: boolean;
@@ -326,10 +328,14 @@ export type Medio = {
 };
 
 /** Un diálogo escrito: quiénes hablan y qué dice cada uno. */
+/** Una voz repartida por la app, con el porque. */
+export type VozRepartida = { indice: number; config: Voz; motivo: string };
+
 export type GuionDialogo = {
   titulo: string;
   tema: string;
-  hablantes: { nombre: string; papel: string }[];
+  /** `voz` es como deberia sonar, en una palabra: la propone quien escribe. */
+  hablantes: { nombre: string; papel: string; voz?: string }[];
   intervenciones: { hablante: number; texto: string }[];
   keywords: string[];
   hashtags: string[];

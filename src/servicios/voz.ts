@@ -465,3 +465,142 @@ export async function generarVoz(
 
   return nombre;
 }
+
+// ------------------------------------------------------ Reparto de voces
+
+/** Qué proveedores de voz se pueden usar de verdad: los que tienen clave. */
+export const vocesDisponibles = () => ({
+  local: true,
+  gemini: Boolean(env.GEMINI_API_KEY),
+  openai: Boolean(env.OPENAI_API_KEY),
+});
+
+/**
+ * El carácter de cada voz de IA, que es lo que las distingue de verdad.
+ * Sale de cómo suenan, no de lo que dice el catálogo del proveedor.
+ */
+const CARACTER: Record<string, string[]> = {
+  Kore: ["firme", "seria", "seca"],
+  Orus: ["firme", "serio", "seco"],
+  Puck: ["ironico", "juguetón", "burlón", "alegre"],
+  Charon: ["grave", "calmado", "cansado", "didactico"],
+  Fenrir: ["nervioso", "intenso", "enfadado"],
+  Aoede: ["calida", "suave", "cercana"],
+  Leda: ["joven", "dulce", "timida"],
+  Zephyr: ["brillante", "animada", "clara"],
+  coral: ["calida", "cercana"],
+  nova: ["joven", "clara"],
+  shimmer: ["brillante", "suave"],
+  sage: ["serena", "didactica"],
+  echo: ["grave", "cansado"],
+  onyx: ["grave", "profundo"],
+  fable: ["ironico", "narrador"],
+  alloy: ["neutra"],
+};
+
+const sinTildes = (v: string) =>
+  v.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+/**
+ * Si la descripción habla de ese rasgo. Se compara por la raíz porque el
+ * género de la palabra cambia y "irónica" no contiene "irónico".
+ */
+function tieneRasgo(descripcion: string, rasgo: string): boolean {
+  const raiz = rasgo.length >= 5 ? rasgo.slice(0, -1) : rasgo;
+  return descripcion.includes(sinTildes(raiz));
+}
+
+/** El género que pide una descripción ("mujer mayor" → femenino). */
+function generoDe(texto: string): Genero {
+  const t = sinTildes(texto);
+  if (/\b(mujer|femenin|chica|señora|ella|madre|abuela|hermana)\b/.test(t)) return "femenino";
+  if (/\b(hombre|masculin|chico|señor|el|padre|abuelo|hermano)\b/.test(t)) return "masculino";
+  return "desconocido";
+}
+
+export type VozRepartida = {
+  indice: number;
+  config: VozConfig;
+  /** Por qué esa voz, para que se vea y se pueda cambiar. */
+  motivo: string;
+};
+
+/**
+ * Reparte una voz distinta a cada hablante.
+ *
+ * Elegir voces a mano para dos o tres personajes es tedioso, y el error
+ * habitual —dejar la misma para todos— hace que el diálogo suene a una
+ * persona hablando sola. Aquí se reparte solo: se usa la descripción que
+ * propone quien escribió el diálogo ("firme", "cálida", "joven"), se respeta
+ * el género que pida el papel, y **nunca se repite una voz** mientras queden
+ * libres.
+ *
+ * Con clave de Gemini o de OpenAI usa sus voces, que es lo que de verdad
+ * suena a personas distintas; sin clave, reparte las locales.
+ */
+export async function repartirVoces(
+  hablantes: { nombre: string; papel?: string; voz?: string }[],
+  o: { proveedor?: "auto" | "local" | "gemini" | "openai"; idioma?: "es" | "en" } = {},
+): Promise<VozRepartida[]> {
+  const hay = vocesDisponibles();
+  const pedido = o.proveedor ?? "auto";
+  const proveedor: VozConfig["proveedor"] =
+    pedido !== "auto" && (pedido === "local" || hay[pedido])
+      ? pedido
+      : hay.gemini
+        ? "gemini"
+        : hay.openai
+          ? "openai"
+          : "local";
+
+  const idioma = o.idioma === "en" ? "en" : "es";
+  const base =
+    proveedor === "gemini" ? VOZ_GEMINI_POR_DEFECTO : proveedor === "openai" ? VOZ_OPENAI_POR_DEFECTO : VOZ_POR_DEFECTO;
+
+  // El repertorio: las de IA con su carácter, las locales con su calidad.
+  const repertorio =
+    proveedor === "local"
+      ? (await vocesLocalesDisponibles())
+          .filter((v) => v.idioma === idioma)
+          .sort((a, b) => b.calidad - a.calidad)
+          .map((v) => ({ nombre: v.id, etiqueta: v.nombre, genero: v.genero, caracter: [] as string[] }))
+      : [...VOCES[proveedor]].map((n) => ({
+          nombre: n,
+          etiqueta: n,
+          genero: GENERO_VOZ_IA[n] ?? "desconocido",
+          caracter: CARACTER[n] ?? [],
+        }));
+
+  if (!repertorio.length) {
+    // Sin voces de ese idioma (pasa con el inglés en una máquina pelada).
+    return hablantes.map((_, indice) => ({ indice, config: base, motivo: "la voz de siempre: no hay otras" }));
+  }
+
+  const usadas = new Set<string>();
+  return hablantes.map((h, indice) => {
+    const descripcion = sinTildes([h.voz, h.papel].filter(Boolean).join(" "));
+    const generoPedido = generoDe([h.voz, h.papel, h.nombre].filter(Boolean).join(" "));
+
+    const puntuar = (v: (typeof repertorio)[number]) => {
+      let puntos = 0;
+      if (usadas.has(v.nombre)) puntos -= 100;
+      if (generoPedido !== "desconocido" && v.genero === generoPedido) puntos += 10;
+      // Alternar géneros cuando nadie pidió uno: dos voces del mismo timbre
+      // se confunden aunque sean distintas.
+      if (generoPedido === "desconocido" && v.genero === (indice % 2 === 0 ? "femenino" : "masculino")) puntos += 4;
+      for (const c of v.caracter) if (tieneRasgo(descripcion, c)) puntos += 8;
+      return puntos;
+    };
+
+    const elegida = [...repertorio].sort((a, b) => puntuar(b) - puntuar(a))[0];
+    usadas.add(elegida.nombre);
+    const rasgo = elegida.caracter.find((c) => tieneRasgo(descripcion, c));
+    return {
+      indice,
+      config: { ...base, nombre: elegida.nombre },
+      motivo: [elegida.etiqueta, rasgo ?? (elegida.genero !== "desconocido" ? elegida.genero : "")]
+        .filter(Boolean)
+        .join(" · "),
+    };
+  });
+}

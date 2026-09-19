@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   api,
   type Catalogo,
+  type VozRepartida,
   type GuionDialogo,
   type Idioma,
   type Preset,
@@ -57,6 +58,8 @@ export function Dialogo({ catalogo }: { catalogo: Catalogo }) {
     { nombre: NOMBRES[1], papel: "", config: vozInicial(catalogo, 1), color: COLORES[1] },
   ]);
   const [guion, setGuion] = useState<GuionDialogo | null>(null);
+  /** Lo que propuso el reparto, para poder enseñar por qué cada voz. */
+  const [motivos, setMotivos] = useState<Record<number, string>>({});
   const [abierto, setAbierto] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState("");
   const [error, setError] = useState("");
@@ -66,12 +69,55 @@ export function Dialogo({ catalogo }: { catalogo: Catalogo }) {
     api.get<Preset[]>("/api/presets").then(setPresets).catch(() => {});
   }, []);
 
+  /**
+   * Al cambiar de idioma hay que cambiar de voces, y el selector de cada
+   * hablante solo se ve a sí mismo: los tres saltarían a la MISMA mejor voz
+   * de ese idioma, que es justo lo que arruina un diálogo. Se reparten aquí,
+   * que es donde se sabe quiénes son todos.
+   */
+  const primera = useRef(true);
+  useEffect(() => {
+    if (primera.current) {
+      primera.current = false;
+      return;
+    }
+    repartirVoces();
+  }, [idioma]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (abierto) {
     return <EditorMontaje id={abierto} catalogo={catalogo} alSalir={() => setAbierto(null)} />;
   }
 
   const cambiar = (i: number, c: Partial<Hablante>) =>
     setHablantes(hablantes.map((h, j) => (j === i ? { ...h, ...c } : h)));
+
+  /**
+   * Reparte las voces la app: una distinta a cada uno, con el caracter que
+   * pida su papel (o el que propuso la IA al escribir el dialogo) y usando
+   * las voces de IA si hay clave.
+   */
+  async function repartirVoces(quienes = hablantes) {
+    setOcupado("voces");
+    setError("");
+    try {
+      const r = await api.post<{ reparto: VozRepartida[] }>("/api/voz/reparto", {
+        hablantes: quienes.map((h, i) => ({
+          nombre: h.nombre,
+          papel: guion?.hablantes[i]?.papel || h.papel,
+          voz: guion?.hablantes[i]?.voz ?? "",
+        })),
+        idioma: idioma === "en" ? "en" : "es",
+      });
+      const porIndice = new Map(r.reparto.map((x) => [x.indice, x]));
+      setHablantes(quienes.map((h, i) => ({ ...h, config: porIndice.get(i)?.config ?? h.config })));
+      setMotivos(Object.fromEntries(r.reparto.map((x) => [x.indice, x.motivo])));
+      setOk(`Voces repartidas: ${r.reparto.map((x) => x.motivo.split(" · ")[0]).join(", ")}.`);
+    } catch (err) {
+      setError(mensajeDe(err));
+    } finally {
+      setOcupado("");
+    }
+  }
 
   const mismasVoces =
     hablantes.length > 1 &&
@@ -258,11 +304,20 @@ export function Dialogo({ catalogo }: { catalogo: Catalogo }) {
                 </div>
                 <SelectorVoz catalogo={catalogo} valor={h.config} alCambiar={(config) => cambiar(i, { config })} idioma={idioma} />
               </div>
+              {(motivos[i] || guion?.hablantes[i]?.voz) && (
+                <p className="suave" style={{ margin: "4px 0 0" }}>
+                  {guion?.hablantes[i]?.voz ? `La IA la imagina ${guion.hablantes[i].voz}. ` : ""}
+                  {motivos[i] ? `Voz elegida: ${motivos[i]}.` : ""}
+                </p>
+              )}
             </div>
           ))}
         </div>
 
         <div className="pie">
+          <button onClick={() => repartirVoces()} disabled={ocupado !== ""}>
+            {ocupado === "voces" ? "Repartiendo..." : "Repartir las voces con IA"}
+          </button>
           {hablantes.length < 3 && (
             <button
               onClick={() =>

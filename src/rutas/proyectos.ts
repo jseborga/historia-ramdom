@@ -12,6 +12,7 @@ import { MAX_AUDIO_BYTES, MAX_AUDIO_MB } from "../env.js";
 import { tieneAudio, duracionAudio } from "../render/ffmpeg.js";
 import { fuentesDisponibles, archivoDeFuente } from "../render/fuentes.js";
 import { GuionSchema, IdiomaCampo, generarKeywords, escribirNarracion, guionComoNarracion } from "../servicios/guion.js";
+import { conMotivo } from "./errores.js";
 import { ensamblarProyecto } from "../servicios/ensamblar.js";
 import { elegirClips } from "../servicios/clips.js";
 import {
@@ -322,7 +323,9 @@ export async function rutasProyectos(app: FastifyInstance) {
     const fuente = texto?.trim() || (guion?.success ? guionComoNarracion(guion.data) : ((p.voz as VozPista | null)?.texto ?? ""));
     if (!fuente.trim()) return reply.code(409).send({ error: "No hay guion ni texto del que partir" });
     if (estilo === "guion") return { narracion: fuente };
-    return { narracion: await escribirNarracion(fuente, estilo, idioma, null, region, modismos) };
+    return conMotivo(reply, async () => ({
+      narracion: await escribirNarracion(fuente, estilo, idioma, null, region, modismos),
+    }));
   });
 
   /** Ensambla el proyecto entero con la narracion al mando. */

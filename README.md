@@ -724,10 +724,46 @@ discutiendo un tema, cada una con **su propia voz**.
    con **el nombre y el color** de quien la dice. El resto es un montaje normal:
    se abre en el editor y de ahí al render.
 
+**Repartir las voces con IA.** Elegir voz para dos o tres personajes es tedioso,
+y el error de siempre —dejar la misma para todos— hace que el diálogo suene a
+una persona hablando sola. El botón *Repartir las voces con IA* lo hace solo:
+quien escribe el diálogo propone además **cómo suena cada uno** ("firme",
+"cansado", "joven"), y con eso se elige una voz distinta para cada uno,
+respetando el género que pida el papel y usando las voces de Gemini o de OpenAI
+si hay clave. Debajo de cada hablante se ve por qué le tocó esa voz, y se puede
+cambiar a mano. Al cambiar de idioma se reparten otra vez: si no, los tres
+saltarían a la misma "mejor voz" de ese idioma.
+
+En el selector, los proveedores sin clave salen marcados **(sin clave)**: antes
+se podía elegir Gemini sin tenerla y el fallo aparecía mucho más tarde, al
+sintetizar.
+
 La pista de voz guarda el diálogo entero (`modo: "dialogo"`, `hablantes`,
 `dialogo`), y la huella que decide si hay que regenerar cubre las réplicas y las
 voces: cambiar una coma obliga a rehacer el audio, y no cambiar nada no gasta
 cuota.
+
+### Si algo no se genera
+
+Dos cosas que estaban mal y ya no:
+
+- **"Escribir el diálogo" no llegaba nunca al motor.** La ruta exigía la voz de
+  cada hablante para *escribir* el texto, que es justo lo que no hace falta
+  hasta montar el vídeo; el navegador manda nombre y papel, así que la petición
+  se rechazaba siempre con un "Datos invalidos" que parecía culpa de quien
+  escribía.
+- **Los errores del motor salían como "Error interno".** Ahora cada ruta que
+  escribe con IA (`/api/dialogo`, `/api/guion`, `/api/premisa`, `/api/miniserie`,
+  `/api/producto`, la narración) contesta con el motivo real: falta la clave, la
+  clave no vale, se acabó la cuota, el motor devolvió un JSON roto. Y un fallo
+  de validación de lo que devolvió el modelo se dice como lo que es —"el motor
+  devolvió algo que no encaja"— en vez de "datos inválidos".
+
+Además, el diálogo ya no se tira por defectos con arreglo evidente: una
+intervención de 900 caracteres se recorta por la última frase entera, las vacías
+se descartan, un `keywords` olvidado se rellena con las palabras del tema, y el
+mínimo de intervenciones bajó de cuatro a dos. Solo falla cuando de verdad no
+hay conversación, y entonces lo dice.
 
 - **API**: `POST /api/dialogo` escribe la conversación; `POST /api/dialogos` crea
   y monta el proyecto; `POST /api/proyectos/:id/dialogo` cambia las réplicas o

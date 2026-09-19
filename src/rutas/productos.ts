@@ -45,6 +45,7 @@ import {
 import { clipDeMedio, guardarDeBanco } from "../servicios/medios.js";
 import { esBanco, esMedio, type Banco, type TipoMedio } from "../servicios/clips.js";
 import { CategoriaCampo, SubcategoriaCampo, BancosCampo, MediosCampo } from "./historias.js";
+import { conMotivo } from "./errores.js";
 
 /**
  * Productos de Amazon como gancho, con reflexión detrás.
@@ -180,7 +181,7 @@ export async function rutasProductos(app: FastifyInstance) {
   });
 
   /** Escribe el guion sin montar nada, para leerlo y corregirlo. */
-  app.post("/api/producto", async (req) => {
+  app.post("/api/producto", async (req, reply) => {
     const p = z
       .object({
         producto: z.object({
@@ -199,7 +200,7 @@ export async function rutasProductos(app: FastifyInstance) {
         subcategoria: SubcategoriaCampo,
       })
       .parse(req.body);
-    return generarGuionProducto(p);
+    return conMotivo(reply, () => generarGuionProducto(p));
   });
 
   /**

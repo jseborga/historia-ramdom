@@ -1,6 +1,7 @@
 import { stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 import { IDIOMAS, MOTORES, MODELOS } from "../servicios/guion.js";
 import {
   VOCES,
@@ -9,6 +10,8 @@ import {
   VOZ_OPENAI_POR_DEFECTO,
   vocesLocalesDisponibles,
   mejorVozLocal,
+  repartirVoces,
+  vocesDisponibles,
   GENERO_VOZ_IA,
 } from "../servicios/voz.js";
 import { listarMusica } from "../almacen.js";
@@ -68,6 +71,32 @@ export async function rutasCatalogo(app: FastifyInstance) {
     }
   });
 
+  /**
+   * Reparte una voz distinta a cada hablante de un diálogo.
+   *
+   * Elegirlas a mano para dos o tres personajes es tedioso, y dejar la misma
+   * para todos hace que suene a una persona hablando sola. Aquí se usa la
+   * descripción que propuso quien escribió el diálogo ("firme", "cálida") y
+   * el género que pida el papel, sin repetir voz mientras queden libres.
+   */
+  app.post("/api/voz/reparto", async (req) => {
+    const { hablantes, proveedor, idioma } = z
+      .object({
+        hablantes: z
+          .array(z.object({
+            nombre: z.string().min(1).max(40),
+            papel: z.string().max(200).default(""),
+            voz: z.string().max(40).default(""),
+          }))
+          .min(1)
+          .max(3),
+        proveedor: z.enum(["auto", "local", "gemini", "openai"]).default("auto"),
+        idioma: z.enum(["es", "en"]).default("es"),
+      })
+      .parse(req.body);
+    return { reparto: await repartirVoces(hablantes, { proveedor, idioma }) };
+  });
+
   app.get("/api/catalogo", async () => {
     const cuentas = await db.tikTokCuenta.count();
     const claves: Record<string, string | undefined> = {
@@ -89,6 +118,8 @@ export async function rutasCatalogo(app: FastifyInstance) {
       vozPorDefecto: { ...VOZ_POR_DEFECTO, nombre: await mejorVozLocal("es") },
       vozGeminiPorDefecto: VOZ_GEMINI_POR_DEFECTO,
       vozOpenAIPorDefecto: VOZ_OPENAI_POR_DEFECTO,
+      /** Qué proveedores de voz tienen clave: sin esto se elige uno que falla al sintetizar. */
+      vozDisponible: vocesDisponibles(),
       musica: await listarMusica(),
       clips: {
         pexels: Boolean(env.PEXELS_API_KEY),

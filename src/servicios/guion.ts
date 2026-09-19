@@ -795,13 +795,27 @@ export const GuionDialogoSchema = z.object({
   tema: z.string().max(300).default(""),
   /** Quién habla, en el mismo orden que las voces elegidas. */
   hablantes: z
-    .array(z.object({ nombre: z.string().min(1).max(40), papel: z.string().max(120).default("") }))
+    .array(z.object({
+      nombre: z.string().min(1).max(40),
+      papel: z.string().max(120).default(""),
+      /**
+       * Cómo debería sonar, en una palabra ("firme", "cálida", "joven"). La
+       * propone quien escribe el diálogo y sirve para repartir las voces sin
+       * que las elija una a una quien monta.
+       */
+      voz: z.string().max(40).default(""),
+    }))
     .min(2)
     .max(3),
-  /** La conversación, en orden: quién habla (índice) y qué dice. */
+  /**
+   * La conversación, en orden: quién habla (índice) y qué dice.
+   *
+   * El mínimo es dos: con dos réplicas ya hay diálogo. Estaba en cuatro, y un
+   * modelo que devolvía tres tiraba el trabajo entero por una validación.
+   */
   intervenciones: z
     .array(z.object({ hablante: z.number().int().min(0).max(2), texto: z.string().min(1).max(600) }))
-    .min(4)
+    .min(2)
     .max(80),
   keywords: z.array(z.string().min(1).max(40)).min(1).max(8),
   hashtags: z.array(z.string().max(40)).max(8).default([]),
@@ -827,6 +841,64 @@ export type PeticionDialogo = {
   /** Guion de partida para reescribirlo (por ejemplo, alargarlo). */
   evitar?: (string | null)[];
 };
+
+/**
+ * Arregla lo que devuelve el modelo antes de validarlo.
+ *
+ * Un diálogo se caía entero por cosas que tienen arreglo evidente: una
+ * intervención de 900 caracteres, una vacía, tres réplicas en vez de cuatro,
+ * o el campo `keywords` olvidado. Tirar el trabajo por eso es lo peor que
+ * puede hacer la app: la llamada ya se pagó y el texto casi siempre sirve.
+ * Aquí se recorta, se descarta lo vacío y se rellena lo que falta; solo se
+ * falla cuando de verdad no hay conversación.
+ */
+export function repararDialogo(
+  datos: Record<string, unknown>,
+  hablantes: { nombre: string; papel?: string }[],
+  tema: string,
+): Record<string, unknown> {
+  const crudas = Array.isArray(datos.intervenciones) ? datos.intervenciones : [];
+  const intervenciones = crudas
+    .map((x) => (x && typeof x === "object" ? (x as Record<string, unknown>) : {}))
+    .map((x) => ({
+      hablante: Math.min(Math.max(Math.round(Number(x.hablante ?? 0)) || 0, 0), hablantes.length - 1),
+      // Se corta por la última frase entera que quepa, no a mitad de palabra.
+      texto: recortarFrase(String(x.texto ?? "").trim(), 600),
+    }))
+    .filter((x) => x.texto.length > 0)
+    .slice(0, 80);
+
+  const keywords = (Array.isArray(datos.keywords) ? datos.keywords : [])
+    .map((k) => String(k).trim())
+    .filter(Boolean)
+    .slice(0, 8);
+
+  return {
+    ...datos,
+    titulo: String(datos.titulo ?? "").trim() || tema.slice(0, 120) || "Diálogo",
+    intervenciones,
+    // Sin keywords no se buscan clips: mejor unas de la heurística que nada.
+    keywords: keywords.length ? keywords : keywordsHeuristicas(tema || String(datos.titulo ?? "")),
+    hablantes: hablantes.map((h, i) => {
+      const suyo = Array.isArray(datos.hablantes) ? (datos.hablantes[i] as Record<string, unknown> | undefined) : undefined;
+      return {
+        nombre: h.nombre,
+        papel: String(suyo?.papel ?? h.papel ?? "").slice(0, 120),
+        voz: String(suyo?.voz ?? "").slice(0, 40),
+      };
+    }),
+  };
+}
+
+/** Recorta a `tope` caracteres por el final de frase más cercano. */
+function recortarFrase(texto: string, tope: number): string {
+  if (texto.length <= tope) return texto;
+  const corte = texto.slice(0, tope);
+  const punto = Math.max(corte.lastIndexOf("."), corte.lastIndexOf("?"), corte.lastIndexOf("!"));
+  if (punto > tope * 0.5) return corte.slice(0, punto + 1);
+  const espacio = corte.lastIndexOf(" ");
+  return (espacio > 0 ? corte.slice(0, espacio) : corte).trim();
+}
 
 /**
  * Escribe la conversación. Cada intervención es corta —así suena a
@@ -865,7 +937,9 @@ export async function generarDialogo(p: PeticionDialogo): Promise<GuionDialogo> 
     "{",
     '  "titulo": "título corto del vídeo",',
     '  "tema": "el tema en una frase",',
-    `  "hablantes": [${hablantes.map((h) => `{ "nombre": "${h.nombre}", "papel": "su postura en una frase" }`).join(", ")}],`,
+    `  "hablantes": [${hablantes
+      .map((h) => `{ "nombre": "${h.nombre}", "papel": "su postura en una frase", "voz": "cómo suena en una palabra: firme, cálida, joven, grave, irónica, cansada..." }`)
+      .join(", ")}],`,
     '  "intervenciones": [ { "hablante": 0, "texto": "lo que dice" }, { "hablante": 1, "texto": "..." } ],',
     '  "keywords": ["visual keyword in english", "another"],',
     '  "ganchos": ["gancho viral para la descripcion", "otro"],',
@@ -881,10 +955,26 @@ export async function generarDialogo(p: PeticionDialogo): Promise<GuionDialogo> 
   const informe: InformeMotor = {};
   const crudo = await textoConMotor(p.motor, prompt, p.modelo, idioma, p.region ?? "bolivia", p.modismos ?? true, informe);
   if (!crudo) throw new Error(`El motor ${informe.motor ?? p.motor} no devolvió contenido`);
-  const datos = extraerJSON(crudo) as Record<string, unknown>;
+
+  let datos: Record<string, unknown>;
+  try {
+    datos = extraerJSON(crudo) as Record<string, unknown>;
+  } catch {
+    throw new Error(
+      `El motor ${informe.motor ?? p.motor} no devolvió un JSON válido. Vuelve a intentarlo o cambia de motor.`,
+    );
+  }
+
+  const reparado = repararDialogo(datos, hablantes, p.tema);
+  if ((reparado.intervenciones as unknown[]).length < 2) {
+    throw new Error(
+      `El motor ${informe.motor ?? p.motor} devolvió una conversación vacía. Vuelve a intentarlo o cambia de motor.`,
+    );
+  }
+
   const guion = GuionDialogoSchema.parse({
     tema: p.tema,
-    ...datos,
+    ...reparado,
     motorUsado: informe.motor,
     avisoMotor: informe.aviso,
   });
@@ -893,7 +983,11 @@ export async function generarDialogo(p: PeticionDialogo): Promise<GuionDialogo> 
   // hablante que no existe se le asigna al primero en vez de tirar el guion.
   return {
     ...guion,
-    hablantes: hablantes.map((h, i) => ({ nombre: h.nombre, papel: guion.hablantes[i]?.papel ?? h.papel ?? "" })),
+    hablantes: hablantes.map((h, i) => ({
+      nombre: h.nombre,
+      papel: guion.hablantes[i]?.papel ?? h.papel ?? "",
+      voz: guion.hablantes[i]?.voz ?? "",
+    })),
     intervenciones: guion.intervenciones.map((x) => ({
       ...x,
       hablante: x.hablante < hablantes.length ? x.hablante : 0,

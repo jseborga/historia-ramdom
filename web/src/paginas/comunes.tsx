@@ -226,8 +226,10 @@ export function SelectorVoz({
           }}
         >
           <option value="local">Voz del servidor (espeak-ng, sin coste)</option>
-          <option value="gemini">Gemini</option>
-          <option value="openai">OpenAI</option>
+          {/* Sin clave se puede elegir igual, pero falla al sintetizar: mejor
+              decirlo aquí que dejar que reviente al montar el vídeo. */}
+          <option value="gemini">Gemini{catalogo.vozDisponible && !catalogo.vozDisponible.gemini ? " (sin clave)" : ""}</option>
+          <option value="openai">OpenAI{catalogo.vozDisponible && !catalogo.vozDisponible.openai ? " (sin clave)" : ""}</option>
         </select>
       </div>
       {valor.proveedor === "gemini" && modelos && modelos.gemini.length > 0 ? (

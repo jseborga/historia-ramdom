@@ -39,6 +39,7 @@ import {
 import { cola, encolarHistoriaSuelta, encolarContinuacion } from "../cola/cola.js";
 import { MAX_LARGO_SEG } from "../render/presets.js";
 import { retrasoHasta } from "../cola/trabajos.js";
+import { conMotivo } from "./errores.js";
 
 const idParam = z.object({ id: z.string().uuid() });
 
@@ -120,9 +121,9 @@ function conCapitulo<T extends { miniserie?: unknown; capitulo?: number | null }
 
 export async function rutasHistorias(app: FastifyInstance) {
   /** Vista previa del guion para el editor, sin gastar voz ni render. */
-  app.post("/api/guion", async (req) => {
+  app.post("/api/guion", async (req, reply) => {
     const p = PeticionGuionSchema.parse(req.body);
-    return generarGuion(conCapitulo(p));
+    return conMotivo(reply, () => generarGuion(conCapitulo(p)));
   });
 
   /**
@@ -130,17 +131,19 @@ export async function rutasHistorias(app: FastifyInstance) {
    * cada capítulo, con su corte final. Después cada capítulo se escribe por
    * separado pasando `miniserie` y `capitulo` a /api/guion o /api/historias.
    */
-  app.post("/api/miniserie", async (req) => {
+  app.post("/api/miniserie", async (req, reply) => {
     const p = PeticionGuionSchema.omit({ premisa: true, miniserie: true, capitulo: true, tipo: true })
       .extend({ tipo: z.string().max(40).optional(), capitulos: z.number().int().min(2).max(12).default(4) })
       .parse(req.body);
-    const plan = await generarMiniserie({ ...p, categoria: p.categoria ?? "aleatoria" });
-    const cat = buscarCategoria(plan.categoria);
-    return {
-      ...plan,
-      categoriaNombre: cat?.nombre ?? plan.categoria,
-      subcategoriaNombre: cat?.subcategorias.find((s) => s.id === plan.subcategoria)?.nombre ?? plan.subcategoria,
-    };
+    return conMotivo(reply, async () => {
+      const plan = await generarMiniserie({ ...p, categoria: p.categoria ?? "aleatoria" });
+      const cat = buscarCategoria(plan.categoria);
+      return {
+        ...plan,
+        categoriaNombre: cat?.nombre ?? plan.categoria,
+        subcategoriaNombre: cat?.subcategorias.find((s) => s.id === plan.subcategoria)?.nombre ?? plan.subcategoria,
+      };
+    });
   });
 
   /**
@@ -148,15 +151,17 @@ export async function rutasHistorias(app: FastifyInstance) {
    * fijan) y genera título, lineamientos, giro y criterios de búsqueda de
    * clips, sin escribir la historia. Se revisa y luego se pasa a /api/guion.
    */
-  app.post("/api/premisa", async (req) => {
+  app.post("/api/premisa", async (req, reply) => {
     const p = PeticionGuionSchema.omit({ premisa: true, tipo: true }).extend({ tipo: z.string().max(40).optional() }).parse(req.body);
-    const premisa = await generarPremisa({ ...p, categoria: p.categoria ?? "aleatoria" });
-    const cat = buscarCategoria(premisa.categoria);
-    return {
-      ...premisa,
-      categoriaNombre: cat?.nombre ?? premisa.categoria,
-      subcategoriaNombre: cat?.subcategorias.find((s) => s.id === premisa.subcategoria)?.nombre ?? premisa.subcategoria,
-    };
+    return conMotivo(reply, async () => {
+      const premisa = await generarPremisa({ ...p, categoria: p.categoria ?? "aleatoria" });
+      const cat = buscarCategoria(premisa.categoria);
+      return {
+        ...premisa,
+        categoriaNombre: cat?.nombre ?? premisa.categoria,
+        subcategoriaNombre: cat?.subcategorias.find((s) => s.id === premisa.subcategoria)?.nombre ?? premisa.subcategoria,
+      };
+    });
   });
 
   /**
