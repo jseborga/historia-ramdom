@@ -7,11 +7,13 @@ import {
   type Preset,
   type Proyecto,
   type Region,
+  type TemaBanco,
   type TonoSadButTrue,
 } from "../api";
 import { mensajeDe } from "../App";
 import { SelectorBancos, SelectorMotor, SelectorRegion, motorInicial, nombreIdioma } from "./comunes";
 import { EditorMontaje } from "./EditorMontaje";
+import { BancoFrases } from "./BancoFrases";
 
 /**
  * Sad but true: diez segundos, sin voz y con el formato cerrado.
@@ -34,6 +36,15 @@ const TONOS: [TonoSadButTrue | "", string][] = [
 
 const TIEMPOS = { sorteoSeg: 2, retencionSeg: 1, clipSeg: 5, cierreSeg: 3 };
 
+/**
+ * Lo que se tarda en leer un texto en pantalla. Misma cuenta que el servidor
+ * (src/servicios/sadButTrue.ts), aqui solo para poder enseñarlo antes.
+ */
+function tiempoDeLectura(texto: string, minimo: number): number {
+  const cuantas = texto.trim().split(/\s+/).filter(Boolean).length;
+  return Number(Math.min(Math.max(1 + cuantas * 0.33, minimo), 14).toFixed(2));
+}
+
 export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
   const [tema, setTema] = useState("");
   const [tono, setTono] = useState<TonoSadButTrue | "">("");
@@ -46,7 +57,12 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
   const [bancos, setBancos] = useState<string[]>([]);
   const [tiposMedio, setTiposMedio] = useState<string[]>([]);
   const [tiempos, setTiempos] = useState(TIEMPOS);
+  /** Cuanto se quedan los textos: lo que se tarda en leerlos, o a mano. */
+  const [lecturaAuto, setLecturaAuto] = useState(true);
   const [revelarFrase, setRevelarFrase] = useState(false);
+  const [vista, setVista] = useState<"video" | "banco">("video");
+  const [temas, setTemas] = useState<TemaBanco[]>([]);
+  const [temaBanco, setTemaBanco] = useState("");
   const [presets, setPresets] = useState<Preset[]>([]);
   const [guion, setGuion] = useState<GuionSadButTrue | null>(null);
   const [abierto, setAbierto] = useState<string | null>(null);
@@ -58,11 +74,23 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
     api.get<Preset[]>("/api/presets").then(setPresets).catch(() => {});
   }, []);
 
+  // Los temas del banco: son los que se pueden sortear sin IA.
+  useEffect(() => {
+    if (vista !== "video") return;
+    api
+      .get<{ temas: TemaBanco[] }>("/api/frases")
+      .then((r) => setTemas(r.temas))
+      .catch(() => {});
+  }, [vista]);
+
   if (abierto) {
     return <EditorMontaje id={abierto} catalogo={catalogo} alSalir={() => setAbierto(null)} />;
   }
 
-  const total = tiempos.sorteoSeg + tiempos.clipSeg + tiempos.cierreSeg;
+  // Lo que va a durar de verdad: en automatico, lo que se tarde en leer.
+  const clipSeg = lecturaAuto && guion ? tiempoDeLectura(guion.frase, TIEMPOS.clipSeg) : tiempos.clipSeg;
+  const cierreSeg = lecturaAuto && guion ? tiempoDeLectura(guion.remate, TIEMPOS.cierreSeg) : tiempos.cierreSeg;
+  const total = tiempos.sorteoSeg + clipSeg + cierreSeg;
   const cambiarTiempo = (c: Partial<typeof TIEMPOS>) => setTiempos({ ...tiempos, ...c });
 
   const editar = (c: Partial<GuionSadButTrue>) => guion && setGuion({ ...guion, ...c });
@@ -109,6 +137,26 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
     }
   }
 
+  /** Un guion del banco, sin gastar IA: instantaneo y siempre distinto. */
+  async function sortear() {
+    setOcupado("sortear");
+    setError("");
+    setOk("");
+    try {
+      const g = await api.post<GuionSadButTrue>("/api/sadbuttrue/azar", {
+        tema: temaBanco,
+        tono,
+        idioma,
+      });
+      setGuion(g);
+      setOk(`Sacado del banco: gana "${g.elegida}". Sin IA, y ya no vuelve a salir hasta que hayan salido las demas.`);
+    } catch (err) {
+      setError(mensajeDe(err));
+    } finally {
+      setOcupado("");
+    }
+  }
+
   async function montar() {
     if (!guion) return;
     if (!guion.palabras.some((p) => p.toLowerCase() === guion.elegida.toLowerCase())) {
@@ -126,7 +174,11 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
         bancos,
         medios: tiposMedio,
         revelarFrase,
-        tiempos,
+        // En automatico no se mandan los dos de texto: sin ellos, cada uno se
+        // queda lo que se tarda en leerlo.
+        tiempos: lecturaAuto
+          ? { sorteoSeg: tiempos.sorteoSeg, retencionSeg: tiempos.retencionSeg }
+          : tiempos,
       });
       if (p.aviso) setError(p.aviso);
       setAbierto(p.id);
@@ -137,8 +189,29 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
     }
   }
 
+  const pestanas = (
+    <div className="fila" style={{ marginBottom: 12 }}>
+      <button className={vista === "video" ? "activo" : ""} onClick={() => setVista("video")}>
+        Hacer un video
+      </button>
+      <button className={vista === "banco" ? "activo" : ""} onClick={() => setVista("banco")}>
+        Banco de frases
+      </button>
+    </div>
+  );
+
+  if (vista === "banco") {
+    return (
+      <>
+        {pestanas}
+        <BancoFrases catalogo={catalogo} />
+      </>
+    );
+  }
+
   return (
     <>
+      {pestanas}
       {error && <p className="aviso error">{error}</p>}
       {ok && <p className="aviso ok">{ok}</p>}
 
@@ -206,9 +279,30 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
             alCambiarModelo={setModelo}
           />
         </div>
+        <div className="campos">
+          <div>
+            <label htmlFor="temaBanco">Del banco, tema</label>
+            <select id="temaBanco" value={temaBanco} onChange={(e) => setTemaBanco(e.target.value)}>
+              <option value="">cualquiera</option>
+              {temas.map((t) => (
+                <option key={t.tema} value={t.tema} disabled={t.cuantas < 4}>
+                  {t.tema} ({t.cuantas}){t.cuantas < 4 ? " - faltan palabras" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <p className="suave">
+          El banco tiene {temas.reduce((n, t) => n + t.cuantas, 0)} parejas guardadas. Sacar de ahi es
+          instantaneo y no gasta IA; lo que escriba la IA se guarda tambien, asi que el banco crece
+          solo. Se administra en <strong>Banco de frases</strong>.
+        </p>
         <div className="pie">
-          <button className="primario" onClick={escribir} disabled={ocupado !== ""}>
-            {ocupado === "escribir" ? "Escribiendo..." : "Escribir el sorteo"}
+          <button className="primario" onClick={sortear} disabled={ocupado !== ""}>
+            {ocupado === "sortear" ? "Sacando..." : "Sacar del banco (sin IA)"}
+          </button>
+          <button onClick={escribir} disabled={ocupado !== ""}>
+            {ocupado === "escribir" ? "Escribiendo..." : "Escribir uno nuevo con IA"}
           </button>
         </div>
       </section>
@@ -318,6 +412,17 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
               />
             </div>
             <div>
+              <label htmlFor="lecturaAuto">Cuanto se quedan los textos</label>
+              <select
+                id="lecturaAuto"
+                value={lecturaAuto ? "auto" : "mano"}
+                onChange={(e) => setLecturaAuto(e.target.value === "auto")}
+              >
+                <option value="auto">lo que se tarde en leerlos</option>
+                <option value="mano">los segundos que yo diga</option>
+              </select>
+            </div>
+            <div>
               <label htmlFor="clipSeg">Video con la frase (s)</label>
               <input
                 id="clipSeg"
@@ -325,7 +430,8 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
                 min={2}
                 max={15}
                 step="0.5"
-                value={tiempos.clipSeg}
+                value={clipSeg}
+                disabled={lecturaAuto}
                 onChange={(e) => cambiarTiempo({ clipSeg: Number(e.target.value) || TIEMPOS.clipSeg })}
               />
             </div>
@@ -337,7 +443,8 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
                 min={1}
                 max={10}
                 step="0.5"
-                value={tiempos.cierreSeg}
+                value={cierreSeg}
+                disabled={lecturaAuto}
                 onChange={(e) => cambiarTiempo({ cierreSeg: Number(e.target.value) || TIEMPOS.cierreSeg })}
               />
             </div>
@@ -364,9 +471,12 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
           </div>
           <p className="suave">
             Duracion: <strong>{total.toFixed(1)}s</strong> · {tiempos.sorteoSeg}s de sorteo (la que gana
-            se queda {tiempos.retencionSeg}s) + {tiempos.clipSeg}s de video + {tiempos.cierreSeg}s de
-            negro. El video sale al azar de las bibliotecas y entra por un punto cualquiera de su
-            metraje, asi que dos videos del mismo tema no se parecen.
+            se queda {tiempos.retencionSeg}s) + {clipSeg}s de video + {cierreSeg}s de negro.
+            {lecturaAuto
+              ? " Los dos textos se quedan lo que se tarda en leerlos (un segundo en darse cuenta y 0,33s por palabra), con 5 y 3 segundos de suelo: aqui no hay voz que marque el ritmo y no hay forma de volver atras."
+              : " Ojo con quedarte corto: sin voz, un texto que se va antes de tiempo no se entiende."}{" "}
+            El video sale al azar de las bibliotecas y entra por un punto cualquiera de su metraje,
+            asi que dos videos del mismo tema no se parecen.
           </p>
           <div className="pie">
             <button className="primario" onClick={montar} disabled={ocupado !== ""}>

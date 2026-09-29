@@ -475,6 +475,54 @@ servidor.registerTool(
 );
 
 servidor.registerTool(
+  "sortear_sad_but_true",
+  {
+    description:
+      "Saca un 'Sad but true' del banco de frases, sin gastar IA: una pareja de las menos usadas, su bombo del mismo tema y un remate. Devuelve el guion listo para montar_sad_but_true.",
+    inputSchema: {
+      tema: z.string().max(80).describe("Familia de palabras; vacio = cualquiera").optional(),
+      tono: z.enum(["feliz", "triste", "reflexiva", "desmotivadora"]).optional(),
+      idioma: z.enum(["es", "en", "spanglish"]).optional(),
+    },
+  },
+  async (args) => texto(await llamar("/api/sadbuttrue/azar", { method: "POST", body: JSON.stringify(args) })),
+);
+
+servidor.registerTool(
+  "banco_frases",
+  {
+    description:
+      "Lo que hay en el banco de 'Sad but true': parejas palabra/frase, remates y de que temas. De aqui salen los sorteos sin IA.",
+    inputSchema: {
+      tipo: z.enum(["SORTEO", "REMATE"]).optional(),
+      tema: z.string().max(80).optional(),
+      buscar: z.string().max(80).optional(),
+    },
+  },
+  async (args) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(args)) if (v) q.set(k, String(v));
+    return texto(await llamar(`/api/frases?${q}`));
+  },
+);
+
+servidor.registerTool(
+  "guardar_frases",
+  {
+    description:
+      "Mete frases en el banco de 'Sad but true'. Una por linea, con ; entre campos: 'palabra ; frase', 'palabra ; frase ; remate', o un remate suelto sin ningun ;. Con guardar=false solo dice que ha entendido de cada linea.",
+    inputSchema: {
+      texto: z.string().max(40_000).describe("Las lineas, separadas por saltos de linea"),
+      tema: z.string().max(80).describe("La familia a la que pertenecen estas palabras").optional(),
+      idioma: z.enum(["es", "en", "spanglish"]).optional(),
+      tono: z.enum(["feliz", "triste", "reflexiva", "desmotivadora"]).optional(),
+      guardar: z.boolean().describe("false = solo vista previa").optional(),
+    },
+  },
+  async (args) => texto(await llamar("/api/frases/pegar", { method: "POST", body: JSON.stringify(args) })),
+);
+
+servidor.registerTool(
   "momentos_cancion",
   {
     description:

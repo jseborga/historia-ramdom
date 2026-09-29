@@ -10,3 +10,6 @@ data/
 *.wav
 *.mp3
 *.tsbuildinfo
+
+# volcado de redis en pruebas locales
+dump.rdb

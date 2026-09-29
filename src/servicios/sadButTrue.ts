@@ -194,6 +194,29 @@ export const TIEMPOS: Required<TiemposSadButTrue> = {
   cierreSeg: 3,
 };
 
+/** Palabras por segundo que se leen en pantalla, y lo que cuesta enterarse. */
+const LECTURA_SEG_PALABRA = 0.33;
+const EN_DARSE_CUENTA = 1;
+const TOPE_LECTURA = 14;
+
+/**
+ * Cuánto tiene que quedarse un texto para que dé tiempo a leerlo.
+ *
+ * Aquí no hay voz que marque el ritmo: si el texto se va antes de tiempo, el
+ * vídeo no se entiende y no hay forma de volver atrás. Cinco segundos valen
+ * para una frase corta y se quedan cortos para una de treinta palabras, así
+ * que el suelo es el del formato y de ahí para arriba manda el texto.
+ *
+ * Son 0,33 s por palabra —unas 180 palabras por minuto, más lento que leer un
+ * libro porque se lee una sola vez y con imagen moviéndose detrás— más un
+ * segundo en darse cuenta de que hay algo escrito.
+ */
+export function tiempoDeLectura(texto: string, minimo: number): number {
+  const cuantas = texto.trim().split(/\s+/).filter(Boolean).length;
+  const leerlo = EN_DARSE_CUENTA + cuantas * LECTURA_SEG_PALABRA;
+  return Number(Math.min(Math.max(leerlo, minimo), TOPE_LECTURA).toFixed(2));
+}
+
 /** Lo rápido y lo lento del sorteo, y cuánto frena en cada paso. */
 const RAPIDO = 0.1;
 const LENTO = 0.34;
@@ -259,8 +282,9 @@ export function pistasDeSadButTrue(
   o: OpcionesPistas = {},
 ): { video: ClipPista[]; textos: RotuloPista[] } {
   const sorteoSeg = o.sorteoSeg ?? TIEMPOS.sorteoSeg;
-  const clipSeg = o.clipSeg ?? TIEMPOS.clipSeg;
-  const cierreSeg = o.cierreSeg ?? TIEMPOS.cierreSeg;
+  // Sin tiempo puesto a mano, manda lo que se tarda en leer el texto.
+  const clipSeg = o.clipSeg ?? tiempoDeLectura(s.frase, TIEMPOS.clipSeg);
+  const cierreSeg = o.cierreSeg ?? tiempoDeLectura(s.remate, TIEMPOS.cierreSeg);
   // La retención nunca se come el sorteo entero: siempre queda algo girando.
   const retencionSeg = Math.min(o.retencionSeg ?? TIEMPOS.retencionSeg, sorteoSeg - RAPIDO);
 

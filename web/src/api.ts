@@ -364,6 +364,32 @@ export type GuionSadButTrue = {
   avisoMotor?: string;
 };
 
+/** Una entrada del banco de "Sad but true". */
+export type Frase = {
+  id: string;
+  tipo: "SORTEO" | "REMATE";
+  palabra: string;
+  texto: string;
+  tema: string;
+  idioma: string;
+  tono: string;
+  fuente: "MANUAL" | "IA" | "REDDIT";
+  usos: number;
+  creadaEn: string;
+};
+
+/** Un tema del banco, con cuantas parejas tiene. */
+export type TemaBanco = { tema: string; cuantas: number };
+
+/** Lo que la app entendio de una linea pegada, antes de guardarla. */
+export type LineaPegada = {
+  numero: number;
+  palabra: string;
+  frase: string;
+  remate: string;
+  error?: string;
+};
+
 /** Un ritmo al que se puede llevar una cancion. */
 export type Ritmo = { id: string; nombre: string; familia: string; estilo: string; bpm: string };
 

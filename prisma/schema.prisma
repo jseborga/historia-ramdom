@@ -255,6 +255,40 @@ model Idea {
   @@index([idioma])
 }
 
+/// Qué es cada texto del banco de "Sad but true".
+enum TipoFrase {
+  SORTEO // una palabra del bombo con la frase que le toca
+  REMATE // filosofía de vida con la que cierra el vídeo
+}
+
+/// Banco de "Sad but true": de aquí salen los sorteos sin gastar IA.
+///
+/// Cada vídeo escrito con IA deja aquí su pareja (palabra → frase) y su
+/// remate, y lo pegado a mano entra igual. El bombo de un sorteo se llena con
+/// las palabras de las demás parejas del mismo tema, así que el banco se
+/// enriquece solo: cuantas más hay, menos se repite.
+model Frase {
+  id       String     @id @default(uuid())
+  tipo     TipoFrase  @default(SORTEO)
+  /// La palabra del bombo. Vacía en los remates.
+  palabra  String     @default("")
+  /// La frase que le toca a esa palabra, o el remate.
+  texto    String
+  /// Lo que tienen en común las palabras de un mismo sorteo.
+  tema     String     @default("")
+  idioma   String     @default("es")
+  /// Solo en los remates: feliz, triste, reflexiva o desmotivadora.
+  tono     String     @default("reflexiva")
+  fuente   FuenteIdea @default(MANUAL)
+  usos     Int        @default(0)
+  usadaEn  DateTime?
+  creadaEn DateTime   @default(now())
+
+  @@unique([tipo, palabra, texto])
+  @@index([tipo, tema, idioma])
+  @@index([usos])
+}
+
 /// Ganchos reutilizables: los que mejor retienen se vuelven a usar.
 model Gancho {
   id         String     @id @default(uuid())

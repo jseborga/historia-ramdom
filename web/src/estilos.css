@@ -102,6 +102,12 @@ input.color { height: 36px; padding: 2px; cursor: pointer; }
 
 .lista { display: grid; gap: 8px; }
 .item { border: 1px solid var(--borde); border-radius: 10px; padding: 12px; }
+
+/* Vista previa de lo pegado: se ve en columnas cual es cual */
+.tabla { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+.tabla th, .tabla td { border: 1px solid var(--borde); padding: 6px 8px; text-align: left; vertical-align: top; }
+.tabla th { color: var(--suave); font-weight: 600; }
+.tabla tr.mala td { background: rgba(255, 107, 107, 0.12); }
 .suave { color: var(--suave); font-size: 13px; }
 pre { white-space: pre-wrap; word-break: break-word; font-size: 13px; background: var(--fondo); border: 1px solid var(--borde); border-radius: 8px; padding: 10px; }
 

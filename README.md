@@ -42,7 +42,9 @@ Implementa la guía de `docs/guia-original.md`.
   inglés en el gancho, que es como se canta la cumbia y el reggaetón.
 - **Sad but true.** Diez segundos, sin voz: un sorteo de palabras sobre negro
   que frena hasta pararse en una, la frase que le toca sobre un vídeo al azar,
-  y un remate de filosofía de vida que se desvanece en negro.
+  y un remate de filosofía de vida que se desvanece en negro. Con **banco de
+  frases** precargado que crece solo, así que se puede sacar uno sin gastar IA,
+  y cada texto se queda lo que se tarda en leerlo.
 - **Productos con reflexión.** Un objeto real de Amazon como gancho y un giro
   final que habla de nosotros: enlace de afiliado y divulgación siempre en la
   descripción, y fotos solo si hay API oficial.
@@ -925,11 +927,67 @@ reparte los planos según lo que dure la voz; aquí no hay voz y los tiempos
 proyecto nace listo para renderizar. Después se abre en el editor de siempre:
 se le puede poner música, cambiar el clip o mover cualquier rótulo.
 
+### El banco de frases: de dónde sale el sorteo sin gastar IA
+
+Aquí escribir es lo caro, y el formato es tan corto que lo que hace falta no es
+inventar de cero sino **tener de dónde sacar**. Así que todo lo escrito se
+queda: lo que redacta la IA, lo que pegas a mano y la base con la que arranca
+la app —seis familias de ocho palabras y dos docenas de remates—. El botón
+**Sacar del banco (sin IA)** monta un vídeo al instante y sin gastar una sola
+llamada.
+
+Del banco sale una pareja **de las menos usadas** (barajando entre las veinte
+más frescas, para que tampoco sea un turno fijo), el bombo se llena con las
+palabras de su misma familia y el remate sale igual. Lo usado se marca al
+sortear, no al renderizar: lo que hay que evitar es que la siguiente tirada
+devuelva lo mismo.
+
+Un tema necesita **cuatro palabras** para poder sortearse. Con menos no es un
+sorteo, es enseñar la respuesta con dos distracciones, así que esos temas se
+saltan; y si lo pides a mano, te dice cuántas le faltan.
+
+### Pegar frases: el `;` dice cuál es cuál
+
+La pestaña **Banco de frases** es una vista aparte porque son dos trabajos
+distintos: allí se junta material de una sentada, aquí se monta. Se pega una
+por línea y el punto y coma separa los campos:
+
+```
+palabra ; frase              una pareja del sorteo
+palabra ; frase ; remate     la pareja, y además ese remate
+remate                       un remate suelto (sin ningún ;)
+```
+
+Por eso dentro de un texto no puede haber otro `;`. Las líneas vacías y las que
+empiezan por `#` se saltan, así que puedes pegar una lista con sus títulos
+dentro. Y **nada se guarda a ciegas**: primero se enseña lo pegado partido en
+columnas —palabra, frase, remate— con las líneas raras marcadas en rojo, y se
+guarda lo que se ve en la tabla. Las repetidas no dan error: pegar dos veces la
+misma lista es lo más normal del mundo.
+
+### Sin voz, y con tiempo de leer
+
+Este formato no lleva narración, así que no hay nada que marque el ritmo: si un
+texto se va antes de tiempo, el vídeo no se entiende y no hay forma de volver
+atrás. Por eso cada texto se queda, por defecto, **lo que se tarda en leerlo**:
+un segundo en darse cuenta de que hay algo escrito más 0,33 s por palabra
+—unas 180 palabras por minuto, más lento que leer un libro porque se lee una
+sola vez y con imagen moviéndose detrás—, con los 5 y 3 segundos del formato
+como suelo y 14 como techo.
+
+Una frase de diecisiete palabras se queda 6,6 s en vez de 5; una de cinco, los
+5 de siempre. En el paso 3 se puede cambiar a *los segundos que yo diga* cuando
+hay que cuadrar el vídeo con una música.
+
 - **Los tiempos** (2 / 1 / 5 / 3 segundos) se pueden mover en el paso 3, pero
   moverlos mucho deja de ser este formato.
-- **API**: `POST /api/sadbuttrue` (escribe el guion) y
-  `POST /api/sadbuttrue/video` (lo monta y crea el proyecto).
-- **MCP**: `sad_but_true` y `montar_sad_but_true`.
+- **API**: `POST /api/sadbuttrue` (escribe el guion con IA y lo guarda en el
+  banco), `POST /api/sadbuttrue/azar` (lo saca del banco, sin IA),
+  `POST /api/sadbuttrue/video` (lo monta y crea el proyecto), `GET /api/frases`,
+  `POST /api/frases/pegar` (con `guardar: false` solo enseña lo que entendió) y
+  `DELETE /api/frases/:id`.
+- **MCP**: `sad_but_true`, `sortear_sad_but_true`, `montar_sad_but_true`,
+  `banco_frases` y `guardar_frases`.
 
 ## Editor de montaje
 
@@ -1169,7 +1227,8 @@ Herramientas disponibles: `catalogo`, `diagnostico`, `listar_series`,
 `listar_historias`, `listar_categorias`, `plantear_historia`, `escribir_guion`,
 `crear_historia`, `programar_subida`, `listar_ideas`, `agregar_ideas`,
 `importar_musica_suno`, `crear_videoclip`, `sugerir_lineamientos`,
-`unir_canciones`, `sad_but_true`, `montar_sad_but_true`, `momentos_cancion`,
+`unir_canciones`, `sad_but_true`, `sortear_sad_but_true`,
+`montar_sad_but_true`, `banco_frases`, `guardar_frases`, `momentos_cancion`,
 `crear_cortes`, `rendimiento` y `sincronizar_metricas`. Con ellas puedes pedir
 cosas como *"mira qué ganchos rindieron mejor este mes y prepárame tres
 historias en inglés para el viernes"*.
