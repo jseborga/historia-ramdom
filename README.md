@@ -41,9 +41,9 @@ Implementa la guía de `docs/guia-original.md`.
 - **Tres idiomas.** Español, inglés y **spanglish**: base en español con el
   inglés en el gancho, que es como se canta la cumbia y el reggaetón.
 - **Sad but true.** Once segundos, sin voz: un sorteo de palabras en gris
-  sobre negro, la frase que ganó en amarillo sobre un vídeo al azar, el vídeo
-  disolviéndose en una pantalla roja con el remate en blanco, y un segundo de
-  negro para cerrar. Con **banco de
+  sobre negro que se para en el arranque de la frase ganadora, el vídeo
+  terminándola con esas palabras todavía en amarillo, y el remate en blanco
+  sobre el negro del cierre. Con **banco de
   frases** precargado que crece solo, así que se puede sacar uno sin gastar IA,
   y cada texto se queda lo que se tarda en leerlo.
 - **Productos con reflexión.** Un objeto real de Amazon como gancho y un giro
@@ -890,13 +890,26 @@ sin voz:
 
 ```
 0.0 ─2,1s─►  negro: palabras en GRIS pasando a toda velocidad, frenando
-2.1 ─0,9s─►  se para en el ARRANQUE de la frase que gana, en amarillo
-3.0 ─3,5s─►  corte al vídeo: la frase entera, que termina lo empezado
+2.1 ─0,9s─►  se para en el ARRANQUE de la frase que gana, en AMARILLO
+3.0 ─3,5s─►  corte al vídeo: la frase entera, en blanco y con ese
+             arranque todavía en amarillo
 6.5  0,6s    el vídeo se APAGA a negro
 7.0   1s     negro
-8.0 ──2s──►  sale la pantalla roja con el remate en BLANCO
-10.5 ──1s─►  el rojo se apaga y cierra en NEGRO
+7.8 ──2s──►  el remate, en blanco sobre el negro
+10.1 ──1s─►  un segundo de negro y se acabó
 ```
+
+**Solo se resalta lo que salió sorteado.** La frase va en blanco y las palabras
+en las que se paró el sorteo siguen en amarillo dentro de ella: de un vistazo
+se ve qué tocó y qué añade la frase. Eso es un campo del rótulo (`resalte`), no
+un apaño del formato, así que cualquier texto del editor puede llevar un trozo
+de otro color.
+
+**Ni negrita ni contornos gordos.** Con el contorno del color de la letra, el
+borde de cuatro píxeles de siempre la engorda tanto que todo parece escrito en
+negrita aunque no lo esté. Los rótulos tienen ahora `borde` aparte del color, y
+este formato usa dos: la letra es la que es y lo que la separa del fondo sigue
+siendo la sombra.
 
 **El sorteo se para en las primeras palabras de la frase**, no en la palabra
 del bombo. Antes paraba en «la paciencia» y acto seguido el vídeo enseñaba «La
@@ -905,11 +918,11 @@ Ahora el sorteo dice *«La paciencia»* y el corte al vídeo la **termina**:
 *«…es infinita»*. Son las dos primeras palabras si caben de un vistazo (22
 caracteres), y si no, la primera.
 
-**Del vídeo al rojo se pasa por negro.** Disolver el vídeo dentro del rojo no
-se veía como un cambio de plano sino como un filtro rojo encima de la ciudad,
-con los coches y las farolas asomando en granate a media disolución. Apagando
-a negro primero, lo que se ve es que el vídeo termina; y el rojo, que entra
-después, entra limpio.
+**El cierre es negro**, el mismo del sorteo: el vídeo empieza y acaba igual.
+Hubo un rato en que cerraba con una pantalla roja y no funcionaba —disolver el
+vídeo dentro del rojo no se veía como un cambio de plano sino como un filtro
+rojo encima de la ciudad, con los coches y las farolas asomando en granate—.
+Apagar a negro sí se ve como lo que es: que el vídeo termina.
 
 Los colores son parte del formato, no decoración. El sorteo va en **gris sobre
 negro**: tiene que verse que pasa algo sin que nadie intente leerlo, porque a
@@ -927,11 +940,10 @@ Tres cosas salieron de mirar las muestras antes de implementarlo:
   marcada** (`shad 6`, negra del todo en vez de la translúcida de siempre), y
   sobre un clip blanco se lee mejor así que con el contorno claro: la sombra
   abraza la letra en vez de quedarse detrás de un anillo.
-- **Letra roja sobre negro no sirve.** Es el par de peor contraste que hay en
-  vídeo comprimido —el rojo es el canal con menos bits, así que el borde se
-  deshace— y con el contorno del mismo rojo, además, la letra engorda. El rojo
-  pasó de la letra al fondo: pantallazo rojo y remate en blanco, que es lo que
-  mejor se lee de las cuatro opciones probadas.
+- **Letra roja no sirve para el remate.** Rojo sobre negro es el par de peor
+  contraste que hay en vídeo comprimido: el rojo es el canal con menos bits,
+  así que el borde se deshace. Probadas cuatro opciones en vídeo, el remate se
+  quedó en blanco sobre negro, que es lo que se lee siempre.
 - **El cambio al cierre tiene que ser suave.** Cada texto se va **antes** de
   que empiece su disolución: con la letra clavada mientras la imagen se funde,
   el cambio se ve duro por suave que sea la imagen, porque lo que mira el ojo

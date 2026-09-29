@@ -233,6 +233,7 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
       estilo: t.estilo,
       animacion: t.animacion,
       lectura: t.lectura,
+      ...(t.resalte ? { resalte: t.resalte } : {}),
     }));
   await writeFile(join(dir, "subs.ass"), crearASSProyecto(rotulos, preset));
 

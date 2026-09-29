@@ -276,9 +276,7 @@ function barajar<T>(xs: T[]): T[] {
  */
 const GRIS = "#8A8F98";
 const AMARILLO = "#FFE500";
-/** El rojo del cierre va de fondo, no de letra. */
-const ROJO_PANTALLA = "#7A0010";
-const ROJO_SOMBRA = "#3A0008";
+const BLANCO = "#FFFFFF";
 
 /**
  * Cada texto va de **un solo color**: el relleno y el contorno, el mismo. Un
@@ -296,22 +294,29 @@ const unColor = (color: string, extra: Record<string, unknown> = {}) => ({
   color,
   contorno: color,
   posicion: "centro" as const,
+  // Ni negrita ni el contorno gordo de siempre: con el contorno del color de
+  // la letra, un borde de cuatro píxeles la engorda tanto que todo parece
+  // escrito en negrita aunque no lo esté. Con dos, la letra es la que es y lo
+  // que la separa del fondo sigue siendo la sombra.
+  negrita: false,
+  borde: 2,
   ...extra,
 });
 
 const ESTILO_SORTEO = unColor(GRIS, { tamano: 64 });
-const ESTILO_ELEGIDA = unColor(AMARILLO, { tamano: 96, negrita: true, sombra: 6 });
-const ESTILO_FRASE = unColor(AMARILLO, { tamano: 78, negrita: true, sombra: 6 });
-const ESTILO_REMATE = unColor("#FFFFFF", { tamano: 78, negrita: true, sombra: 3 });
+const ESTILO_ELEGIDA = unColor(AMARILLO, { tamano: 92, sombra: 6 });
+const ESTILO_FRASE = unColor(BLANCO, { tamano: 76, sombra: 6 });
+const ESTILO_REMATE = unColor(BLANCO, { tamano: 74, sombra: 3 });
 
 /**
- * Del vídeo al cierre **pasando por negro**, y no del uno al otro.
+ * Del vídeo al cierre **pasando por negro**, que además es donde acaba.
  *
- * Disolver el vídeo directamente dentro del rojo no se ve como un cambio de
- * plano: se ve como si alguien le hubiera puesto un filtro rojo encima a la
- * ciudad, con los coches y las farolas asomando en granate a media
- * disolución. Apagando a negro primero, lo que se ve es que el vídeo termina;
- * y el rojo, que entra después, entra limpio.
+ * El cierre fue un rato una pantalla roja y no funcionaba: disolver el vídeo
+ * dentro del rojo no se veía como un cambio de plano sino como un filtro rojo
+ * encima de la ciudad, con los coches y las farolas asomando en granate a
+ * media disolución. Apagando a negro, lo que se ve es que el vídeo termina, y
+ * el remate aparece sobre el mismo negro del sorteo: el vídeo empieza y acaba
+ * igual.
  *
  * El texto se va **antes** de que empiece su disolución, siempre: con la letra
  * clavada mientras la imagen se funde, el cambio se ve duro por suave que sea
@@ -319,19 +324,17 @@ const ESTILO_REMATE = unColor("#FFFFFF", { tamano: 78, negrita: true, sombra: 3 
  */
 const CRUCE_VIDEO = 0.6;
 const PUENTE = 1;
-const CRUCE_ROJO = 0.6;
 
 /**
- * El segundo de negro con el que termina todo, y lo que tarda el rojo en
- * apagarse dentro de él. Sin ese negro el vídeo acaba en un plano de color
- * lleno, y en el bucle de TikTok eso empalma con el sorteo del siguiente pase
- * sin que se note dónde acabó uno.
+ * El segundo de negro con el que termina todo, después de que el remate se
+ * haya ido. Sin él el vídeo acaba con la letra todavía puesta, y en el bucle
+ * de TikTok eso empalma con el sorteo del siguiente pase sin que se note
+ * dónde acabó uno.
  */
 const NEGRO_FINAL = 1;
-const APAGON = 0.4;
 
 /** Lo que el montaje añade por su cuenta a los dos tiempos de lectura. */
-export const EXTRAS = CRUCE_VIDEO / 2 + PUENTE + CRUCE_ROJO / 2 + APAGON / 2 + NEGRO_FINAL;
+export const EXTRAS = CRUCE_VIDEO / 2 + PUENTE + NEGRO_FINAL;
 
 /**
  * Con qué se para el sorteo: el arranque de la frase que ganó.
@@ -380,7 +383,7 @@ export function pistasDeSadButTrue(
   const leerFrase = o.clipSeg ?? tiempoDeLectura(s.frase, TIEMPOS.clipSeg);
   const leerRemate = o.cierreSeg ?? tiempoDeLectura(s.remate, TIEMPOS.cierreSeg);
   const clipSeg = Number((leerFrase + CRUCE_VIDEO / 2).toFixed(2));
-  const cierreSeg = Number((leerRemate + CRUCE_ROJO / 2 + APAGON / 2).toFixed(2));
+  const cierreSeg = leerRemate;
   // La retención nunca se come el sorteo entero: siempre queda algo girando.
   const retencionSeg = Math.max(0, Math.min(o.retencionSeg ?? TIEMPOS.retencionSeg, sorteoSeg - RAPIDO));
 
@@ -398,24 +401,11 @@ export function pistasDeSadButTrue(
       transicion: "fundido",
       transicionSeg: CRUCE_VIDEO,
     }),
-    // El negro de por medio, del que sale el rojo limpio.
-    ClipPistaSchema.parse({
-      id: randomUUID(),
-      clip: null,
-      color: NEGRO,
-      duracion: PUENTE,
-      transicion: "fundido",
-      transicionSeg: CRUCE_ROJO,
-    }),
-    ClipPistaSchema.parse({
-      id: randomUUID(),
-      clip: null,
-      color: ROJO_PANTALLA,
-      duracion: cierreSeg,
-      // El rojo no se corta: se apaga dentro del negro.
-      transicion: "fundido",
-      transicionSeg: APAGON,
-    }),
+    // El negro de por medio y el del remate son el mismo color, pero dos
+    // planos: el primero es el silencio después del vídeo y el segundo es lo
+    // que dura el remate. Separados se pueden mover por su cuenta.
+    ClipPistaSchema.parse({ id: randomUUID(), clip: null, color: NEGRO, duracion: PUENTE }),
+    ClipPistaSchema.parse({ id: randomUUID(), clip: null, color: NEGRO, duracion: cierreSeg }),
     ClipPistaSchema.parse({ id: randomUUID(), clip: null, color: NEGRO, duracion: NEGRO_FINAL }),
   ];
 
@@ -423,6 +413,7 @@ export function pistasDeSadButTrue(
 
   // 1. El sorteo. Las que pasan son las demás: la elegida no se enseña hasta
   //    que gana, si no el final se ve venir.
+  const arranque = arranqueDeFrase(s.frase, s.elegida);
   const ventana = Math.max(sorteoSeg - retencionSeg, 0);
   const pasos = cadenciaSorteo(ventana);
   const resto = s.palabras.filter((p) => p.toLowerCase() !== s.elegida.toLowerCase());
@@ -451,7 +442,7 @@ export function pistasDeSadButTrue(
         id: randomUUID(),
         inicio: Number(ventana.toFixed(3)),
         duracion: Number((sorteoSeg - ventana).toFixed(3)),
-        texto: arranqueDeFrase(s.frase, s.elegida),
+        texto: arranque,
         estilo: ESTILO_ELEGIDA,
         animacion: "fundido",
         lectura: "todo",
@@ -468,6 +459,9 @@ export function pistasDeSadButTrue(
       duracion: leerFrase,
       texto: s.frase,
       estilo: ESTILO_FRASE,
+      // Lo sorteado sigue en amarillo dentro de la frase; lo que añade la
+      // frase, en blanco. Así se ve de un vistazo qué salió y qué completa.
+      resalte: { texto: arranque, color: AMARILLO },
       animacion: o.revelarFrase ? "apareciendo" : "suave",
       lectura: "todo",
     }),
@@ -478,7 +472,7 @@ export function pistasDeSadButTrue(
   textos.push(
     RotuloPistaSchema.parse({
       id: randomUUID(),
-      inicio: Number((sorteoSeg + clipSeg + PUENTE + CRUCE_ROJO / 2).toFixed(2)),
+      inicio: Number((sorteoSeg + clipSeg + PUENTE).toFixed(2)),
       duracion: leerRemate,
       texto: s.remate,
       estilo: ESTILO_REMATE,

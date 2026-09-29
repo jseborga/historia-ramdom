@@ -348,6 +348,26 @@ un reconocedor—, pero el trozo sí dura exactamente lo que dura su parte de la
 narración, así que la palabra cae donde la voz la dice, con el error dentro de
 la propia frase.
 
+### Un trozo de otro color
+
+Un rótulo puede llevar `resalte`: un trozo de su texto y el color con el que
+va. En el render se envuelve con `{\c…\3c…}` y se vuelve al color del estilo
+justo después —las etiquetas las escribe el renderizador, nunca el usuario, así
+que por ahí no se cuela ningún comando—, y la vista previa lo pinta con un
+`<span>`. De ahí sale lo de *Sad but true*: la frase en blanco con las palabras
+que salieron sorteadas todavía en amarillo.
+
+No se aplica con `resaltar` ni con `apareciendo`, porque esas dos ya meten sus
+propias etiquetas palabra por palabra y las dos cosas se pisarían.
+
+### El contorno, y por qué se puede afinar
+
+`borde` son los píxeles del contorno, cuatro por defecto. Ese cuatro está
+pensado para un contorno de **otro** color, donde hace de separación; si el
+contorno es del color de la letra, lo único que hace es engordarla, y a cuatro
+píxeles el resultado parece escrito en negrita aunque `negrita` esté en falso.
+Para esos casos, dos.
+
 ### La sombra, y cuándo subirla
 
 Cada rótulo lleva `\bord4\shad2` con la sombra del estilo (negra a medias), y

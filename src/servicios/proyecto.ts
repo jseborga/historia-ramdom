@@ -53,6 +53,8 @@ export const EstiloSchema = z.object({
   negrita: z.boolean().default(ESTILO_POR_DEFECTO.negrita),
   /** Píxeles de sombra; 3 o más la pone negra del todo, para fondos claros. */
   sombra: z.number().int().min(0).max(12).default(2),
+  /** Grosor del contorno; con el contorno del color de la letra, engorda. */
+  borde: z.number().int().min(0).max(12).default(4),
 });
 
 export const ClipSchema = z.object({
@@ -130,6 +132,14 @@ export const RotuloPistaSchema = z.object({
     .enum(["ninguna", "fundido", "suave", "subir", "zoom", "resaltar", "apareciendo"])
     .default("fundido"),
   lectura: z.enum(["todo", "frases", "bloques"]).default("frases"),
+  /**
+   * Un trozo del texto de otro color: las palabras que salieron sorteadas
+   * dentro de la frase. Vacío = todo del mismo color.
+   */
+  resalte: z
+    .object({ texto: z.string().max(80), color: hex })
+    .nullable()
+    .default(null),
 });
 
 /** Quién habla en un diálogo: su nombre, su voz y el color de su rótulo. */

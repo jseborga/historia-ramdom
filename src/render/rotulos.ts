@@ -38,6 +38,12 @@ export type EstiloTexto = {
    * blanco se funde con el fondo y la letra deja de leerse.
    */
   sombra?: number;
+  /**
+   * Grosor del contorno. Cuatro es lo de siempre, y está pensado para un
+   * contorno de otro color: si es del mismo color que la letra, ese grosor la
+   * engorda y todo parece escrito en negrita aunque no lo esté.
+   */
+  borde?: number;
 };
 
 export const ESTILO_POR_DEFECTO: EstiloTexto = {
@@ -48,6 +54,7 @@ export const ESTILO_POR_DEFECTO: EstiloTexto = {
   posicion: "abajo",
   negrita: false,
   sombra: 2,
+  borde: 4,
 };
 
 /** A partir de aquí la sombra deja de ser un detalle y pasa a ser el fondo. */
@@ -239,9 +246,10 @@ function etiquetas(estilo: EstiloTexto, animacion: Animacion, p: Preset) {
   // marcada se pone negra del todo: es lo único que sostiene un texto de color
   // sobre un clip blanco, y a esa distancia una sombra translúcida no se ve.
   const fondo = sombra >= SOMBRA_MARCADA ? "\\4c&H00000000&\\4a&H20&" : "";
+  const borde = Math.max(0, Math.min(estilo.borde ?? 4, 12));
   const base =
     `\\an5\\fn${fuente}\\fs${estilo.tamano}\\c${colorASS(estilo.color)}` +
-    `\\3c${colorASS(estilo.contorno)}\\bord4\\shad${sombra}${fondo}\\b${estilo.negrita ? 1 : 0}`;
+    `\\3c${colorASS(estilo.contorno)}\\bord${borde}\\shad${sombra}${fondo}\\b${estilo.negrita ? 1 : 0}`;
 
   switch (animacion) {
     case "fundido":
@@ -262,6 +270,9 @@ function etiquetas(estilo: EstiloTexto, animacion: Animacion, p: Preset) {
   }
 }
 
+/** Un trozo del texto que va de otro color: las palabras que ganaron. */
+export type Resalte = { texto: string; color: string };
+
 export type Rotulo = {
   inicio: number;
   fin: number;
@@ -269,7 +280,34 @@ export type Rotulo = {
   estilo: EstiloTexto;
   animacion: Animacion;
   lectura?: Lectura;
+  resalte?: Resalte;
 };
+
+/**
+ * Pinta de otro color un trozo del rótulo, dejando el resto como está.
+ *
+ * Sirve para lo que hace *Sad but true*: el sorteo se para en «La paciencia» y
+ * el vídeo enseña «La paciencia es infinita» con esas dos palabras todavía en
+ * amarillo y el resto en blanco. Así se ve de un vistazo qué salió sorteado y
+ * qué es lo que añade la frase.
+ *
+ * Las etiquetas las escribe esta función, nunca el usuario: el texto ya viene
+ * limpio de `\`, `{` y `}`, así que no hay forma de colar un comando por aquí.
+ * Con las animaciones que van palabra a palabra no se aplica, porque esas ya
+ * meten sus propias etiquetas en cada hueco y las dos se pisarían.
+ */
+function conResalte(cuerpo: string, resalte: Resalte | undefined, estilo: EstiloTexto): string {
+  const buscado = resalte ? limpiar(resalte.texto) : "";
+  if (!buscado) return cuerpo;
+  const i = cuerpo.toLowerCase().indexOf(buscado.toLowerCase());
+  if (i < 0) return cuerpo;
+
+  const vuelve = `{\\c${colorASS(estilo.color)}\\3c${colorASS(estilo.contorno)}}`;
+  const entra = `{\\c${colorASS(resalte!.color)}\\3c${colorASS(resalte!.color)}}`;
+  return (
+    cuerpo.slice(0, i) + entra + cuerpo.slice(i, i + buscado.length) + vuelve + cuerpo.slice(i + buscado.length)
+  );
+}
 
 /** Una linea ASS por fragmento; con `resaltar` y `apareciendo`, por palabra. */
 function lineasDe(r: Rotulo, p: Preset): string[] {
@@ -289,7 +327,7 @@ function lineasDe(r: Rotulo, p: Preset): string[] {
         ? conKaraoke(limpiar(f), fin - ini)
         : r.animacion === "apareciendo"
           ? conApariciones(limpiar(f), fin - ini)
-          : limpiar(f);
+          : conResalte(limpiar(f), r.resalte, r.estilo);
     return `Dialogue: 0,${tiempo(ini)},${tiempo(fin)},Rotulo,,0,0,0,,{${tags}}${cuerpo}`;
   });
 }

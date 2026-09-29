@@ -92,9 +92,8 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
   const cierreSeg = lecturaAuto && guion ? tiempoDeLectura(guion.remate, TIEMPOS.cierreSeg) : tiempos.cierreSeg;
   // Lo que el montaje anade por su cuenta: la media disolucion que se le come
   // a cada texto, el apagon del rojo y el segundo de negro del final.
-  // Media disolucion del video + el negro de por medio + media entrada del
-  // rojo + medio apagon + el segundo de negro final.
-  const EXTRAS = 0.3 + 1 + 0.3 + 0.2 + 1;
+  // Media disolucion del video + el negro de por medio + el segundo final.
+  const EXTRAS = 0.3 + 1 + 1;
   const total = tiempos.sorteoSeg + clipSeg + cierreSeg + EXTRAS;
   const cambiarTiempo = (c: Partial<typeof TIEMPOS>) => setTiempos({ ...tiempos, ...c });
 
@@ -223,10 +222,10 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
       <section className="tarjeta">
         <h2>1. El sorteo</h2>
         <p className="suave">
-          Once segundos, sin voz: palabras en gris pasando a toda velocidad sobre negro hasta que
-          se para en el arranque de la frase que gana, en amarillo; al corte, el video la termina.
-          Despues se apaga a negro, sale una pantalla roja con el remate en blanco y cierra en
-          negro.
+          Diez segundos, sin voz: palabras en gris pasando a toda velocidad sobre negro hasta que
+          se para en el arranque de la frase que gana, en amarillo; al corte, el video la termina
+          en blanco con esas palabras todavia amarillas. Despues se apaga a negro, ahi queda el
+          remate y cierra en negro.
         </p>
         <div className="campos">
           <div>
@@ -478,8 +477,8 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
           <p className="suave">
             Duracion: <strong>{total.toFixed(1)}s</strong> · {tiempos.sorteoSeg}s de sorteo (
             {tiempos.retencionSeg ? ` para ${tiempos.retencionSeg}s en la que gana` : " sin parar"}) +{" "}
-            {clipSeg}s de frase + {cierreSeg}s de remate, el paso por negro entre el video y el
-            rojo del cierre —que es lo que hace suave el cambio— y un segundo de negro al final.
+            {clipSeg}s de frase + {cierreSeg}s de remate, el apagon a negro despues del video
+            —que es lo que hace suave el cambio— y un segundo de negro al final.
             {lecturaAuto
               ? " Los dos textos se quedan lo que se tarda en leerlos (un segundo en darse cuenta y 0,33s por palabra), con 3,5 y 2 segundos de suelo: aqui no hay voz que marque el ritmo y no hay forma de volver atras."
               : " Ojo con quedarte corto: sin voz, un texto que se va antes de tiempo no se entiende."}{" "}

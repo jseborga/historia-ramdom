@@ -165,6 +165,8 @@ export type EstiloTexto = {
   negrita: boolean;
   /** Pixeles de sombra; 3 o mas la pone negra del todo, para fondos claros. */
   sombra?: number;
+  /** Grosor del contorno; del color de la letra, engorda. */
+  borde?: number;
 };
 
 export type Lectura = "todo" | "frases" | "bloques";
@@ -195,6 +197,8 @@ export type RotuloPista = {
   estilo: EstiloTexto;
   animacion: Animacion;
   lectura: Lectura;
+  /** Un trozo del texto de otro color: las palabras sorteadas. */
+  resalte?: { texto: string; color: string } | null;
 };
 
 /** La narracion: un solo texto, una sola voz, colocada en `inicio`. */

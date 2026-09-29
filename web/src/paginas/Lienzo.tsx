@@ -7,6 +7,17 @@ import { fragmentar, repartirTiempo, retardosDePalabras } from "../lectura";
  * proyecto y en cada instante muestra el clip que toca, los rotulos que caen
  * encima y la narracion real del servidor, cada pista por su cuenta.
  */
+/** El texto partido en el trozo resaltado y lo que queda a los lados. */
+function partirPorResalte(texto: string, buscado: string) {
+  const i = texto.toLowerCase().indexOf(buscado.trim().toLowerCase());
+  if (!buscado.trim() || i < 0) return [{ texto, resaltado: false }];
+  return [
+    { texto: texto.slice(0, i), resaltado: false },
+    { texto: texto.slice(i, i + buscado.trim().length), resaltado: true },
+    { texto: texto.slice(i + buscado.trim().length), resaltado: false },
+  ].filter((t) => t.texto);
+}
+
 export function Lienzo({
   video,
   textos,
@@ -241,10 +252,17 @@ export function Lienzo({
                 (r.estilo.sombra ?? 2) >= 3
                   ? `0 0 6px ${r.estilo.contorno}, 0 ${(r.estilo.sombra ?? 2) / 2}px ${r.estilo.sombra ?? 2}px rgba(0,0,0,0.9)`
                   : `0 0 6px ${r.estilo.contorno}, 0 2px 4px ${r.estilo.contorno}`,
-              WebkitTextStroke: `1px ${r.estilo.contorno}`,
+              WebkitTextStroke: `${Math.max(0, (r.estilo.borde ?? 4) / 4).toFixed(2)}px ${r.estilo.contorno}`,
             }}
           >
-            {porPalabra
+            {r.resalte?.texto && !porPalabra
+              ? // Las palabras sorteadas van de otro color dentro de la frase.
+                partirPorResalte(texto, r.resalte.texto).map((trozo, i) => (
+                  <span key={i} style={trozo.resaltado ? { color: r.resalte!.color } : undefined}>
+                    {trozo.texto}
+                  </span>
+                ))
+              : porPalabra
               ? texto.split(/\s+/).map((w, i) => {
                   const dicha = i < encendidas;
                   // Al aparecer, la que falta sigue ocupando su hueco (solo se
