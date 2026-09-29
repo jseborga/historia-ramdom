@@ -279,10 +279,29 @@ const AMARILLO = "#FFE500";
 const ROJO_PANTALLA = "#7A0010";
 const ROJO_SOMBRA = "#3A0008";
 
-const ESTILO_SORTEO = { ...ESTILO_POR_DEFECTO, tamano: 64, color: GRIS, contorno: "#000000", posicion: "centro" as const };
-const ESTILO_ELEGIDA = { ...ESTILO_POR_DEFECTO, tamano: 96, color: AMARILLO, contorno: "#FFFFFF", posicion: "centro" as const, negrita: true, sombra: 6 };
-const ESTILO_FRASE = { ...ESTILO_POR_DEFECTO, tamano: 78, color: AMARILLO, contorno: "#FFFFFF", posicion: "centro" as const, negrita: true, sombra: 6 };
-const ESTILO_REMATE = { ...ESTILO_POR_DEFECTO, tamano: 78, color: "#FFFFFF", contorno: ROJO_SOMBRA, posicion: "centro" as const, negrita: true, sombra: 3 };
+/**
+ * Cada texto va de **un solo color**: el relleno y el contorno, el mismo. Un
+ * contorno de otro color parte la letra en dos tonos y, en cuanto el fondo se
+ * parece a uno de los dos, se ve el borde antes que la palabra. Con el
+ * contorno del color de la letra lo único que hace es engordarla, que sobre
+ * vídeo es justo lo que hace falta.
+ *
+ * Lo que separa la letra del fondo pasa a ser entonces la sombra, y por eso la
+ * frase la lleva marcada: es lo único que la sostiene cuando el clip que tocó
+ * es claro.
+ */
+const unColor = (color: string, extra: Record<string, unknown> = {}) => ({
+  ...ESTILO_POR_DEFECTO,
+  color,
+  contorno: color,
+  posicion: "centro" as const,
+  ...extra,
+});
+
+const ESTILO_SORTEO = unColor(GRIS, { tamano: 64 });
+const ESTILO_ELEGIDA = unColor(AMARILLO, { tamano: 96, negrita: true, sombra: 6 });
+const ESTILO_FRASE = unColor(AMARILLO, { tamano: 78, negrita: true, sombra: 6 });
+const ESTILO_REMATE = unColor("#FFFFFF", { tamano: 78, negrita: true, sombra: 3 });
 
 /**
  * Lo que tarda el vídeo en disolverse dentro del cierre.
@@ -295,7 +314,16 @@ const ESTILO_REMATE = { ...ESTILO_POR_DEFECTO, tamano: 78, color: "#FFFFFF", con
 export const CRUCE = 1;
 const MEDIO_CRUCE = CRUCE / 2;
 
-/** El negro del sorteo. Negro de verdad, no el gris del editor. */
+/**
+ * El segundo de negro con el que termina todo, y lo que tarda el rojo en
+ * apagarse dentro de él. Sin ese negro el vídeo acaba en un plano de color
+ * lleno, y en el bucle de TikTok eso empalma con el sorteo del siguiente pase
+ * sin que se note dónde acabó uno.
+ */
+const NEGRO_FINAL = 1;
+const APAGON = 0.4;
+
+/** El negro del sorteo y del cierre. Negro de verdad, no el gris del editor. */
 const NEGRO = "#000000";
 
 export type OpcionesPistas = TiemposSadButTrue & {
@@ -324,7 +352,7 @@ export function pistasDeSadButTrue(
   const leerFrase = o.clipSeg ?? tiempoDeLectura(s.frase, TIEMPOS.clipSeg);
   const leerRemate = o.cierreSeg ?? tiempoDeLectura(s.remate, TIEMPOS.cierreSeg);
   const clipSeg = Number((leerFrase + MEDIO_CRUCE).toFixed(2));
-  const cierreSeg = Number((leerRemate + MEDIO_CRUCE).toFixed(2));
+  const cierreSeg = Number((leerRemate + MEDIO_CRUCE + APAGON / 2).toFixed(2));
   // La retención nunca se come el sorteo entero: siempre queda algo girando.
   const retencionSeg = Math.max(0, Math.min(o.retencionSeg ?? TIEMPOS.retencionSeg, sorteoSeg - RAPIDO));
 
@@ -342,7 +370,16 @@ export function pistasDeSadButTrue(
       transicion: "fundido",
       transicionSeg: CRUCE,
     }),
-    ClipPistaSchema.parse({ id: randomUUID(), clip: null, color: ROJO_PANTALLA, duracion: cierreSeg }),
+    ClipPistaSchema.parse({
+      id: randomUUID(),
+      clip: null,
+      color: ROJO_PANTALLA,
+      duracion: cierreSeg,
+      // El rojo no se corta: se apaga dentro del negro.
+      transicion: "fundido",
+      transicionSeg: APAGON,
+    }),
+    ClipPistaSchema.parse({ id: randomUUID(), clip: null, color: NEGRO, duracion: NEGRO_FINAL }),
   ];
 
   const textos: RotuloPista[] = [];

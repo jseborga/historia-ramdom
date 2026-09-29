@@ -40,9 +40,10 @@ Implementa la guía de `docs/guia-original.md`.
   instrucciones en vez de cantarlos.
 - **Tres idiomas.** Español, inglés y **spanglish**: base en español con el
   inglés en el gancho, que es como se canta la cumbia y el reggaetón.
-- **Sad but true.** Diez segundos, sin voz: un sorteo de palabras en gris
-  sobre negro, la frase que ganó en amarillo sobre un vídeo al azar, y el
-  vídeo disolviéndose en una pantalla roja con el remate en blanco. Con **banco de
+- **Sad but true.** Once segundos, sin voz: un sorteo de palabras en gris
+  sobre negro, la frase que ganó en amarillo sobre un vídeo al azar, el vídeo
+  disolviéndose en una pantalla roja con el remate en blanco, y un segundo de
+  negro para cerrar. Con **banco de
   frases** precargado que crece solo, así que se puede sacar uno sin gastar IA,
   y cada texto se queda lo que se tarda en leerlo.
 - **Productos con reflexión.** Un objeto real de Amazon como gancho y un giro
@@ -884,14 +885,15 @@ y un vídeo dura meses.
 
 ## Sad but true: el sorteo, la frase y el remate
 
-La pestaña **Sad but true** hace un formato y solo uno, de unos diez segundos y
+La pestaña **Sad but true** hace un formato y solo uno, de unos once segundos y
 sin voz:
 
 ```
 0.0 ──3s──►  negro: palabras en GRIS pasando a toda velocidad, frenando
 3.0 ─3,5s─►  corte a un vídeo cualquiera: entra la frase en AMARILLO
 6.5  1s      el vídeo se DISUELVE en una pantalla roja
-7.5 ──2s──►  el remate, en BLANCO sobre el rojo, y se desvanece
+7.5 ──2s──►  el remate, en BLANCO sobre el rojo
+10.0 ──1s─►  el rojo se apaga y cierra en NEGRO
 ```
 
 Los colores son parte del formato, no decoración. El sorteo va en **gris sobre
@@ -902,10 +904,14 @@ roja con el remate en blanco**.
 
 Tres cosas salieron de mirar las muestras antes de implementarlo:
 
-- El contorno blanco solo se sostiene sobre vídeo oscuro, y los clips salen al
-  azar: sobre uno blanco el amarillo desaparecía. Por eso la frase lleva
-  además una **sombra negra marcada** (`shad 6`, negra del todo en vez de la
-  translúcida de siempre), que es lo que la salva en el peor caso.
+- **Cada texto va de un solo color**: el relleno y el contorno, el mismo. Un
+  contorno de otro color parte la letra en dos tonos y, en cuanto el fondo se
+  parece a uno de los dos, se ve el borde antes que la palabra. Del color de
+  la letra lo único que hace el contorno es engordarla, que sobre vídeo es lo
+  que hace falta. Lo que la separa del fondo pasa a ser la **sombra negra
+  marcada** (`shad 6`, negra del todo en vez de la translúcida de siempre), y
+  sobre un clip blanco se lee mejor así que con el contorno claro: la sombra
+  abraza la letra en vez de quedarse detrás de un anillo.
 - **Letra roja sobre negro no sirve.** Es el par de peor contraste que hay en
   vídeo comprimido —el rojo es el canal con menos bits, así que el borde se
   deshace— y con el contorno del mismo rojo, además, la letra engorda. El rojo
@@ -920,6 +926,10 @@ Tres cosas salieron de mirar las muestras antes de implementarlo:
 Por eso los dos números de tiempo son **cuánto se ve cada texto**, no cuánto
 dura su plano: la escena añade por su cuenta la media disolución que se le
 come, para que suavizar el cambio no acorte la lectura.
+
+Y el vídeo **cierra con un segundo de negro**, con el rojo apagándose dentro.
+Sin él termina en un plano de color lleno, y en el bucle de TikTok eso empalma
+con el sorteo del siguiente pase sin que se vea dónde acabó uno.
 
 La revelación es **el corte**, no un parón: el sorteo corre hasta el final y la
 frase entra ya sobre el vídeo. Pararse antes en negro con la palabra ganadora

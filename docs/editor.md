@@ -350,9 +350,13 @@ la propia frase.
 ### La sombra, y cuándo subirla
 
 Cada rótulo lleva `\bord4\shad2` con la sombra del estilo (negra a medias), y
-eso basta sobre casi cualquier clip. La excepción es un texto de color con el
-contorno claro —el amarillo con contorno blanco de *Sad but true*— sobre un
-clip blanco: ahí el contorno se funde con el fondo y la letra desaparece.
+eso basta sobre casi cualquier clip. La excepción es un texto de color sobre un
+clip claro: ahí, si el contorno también es claro, se funde con el fondo y la
+letra desaparece.
+
+Y el caso llega enseguida, porque un texto que va de un solo color —relleno y
+contorno iguales, como los de *Sad but true*— no tiene borde que lo separe de
+nada: lo único que lo sostiene es la sombra.
 
 Por eso el estilo tiene `sombra`: son los píxeles que se separa, y **de 3 para
 arriba la sombra se pone negra del todo** (`\4c&H00000000&\4a&H20&`), porque a
