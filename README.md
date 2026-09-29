@@ -40,9 +40,9 @@ Implementa la guía de `docs/guia-original.md`.
   instrucciones en vez de cantarlos.
 - **Tres idiomas.** Español, inglés y **spanglish**: base en español con el
   inglés en el gancho, que es como se canta la cumbia y el reggaetón.
-- **Sad but true.** Nueve segundos, sin voz: un sorteo de palabras en gris
-  sobre negro, la frase que ganó en amarillo sobre un vídeo al azar, y un
-  remate en rojo que se desvanece en negro. Con **banco de
+- **Sad but true.** Diez segundos, sin voz: un sorteo de palabras en gris
+  sobre negro, la frase que ganó en amarillo sobre un vídeo al azar, y el
+  vídeo disolviéndose en una pantalla roja con el remate en blanco. Con **banco de
   frases** precargado que crece solo, así que se puede sacar uno sin gastar IA,
   y cada texto se queda lo que se tarda en leerlo.
 - **Productos con reflexión.** Un objeto real de Amazon como gancho y un giro
@@ -884,30 +884,42 @@ y un vídeo dura meses.
 
 ## Sad but true: el sorteo, la frase y el remate
 
-La pestaña **Sad but true** hace un formato y solo uno, de nueve segundos y sin
-voz:
+La pestaña **Sad but true** hace un formato y solo uno, de unos diez segundos y
+sin voz:
 
 ```
 0.0 ──3s──►  negro: palabras en GRIS pasando a toda velocidad, frenando
 3.0 ─3,5s─►  corte a un vídeo cualquiera: entra la frase en AMARILLO
-6.5 ──2s──►  se disuelve a negro y queda el remate en ROJO, que se desvanece
+6.5  1s      el vídeo se DISUELVE en una pantalla roja
+7.5 ──2s──►  el remate, en BLANCO sobre el rojo, y se desvanece
 ```
 
 Los colores son parte del formato, no decoración. El sorteo va en **gris sobre
 negro**: tiene que verse que pasa algo sin que nadie intente leerlo, porque a
 diez palabras por segundo no da tiempo. La frase entra en **amarillo con
-contorno blanco**, que es el color del premio, y el remate cierra en **rojo
-sobre negro**.
+contorno blanco**, que es el color del premio. Y el cierre es una **pantalla
+roja con el remate en blanco**.
 
-Dos cosas salieron de mirar las muestras antes de implementarlo:
+Tres cosas salieron de mirar las muestras antes de implementarlo:
 
 - El contorno blanco solo se sostiene sobre vídeo oscuro, y los clips salen al
   azar: sobre uno blanco el amarillo desaparecía. Por eso la frase lleva
   además una **sombra negra marcada** (`shad 6`, negra del todo en vez de la
   translúcida de siempre), que es lo que la salva en el peor caso.
-- El remate en rojo con el contorno del **mismo** rojo engorda la letra y la
-  emborrona. Va con el contorno en rojo muy oscuro: sigue siendo todo rojo y se
-  lee limpio.
+- **Letra roja sobre negro no sirve.** Es el par de peor contraste que hay en
+  vídeo comprimido —el rojo es el canal con menos bits, así que el borde se
+  deshace— y con el contorno del mismo rojo, además, la letra engorda. El rojo
+  pasó de la letra al fondo: pantallazo rojo y remate en blanco, que es lo que
+  mejor se lee de las cuatro opciones probadas.
+- **El cambio al cierre tiene que ser suave.** El vídeo se disuelve en el rojo
+  durante un segundo entero, y la frase se va **antes** de que empiece esa
+  disolución: con el texto clavado mientras la imagen se funde, el cambio se
+  ve duro por mucho que la imagen sea suave, porque lo que mira el ojo es la
+  letra. El remate entra al otro lado del cruce, con el rojo ya entero.
+
+Por eso los dos números de tiempo son **cuánto se ve cada texto**, no cuánto
+dura su plano: la escena añade por su cuenta la media disolución que se le
+come, para que suavizar el cambio no acorte la lectura.
 
 La revelación es **el corte**, no un parón: el sorteo corre hasta el final y la
 frase entra ya sobre el vídeo. Pararse antes en negro con la palabra ganadora
@@ -1031,7 +1043,7 @@ Una frase de diecisiete palabras se queda 6,6 s en vez de 3,5; una de cuatro,
 los 3,5 del formato. En el paso 3 se puede cambiar a *los segundos que yo diga* cuando
 hay que cuadrar el vídeo con una música.
 
-- **Los tiempos** (3 de sorteo, 3,5 de vídeo y 2 de negro) se pueden mover en
+- **Los tiempos** (3 de sorteo, 3,5 de frase y 2 de remate) se pueden mover en
   el paso 3, pero moverlos mucho deja de ser este formato.
 - **API**: `POST /api/sadbuttrue` (escribe el guion con IA y lo guarda en el
   banco), `POST /api/sadbuttrue/azar` (lo saca del banco, sin IA),

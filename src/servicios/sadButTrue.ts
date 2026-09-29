@@ -275,15 +275,27 @@ function barajar<T>(xs: T[]): T[] {
  */
 const GRIS = "#8A8F98";
 const AMARILLO = "#FFE500";
-const ROJO = "#FF2D2D";
-const ROJO_FONDO = "#3A0000";
+/** El rojo del cierre va de fondo, no de letra. */
+const ROJO_PANTALLA = "#7A0010";
+const ROJO_SOMBRA = "#3A0008";
 
 const ESTILO_SORTEO = { ...ESTILO_POR_DEFECTO, tamano: 64, color: GRIS, contorno: "#000000", posicion: "centro" as const };
 const ESTILO_ELEGIDA = { ...ESTILO_POR_DEFECTO, tamano: 96, color: AMARILLO, contorno: "#FFFFFF", posicion: "centro" as const, negrita: true, sombra: 6 };
 const ESTILO_FRASE = { ...ESTILO_POR_DEFECTO, tamano: 78, color: AMARILLO, contorno: "#FFFFFF", posicion: "centro" as const, negrita: true, sombra: 6 };
-const ESTILO_REMATE = { ...ESTILO_POR_DEFECTO, tamano: 78, color: ROJO, contorno: ROJO_FONDO, posicion: "centro" as const, negrita: true };
+const ESTILO_REMATE = { ...ESTILO_POR_DEFECTO, tamano: 78, color: "#FFFFFF", contorno: ROJO_SOMBRA, posicion: "centro" as const, negrita: true, sombra: 3 };
 
-/** El negro de las dos pantallas. Negro de verdad, no el gris del editor. */
+/**
+ * Lo que tarda el vídeo en disolverse dentro del cierre.
+ *
+ * Un segundo, y la frase se va **antes** de que empiece: con el texto clavado
+ * mientras la imagen se disuelve, el cambio se ve duro por mucho que la
+ * imagen sea suave, porque lo que mira el ojo es la letra. El remate entra
+ * cuando el rojo ya está entero, al otro lado del cruce.
+ */
+export const CRUCE = 1;
+const MEDIO_CRUCE = CRUCE / 2;
+
+/** El negro del sorteo. Negro de verdad, no el gris del editor. */
 const NEGRO = "#000000";
 
 export type OpcionesPistas = TiemposSadButTrue & {
@@ -305,9 +317,14 @@ export function pistasDeSadButTrue(
   o: OpcionesPistas = {},
 ): { video: ClipPista[]; textos: RotuloPista[] } {
   const sorteoSeg = o.sorteoSeg ?? TIEMPOS.sorteoSeg;
-  // Sin tiempo puesto a mano, manda lo que se tarda en leer el texto.
-  const clipSeg = o.clipSeg ?? tiempoDeLectura(s.frase, TIEMPOS.clipSeg);
-  const cierreSeg = o.cierreSeg ?? tiempoDeLectura(s.remate, TIEMPOS.cierreSeg);
+  // Sin tiempo puesto a mano, manda lo que se tarda en leer el texto. Los dos
+  // números son **cuánto se ve el texto**; la escena dura eso más la media
+  // disolución que se le come por un lado, para que leerlo no salga más corto
+  // por haber suavizado el cambio.
+  const leerFrase = o.clipSeg ?? tiempoDeLectura(s.frase, TIEMPOS.clipSeg);
+  const leerRemate = o.cierreSeg ?? tiempoDeLectura(s.remate, TIEMPOS.cierreSeg);
+  const clipSeg = Number((leerFrase + MEDIO_CRUCE).toFixed(2));
+  const cierreSeg = Number((leerRemate + MEDIO_CRUCE).toFixed(2));
   // La retención nunca se come el sorteo entero: siempre queda algo girando.
   const retencionSeg = Math.max(0, Math.min(o.retencionSeg ?? TIEMPOS.retencionSeg, sorteoSeg - RAPIDO));
 
@@ -321,11 +338,11 @@ export function pistasDeSadButTrue(
       duracion: clipSeg,
       recorte: sobra > 0.5 ? Number((Math.random() * sobra).toFixed(2)) : 0,
       efecto: efectoDeClip(clip, 1),
-      // Lo que se desvanece: el vídeo se disuelve dentro de la negra final.
+      // Lo que se desvanece: el vídeo se disuelve dentro del rojo del cierre.
       transicion: "fundido",
-      transicionSeg: 0.6,
+      transicionSeg: CRUCE,
     }),
-    ClipPistaSchema.parse({ id: randomUUID(), clip: null, color: NEGRO, duracion: cierreSeg }),
+    ClipPistaSchema.parse({ id: randomUUID(), clip: null, color: ROJO_PANTALLA, duracion: cierreSeg }),
   ];
 
   const textos: RotuloPista[] = [];
@@ -374,7 +391,7 @@ export function pistasDeSadButTrue(
     RotuloPistaSchema.parse({
       id: randomUUID(),
       inicio: sorteoSeg,
-      duracion: clipSeg,
+      duracion: leerFrase,
       texto: s.frase,
       estilo: ESTILO_FRASE,
       animacion: o.revelarFrase ? "apareciendo" : "zoom",
@@ -382,13 +399,13 @@ export function pistasDeSadButTrue(
     }),
   );
 
-  // 4. El remate sobre la negra final. Entra y se va fundido: eso es lo que se
-  //    ve desvanecerse, porque sobre negro el que se funde es el texto.
+  // 4. El remate, ya del otro lado del cruce, sobre el rojo entero. Entra y se
+  //    va fundido: eso es lo que se ve desvanecerse al final.
   textos.push(
     RotuloPistaSchema.parse({
       id: randomUUID(),
-      inicio: sorteoSeg + clipSeg,
-      duracion: cierreSeg,
+      inicio: Number((sorteoSeg + clipSeg + MEDIO_CRUCE).toFixed(2)),
+      duracion: leerRemate,
       texto: s.remate,
       estilo: ESTILO_REMATE,
       animacion: "fundido",
