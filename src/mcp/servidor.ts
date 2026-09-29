@@ -510,9 +510,13 @@ servidor.registerTool(
   "guardar_frases",
   {
     description:
-      "Mete frases en el banco de 'Sad but true'. Una por linea, con ; entre campos: 'palabra ; frase', 'palabra ; frase ; remate', o un remate suelto sin ningun ;. Con guardar=false solo dice que ha entendido de cada linea.",
+      "Mete frases en el banco de 'Sad but true'. Una por linea, con ; entre campos. Con formato 'palabra': 'palabra ; frase ; remate'. Con formato 'frase': 'frase ; remate ; sobre X', que es como salen las sentencias en dos tiempos. En los dos, una linea sin ningun ; es un remate suelto. Con guardar=false solo dice que ha entendido de cada linea.",
     inputSchema: {
       texto: z.string().max(40_000).describe("Las lineas, separadas por saltos de linea"),
+      formato: z
+        .enum(["palabra", "frase"])
+        .describe("Donde va la palabra del bombo: delante, o al final como 'sobre X'")
+        .optional(),
       tema: z.string().max(80).describe("La familia a la que pertenecen estas palabras").optional(),
       idioma: z.enum(["es", "en", "spanglish"]).optional(),
       tono: z.enum(["feliz", "triste", "reflexiva", "desmotivadora"]).optional(),

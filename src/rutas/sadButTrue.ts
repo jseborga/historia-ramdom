@@ -68,6 +68,8 @@ const FraseSchema = z.object({
   tipo: z.enum(["SORTEO", "REMATE"]).default("SORTEO"),
   palabra: z.string().max(40).default(""),
   texto: z.string().min(1).max(300),
+  /** Cierre propio de esta pareja; vacío = uno del montón. */
+  remate: z.string().max(300).default(""),
   tema: z.string().max(80).default(""),
   idioma: IdiomaCampo.default("es"),
   tono: z.enum(TONOS).default("reflexiva"),
@@ -112,7 +114,7 @@ export async function rutasSadButTrue(app: FastifyInstance) {
     return { frases, temas };
   });
 
-  /** Pegar frases a mano: una por línea, `palabra ; frase`. */
+  /** Pegar frases a mano, una por línea y los campos separados por `;`. */
   app.post("/api/frases", async (req, reply) => {
     const frases = z.array(FraseSchema).min(1).max(300).parse(req.body);
     const r = await guardarFrases(frases, "MANUAL");
@@ -127,17 +129,19 @@ export async function rutasSadButTrue(app: FastifyInstance) {
    * forma más rápida de llenar el banco de basura.
    */
   app.post("/api/frases/pegar", async (req) => {
-    const { texto, tema, idioma, tono, guardar } = z
+    const { texto, tema, idioma, tono, formato, guardar } = z
       .object({
         texto: z.string().max(40_000),
         tema: z.string().max(80).default(""),
         idioma: IdiomaCampo.default("es"),
         tono: z.enum(TONOS).default("reflexiva"),
+        /** Dónde va la palabra del bombo: delante, o al final como "sobre X". */
+        formato: z.enum(["palabra", "frase"]).default("palabra"),
         guardar: z.boolean().default(false),
       })
       .parse(req.body);
 
-    const lineas = analizarPegado(texto);
+    const lineas = analizarPegado(texto, formato);
     const filas = filasDePegado(lineas, { tema, idioma, tono });
     if (!guardar) return { lineas, listas: filas.length };
 

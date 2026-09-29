@@ -37,6 +37,8 @@ export type FraseNueva = {
   tipo: "SORTEO" | "REMATE";
   palabra?: string;
   texto: string;
+  /** Solo en las parejas: su propio cierre, si vino pegado a ella. */
+  remate?: string;
   tema?: string;
   idioma?: string;
   tono?: string;
@@ -56,6 +58,7 @@ export async function guardarFrases(
       tipo: f.tipo,
       palabra: (f.palabra ?? "").replace(/\s+/g, " ").trim(),
       texto: f.texto.replace(/\s+/g, " ").trim(),
+      remate: (f.remate ?? "").replace(/\s+/g, " ").trim(),
       tema: (f.tema ?? "").replace(/\s+/g, " ").trim(),
       idioma: f.idioma ?? "es",
       tono: TONOS.includes((f.tono ?? "") as Tono) ? (f.tono as string) : "reflexiva",
@@ -74,7 +77,7 @@ export async function guardarFrases(
 export async function guardarGuion(g: SadButTrue, tema: string, idioma: string) {
   return guardarFrases(
     [
-      { tipo: "SORTEO", palabra: g.elegida, texto: g.frase, tema, idioma },
+      { tipo: "SORTEO", palabra: g.elegida, texto: g.frase, remate: g.remate, tema, idioma, tono: g.tono },
       { tipo: "REMATE", texto: g.remate, tono: g.tono, idioma },
     ],
     "IA",
@@ -91,38 +94,84 @@ export type LineaPegada = {
 };
 
 /**
+ * En qué orden vienen los campos de cada línea.
+ *
+ *   "palabra"  palabra ; frase ; remate      la palabra delante
+ *   "frase"    frase ; remate ; sobre X      la palabra al final, con "sobre"
+ *
+ * Los dos existen porque las frases se escriben de las dos maneras. Con una
+ * lista de cosas —"El gimnasio", "Ese libro"— la palabra sale primero sola.
+ * Con sentencias en dos tiempos —"La paciencia es infinita ; la vida es
+ * finita"— lo natural es escribir la frase y decir al final de qué iba.
+ */
+export type FormatoPegado = "palabra" | "frase";
+
+/** "sobre la paciencia" → "la paciencia". Lo mismo en inglés. */
+const SOBRE = /^(sobre|acerca de|about|on)\s+/i;
+export const quitarSobre = (v: string) => v.replace(SOBRE, "").trim();
+
+/**
  * Lo pegado a mano, una línea por cosa y los campos separados por `;`.
  *
+ * Con el formato de la palabra delante:
+ *
  *   palabra ; frase              una pareja del sorteo
- *   palabra ; frase ; remate     la pareja, y además ese remate
- *   remate                       un remate suelto (sin ningún `;`)
+ *   palabra ; frase ; remate     la pareja, con su cierre
+ *
+ * Con el de la palabra al final:
+ *
+ *   frase ; remate ; sobre X     la pareja de X, con su cierre
+ *   frase ; sobre X              la pareja, y el cierre lo pone el banco
+ *
+ * Y en los dos, una línea sin ningún `;` es un remate suelto.
  *
  * El punto y coma es lo que distingue cuál es cuál, así que dentro de un texto
- * no puede haber otro: lo que va después del segundo `;` se queda entero en el
- * remate, y una línea mal partida se ve en la vista previa antes de guardar
- * nada. Las líneas vacías y las que empiezan por `#` se saltan, que es lo que
- * permite pegar una lista con sus títulos dentro.
+ * no puede haber otro: lo que sobra se junta con el campo del medio, y una
+ * línea mal partida se ve en la vista previa antes de guardar nada. Las líneas
+ * vacías y las que empiezan por `#` se saltan, que es lo que permite pegar una
+ * lista con sus títulos dentro.
  */
-export function analizarPegado(texto: string): LineaPegada[] {
+export function analizarPegado(texto: string, formato: FormatoPegado = "palabra"): LineaPegada[] {
   const salida: LineaPegada[] = [];
   for (const [i, cruda] of texto.split(/\r?\n/).entries()) {
     const linea = cruda.trim();
     if (!linea || linea.startsWith("#")) continue;
 
-    const partes = linea.split(";");
-    const [a, b, ...resto] = partes.map((x) => x.replace(/\s+/g, " ").trim());
+    const partes = linea.split(";").map((x) => x.replace(/\s+/g, " ").trim());
     const fila: LineaPegada = { numero: i + 1, palabra: "", frase: "", remate: "" };
 
     if (partes.length === 1) {
-      fila.remate = a;
-      if (a.length < 8) fila.error = "Demasiado corto para ser un remate; ¿falta el ; de la frase?";
+      fila.remate = partes[0];
+      if (partes[0].length < 8) fila.error = "Demasiado corto para ser un remate; ¿falta el ; de la frase?";
+      salida.push(fila);
+      continue;
+    }
+
+    if (formato === "frase") {
+      // La palabra es siempre lo último; lo de en medio, el cierre.
+      fila.palabra = quitarSobre(partes[partes.length - 1]);
+      fila.frase = partes[0];
+      fila.remate = partes.slice(1, -1).join("; ").trim();
+      if (!fila.frase) fila.error = "Falta la frase, lo que va antes del primer ;";
+      else if (!fila.palabra) fila.error = "Falta de qué va, lo que va después del último ;";
     } else {
-      fila.palabra = a;
-      fila.frase = b ?? "";
-      fila.remate = resto.join(";").trim();
+      fila.palabra = partes[0];
+      fila.frase = partes[1] ?? "";
+      fila.remate = partes.slice(2).join("; ").trim();
       if (!fila.palabra) fila.error = "Falta la palabra, lo que va antes del primer ;";
       else if (!fila.frase) fila.error = "Falta la frase, lo que va después del primer ;";
-      else if (fila.palabra.length > 40) fila.error = "La palabra del bombo no puede pasar de 40 caracteres";
+    }
+    // Lo que va al bombo se lee en una décima de segundo: cuatro palabras como
+    // mucho ("Llamar a tu papá"). Si ahí ha caído una frase entera, la línea
+    // está partida por donde no era.
+    const cuantas = fila.palabra.split(/\s+/).filter(Boolean).length;
+    if (!fila.error && fila.palabra.length > 40) {
+      fila.error = `La palabra del bombo no puede pasar de 40 caracteres, y esta tiene ${fila.palabra.length}`;
+    } else if (!fila.error && cuantas > 4) {
+      fila.error =
+        formato === "frase"
+          ? "Lo de después del último ; tiene que decir de qué va, como «sobre la paciencia»; esto parece otra frase"
+          : "Lo de antes del primer ; es la palabra del bombo, y esto parece una frase entera";
     }
     salida.push(fila);
   }
@@ -138,8 +187,20 @@ export function filasDePegado(
   for (const l of lineas) {
     if (l.error) continue;
     if (l.palabra && l.frase) {
-      salida.push({ tipo: "SORTEO", palabra: l.palabra, texto: l.frase, tema: datos.tema, idioma: datos.idioma });
+      // El cierre se guarda pegado a su pareja: "La paciencia es infinita" y
+      // "la vida es finita" son la misma broma partida en dos, y separarlas es
+      // contar el chiste a medias.
+      salida.push({
+        tipo: "SORTEO",
+        palabra: l.palabra,
+        texto: l.frase,
+        remate: l.remate,
+        tema: datos.tema,
+        idioma: datos.idioma,
+        tono: datos.tono,
+      });
     }
+    // Y además al montón, porque un buen cierre vale para más de una frase.
     if (l.remate) {
       salida.push({ tipo: "REMATE", texto: l.remate, idioma: datos.idioma, tono: datos.tono });
     }
@@ -240,27 +301,35 @@ export async function sortearGuion(opciones: {
 
   // El bombo, del mismo tema y sin la ganadora: si apareciera antes de ganar,
   // el final se ve venir.
+  // Fuera la ganadora, y fuera cualquier otra fila que repita su palabra: con
+  // dos frases distintas de "la confianza", excluir solo la fila ganadora
+  // dejaba su palabra en el bombo y el final se veía venir.
   const hermanas = await db.frase.findMany({
-    where: { tipo: "SORTEO", idioma, tema: ganadora.tema, id: { not: ganadora.id } },
+    where: { tipo: "SORTEO", idioma, tema: ganadora.tema, palabra: { not: ganadora.palabra } },
     select: { palabra: true },
     take: 40,
   });
   const otras = [...new Set(hermanas.map((h) => h.palabra))].sort(() => Math.random() - 0.5);
   const palabras = [ganadora.palabra, ...otras.slice(0, BOMBO - 1)];
 
-  const remates = await db.frase.findMany({
-    where: { tipo: "REMATE", idioma, ...(opciones.tono ? { tono: opciones.tono } : {}) },
-    orderBy: [{ usos: "asc" }, { creadaEn: "asc" }],
-    take: 20,
-  });
-  const remate = alAzar(remates);
-  if (!remate) throw new Error("No hay remates guardados para cerrar el vídeo.");
+  // Si la pareja trae su propio cierre, ese y no otro: viene escrito para esa
+  // frase. Solo cuando no lo trae se coge uno del montón.
+  const suyo = ganadora.remate.trim();
+  const remates = suyo
+    ? []
+    : await db.frase.findMany({
+        where: { tipo: "REMATE", idioma, ...(opciones.tono ? { tono: opciones.tono } : {}) },
+        orderBy: [{ usos: "asc" }, { creadaEn: "asc" }],
+        take: 20,
+      });
+  const prestado = suyo ? null : alAzar(remates);
+  if (!suyo && !prestado) throw new Error("No hay remates guardados para cerrar el vídeo.");
 
   // Usado es usado: se marca aquí y no al renderizar, porque lo que hay que
   // evitar es que la siguiente tirada devuelva lo mismo.
   const ahora = new Date();
   await db.frase.updateMany({
-    where: { id: { in: [ganadora.id, remate.id] } },
+    where: { id: { in: [ganadora.id, ...(prestado ? [prestado.id] : [])] } },
     data: { usos: { increment: 1 }, usadaEn: ahora },
   });
 
@@ -269,8 +338,10 @@ export async function sortearGuion(opciones: {
     palabras,
     elegida: ganadora.palabra,
     frase: ganadora.texto,
-    remate: remate.texto,
-    tono: TONOS.includes(remate.tono as Tono) ? remate.tono : "reflexiva",
+    remate: suyo || prestado!.texto,
+    tono: TONOS.includes((prestado?.tono ?? ganadora.tono) as Tono)
+      ? (prestado?.tono ?? ganadora.tono)
+      : "reflexiva",
     keywords: palabrasDeBusqueda(ganadora.tema),
     hashtags: ["sadbuttrue"],
   });

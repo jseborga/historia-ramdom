@@ -17,10 +17,35 @@ import { nombreIdioma } from "./comunes";
  * llenar el banco de basura.
  */
 
-const EJEMPLO = `# Lo que ibas a empezar
+/** Los dos ordenes en que se escriben estas frases, con su ejemplo. */
+const FORMATOS = {
+  palabra: {
+    nombre: "La palabra primero  ·  palabra ; frase ; remate",
+    ayuda: [
+      ["palabra ; frase", "una pareja del sorteo"],
+      ["palabra ; frase ; remate", "la pareja, con su cierre"],
+      ["remate", "un remate suelto (sin ningun ;)"],
+    ],
+    ejemplo: `# Lo que ibas a empezar
 El gimnasio ; Pagaste enero entero para ir cuatro veces.
 Ese libro ; Vas por la pagina 40 desde hace dos años. ; Nadie fracasa el primer dia.
-Nadie te va a dar permiso. Ese es el tramite que no existe.`;
+Nadie te va a dar permiso. Ese es el tramite que no existe.`,
+  },
+  frase: {
+    nombre: "La palabra al final  ·  frase ; remate ; sobre X",
+    ayuda: [
+      ["frase ; remate ; sobre X", "la pareja de X, con su cierre"],
+      ["frase ; sobre X", "la pareja, y el cierre lo pone el banco"],
+      ["remate", "un remate suelto (sin ningun ;)"],
+    ],
+    ejemplo: `# Frases en dos tiempos
+La paciencia es infinita; la vida es finita; sobre la paciencia
+Confia en ti; eres una mala apuesta; sobre la confianza
+La confianza da poder; el poder abusa; sobre la confianza`,
+  },
+} as const;
+
+type Formato = keyof typeof FORMATOS;
 
 const TONOS: [TonoSadButTrue, string][] = [
   ["reflexiva", "reflexiva"],
@@ -31,6 +56,7 @@ const TONOS: [TonoSadButTrue, string][] = [
 
 export function BancoFrases({ catalogo }: { catalogo: Catalogo }) {
   const [texto, setTexto] = useState("");
+  const [formato, setFormato] = useState<Formato>("palabra");
   const [tema, setTema] = useState("");
   const [idioma, setIdioma] = useState<Idioma>("es");
   const [tono, setTono] = useState<TonoSadButTrue>("reflexiva");
@@ -75,6 +101,7 @@ export function BancoFrases({ catalogo }: { catalogo: Catalogo }) {
         tema,
         idioma,
         tono,
+        formato,
         guardar: false,
       });
       setLineas(r.lineas);
@@ -101,6 +128,7 @@ export function BancoFrases({ catalogo }: { catalogo: Catalogo }) {
         tema,
         idioma,
         tono,
+        formato,
         guardar: true,
       });
       setOk(
@@ -135,16 +163,37 @@ export function BancoFrases({ catalogo }: { catalogo: Catalogo }) {
 
       <section className="tarjeta">
         <h2>Pegar frases</h2>
+        <div className="campos">
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label htmlFor="formatoPegado">En que orden las escribes</label>
+            <select
+              id="formatoPegado"
+              value={formato}
+              onChange={(e) => {
+                setFormato(e.target.value as Formato);
+                setLineas(null);
+              }}
+            >
+              {(Object.keys(FORMATOS) as Formato[]).map((f) => (
+                <option key={f} value={f}>
+                  {FORMATOS[f].nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
         <p className="suave">
           Una por linea, y el <strong>;</strong> separa los campos:
         </p>
-        <pre>{`palabra ; frase             una pareja del sorteo
-palabra ; frase ; remate    la pareja, y ademas ese remate
-remate                      un remate suelto (sin ningun ;)`}</pre>
+        <pre>
+          {FORMATOS[formato].ayuda.map(([forma, que]) => `${forma.padEnd(28)}${que}`).join("\n")}
+        </pre>
         <p className="suave">
           Por eso dentro de un texto no puede haber otro <strong>;</strong>: es lo que distingue cual
-          es cual. Las lineas vacias y las que empiezan por <code>#</code> se saltan, asi que puedes
-          pegar una lista con sus titulos dentro.
+          es cual. La palabra del bombo son una o dos palabras —se lee en una decima de segundo—, y
+          si ahi cae una frase entera se avisa en vez de guardarla. Las lineas vacias y las que
+          empiezan por <code>#</code> se saltan, asi que puedes pegar una lista con sus titulos
+          dentro.
         </p>
 
         <div className="campos">
@@ -190,7 +239,7 @@ remate                      un remate suelto (sin ningun ;)`}</pre>
           id="pegado"
           rows={10}
           value={texto}
-          placeholder={EJEMPLO}
+          placeholder={FORMATOS[formato].ejemplo}
           onChange={(e) => {
             setTexto(e.target.value);
             setLineas(null);

@@ -950,20 +950,52 @@ saltan; y si lo pides a mano, te dice cuántas le faltan.
 
 La pestaña **Banco de frases** es una vista aparte porque son dos trabajos
 distintos: allí se junta material de una sentada, aquí se monta. Se pega una
-por línea y el punto y coma separa los campos:
+por línea y el punto y coma separa los campos. Hay **dos órdenes** a elegir,
+porque estas frases se escriben de las dos maneras:
+
+**La palabra primero.** Para listas de cosas, donde el tema del sorteo es un
+sustantivo suelto:
 
 ```
 palabra ; frase              una pareja del sorteo
-palabra ; frase ; remate     la pareja, y además ese remate
-remate                       un remate suelto (sin ningún ;)
+palabra ; frase ; remate     la pareja, con su cierre
+El gimnasio ; Pagaste enero entero para ir cuatro veces.
 ```
 
-Por eso dentro de un texto no puede haber otro `;`. Las líneas vacías y las que
-empiezan por `#` se saltan, así que puedes pegar una lista con sus títulos
-dentro. Y **nada se guarda a ciegas**: primero se enseña lo pegado partido en
-columnas —palabra, frase, remate— con las líneas raras marcadas en rojo, y se
-guarda lo que se ve en la tabla. Las repetidas no dan error: pegar dos veces la
-misma lista es lo más normal del mundo.
+**La palabra al final.** Para sentencias en dos tiempos, donde lo natural es
+escribir la frase y decir al final de qué iba:
+
+```
+frase ; remate ; sobre X     la pareja de X, con su cierre
+frase ; sobre X              la pareja, y el cierre lo pone el banco
+La paciencia es infinita ; la vida es finita ; sobre la paciencia
+Confía en ti ; eres una mala apuesta ; sobre la confianza
+```
+
+El «sobre» es opcional —se le quita al guardar—, y en los dos órdenes una línea
+**sin ningún `;` es un remate suelto**. Por eso dentro de un texto no puede
+haber otro `;`. Las líneas vacías y las que empiezan por `#` se saltan, así que
+puedes pegar una lista con sus títulos dentro.
+
+Lo que va al bombo tiene que leerse en una décima de segundo, así que son
+cuatro palabras como mucho; si ahí cae una frase entera, la línea estaba
+partida por donde no era y se avisa en vez de guardarla.
+
+Y **nada se guarda a ciegas**: primero se enseña lo pegado partido en columnas
+—palabra, frase, remate— con las líneas raras marcadas en rojo, y se guarda lo
+que se ve en la tabla. Las repetidas no dan error: pegar dos veces la misma
+lista es lo más normal del mundo.
+
+### El cierre viaja con su frase
+
+«La paciencia es infinita» y «la vida es finita» son la misma broma partida en
+dos: si el cierre se mezclara con el montón de remates, el sorteo podría
+rematar la paciencia con *el poder abusa* y el chiste se cuenta a medias. Por
+eso el cierre se guarda **pegado a su pareja** y, al sortear, gana el suyo.
+
+Solo cuando una pareja no trae cierre propio —`frase ; sobre X`, o una lista de
+palabras sueltas— se coge uno del montón. Y el cierre entra además en ese
+montón, porque un buen remate vale para más de una frase.
 
 ### Sin voz, y con tiempo de leer
 
@@ -984,7 +1016,8 @@ hay que cuadrar el vídeo con una música.
 - **API**: `POST /api/sadbuttrue` (escribe el guion con IA y lo guarda en el
   banco), `POST /api/sadbuttrue/azar` (lo saca del banco, sin IA),
   `POST /api/sadbuttrue/video` (lo monta y crea el proyecto), `GET /api/frases`,
-  `POST /api/frases/pegar` (con `guardar: false` solo enseña lo que entendió) y
+  `POST /api/frases/pegar` (con `formato` y, con `guardar: false`, solo enseña
+  lo que entendió) y
   `DELETE /api/frases/:id`.
 - **MCP**: `sad_but_true`, `sortear_sad_but_true`, `montar_sad_but_true`,
   `banco_frases` y `guardar_frases`.

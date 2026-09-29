@@ -274,6 +274,9 @@ model Frase {
   palabra  String     @default("")
   /// La frase que le toca a esa palabra, o el remate.
   texto    String
+  /// El cierre de ESTA pareja, cuando viene pegado a ella. Vacío = se coge
+  /// uno cualquiera del montón de remates.
+  remate   String     @default("")
   /// Lo que tienen en común las palabras de un mismo sorteo.
   tema     String     @default("")
   idioma   String     @default("es")
