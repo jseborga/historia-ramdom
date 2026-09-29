@@ -227,6 +227,7 @@ form.login { max-width: 340px; margin: 15vh auto 0; display: grid; gap: 12px; }
 @keyframes entrarZoom { from { opacity: 0; scale: 0.82; } to { opacity: 1; scale: 1; } }
 
 .rotulo.anim-fundido { animation: entrarFundido 0.3s ease both; }
+.rotulo.anim-suave { animation: entrarFundido 0.6s ease both; }
 .rotulo.anim-subir { animation: entrarSubir 0.35s ease both; }
 .rotulo.anim-zoom { animation: entrarZoom 0.35s ease both; }
 

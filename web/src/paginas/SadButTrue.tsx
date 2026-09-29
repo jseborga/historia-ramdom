@@ -92,7 +92,9 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
   const cierreSeg = lecturaAuto && guion ? tiempoDeLectura(guion.remate, TIEMPOS.cierreSeg) : tiempos.cierreSeg;
   // Lo que el montaje anade por su cuenta: la media disolucion que se le come
   // a cada texto, el apagon del rojo y el segundo de negro del final.
-  const EXTRAS = 0.5 + 0.5 + 0.2 + 1;
+  // Media disolucion del video + el negro de por medio + media entrada del
+  // rojo + medio apagon + el segundo de negro final.
+  const EXTRAS = 0.3 + 1 + 0.3 + 0.2 + 1;
   const total = tiempos.sorteoSeg + clipSeg + cierreSeg + EXTRAS;
   const cambiarTiempo = (c: Partial<typeof TIEMPOS>) => setTiempos({ ...tiempos, ...c });
 
@@ -221,9 +223,10 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
       <section className="tarjeta">
         <h2>1. El sorteo</h2>
         <p className="suave">
-          Once segundos, sin voz: tres de palabras en gris pasando a toda velocidad sobre negro, y
-          al corte aparece la frase que gano, en amarillo, sobre un video cualquiera. Despues el
-          video se disuelve en una pantalla roja con el remate en blanco, y cierra en negro.
+          Once segundos, sin voz: palabras en gris pasando a toda velocidad sobre negro hasta que
+          se para en el arranque de la frase que gana, en amarillo; al corte, el video la termina.
+          Despues se apaga a negro, sale una pantalla roja con el remate en blanco y cierra en
+          negro.
         </p>
         <div className="campos">
           <div>
@@ -403,7 +406,7 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
               />
             </div>
             <div>
-              <label htmlFor="retencionSeg">Parar en la que gana antes del corte (s)</label>
+              <label htmlFor="retencionSeg">Parar en el arranque de la frase (s)</label>
               <input
                 id="retencionSeg"
                 type="number"
@@ -475,7 +478,7 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
           <p className="suave">
             Duracion: <strong>{total.toFixed(1)}s</strong> · {tiempos.sorteoSeg}s de sorteo (
             {tiempos.retencionSeg ? ` para ${tiempos.retencionSeg}s en la que gana` : " sin parar"}) +{" "}
-            {clipSeg}s de frase + {cierreSeg}s de remate, un segundo de disolucion del video al
+            {clipSeg}s de frase + {cierreSeg}s de remate, el paso por negro entre el video y el
             rojo del cierre —que es lo que hace suave el cambio— y un segundo de negro al final.
             {lecturaAuto
               ? " Los dos textos se quedan lo que se tarda en leerlos (un segundo en darse cuenta y 0,33s por palabra), con 3,5 y 2 segundos de suelo: aqui no hay voz que marque el ritmo y no hay forma de volver atras."

@@ -889,12 +889,27 @@ La pestaña **Sad but true** hace un formato y solo uno, de unos once segundos y
 sin voz:
 
 ```
-0.0 ──3s──►  negro: palabras en GRIS pasando a toda velocidad, frenando
-3.0 ─3,5s─►  corte a un vídeo cualquiera: entra la frase en AMARILLO
-6.5  1s      el vídeo se DISUELVE en una pantalla roja
-7.5 ──2s──►  el remate, en BLANCO sobre el rojo
-10.0 ──1s─►  el rojo se apaga y cierra en NEGRO
+0.0 ─2,1s─►  negro: palabras en GRIS pasando a toda velocidad, frenando
+2.1 ─0,9s─►  se para en el ARRANQUE de la frase que gana, en amarillo
+3.0 ─3,5s─►  corte al vídeo: la frase entera, que termina lo empezado
+6.5  0,6s    el vídeo se APAGA a negro
+7.0   1s     negro
+8.0 ──2s──►  sale la pantalla roja con el remate en BLANCO
+10.5 ──1s─►  el rojo se apaga y cierra en NEGRO
 ```
+
+**El sorteo se para en las primeras palabras de la frase**, no en la palabra
+del bombo. Antes paraba en «la paciencia» y acto seguido el vídeo enseñaba «La
+paciencia es infinita»: se leía dos veces lo mismo con dos caras distintas.
+Ahora el sorteo dice *«La paciencia»* y el corte al vídeo la **termina**:
+*«…es infinita»*. Son las dos primeras palabras si caben de un vistazo (22
+caracteres), y si no, la primera.
+
+**Del vídeo al rojo se pasa por negro.** Disolver el vídeo dentro del rojo no
+se veía como un cambio de plano sino como un filtro rojo encima de la ciudad,
+con los coches y las farolas asomando en granate a media disolución. Apagando
+a negro primero, lo que se ve es que el vídeo termina; y el rojo, que entra
+después, entra limpio.
 
 Los colores son parte del formato, no decoración. El sorteo va en **gris sobre
 negro**: tiene que verse que pasa algo sin que nadie intente leerlo, porque a
@@ -917,11 +932,12 @@ Tres cosas salieron de mirar las muestras antes de implementarlo:
   deshace— y con el contorno del mismo rojo, además, la letra engorda. El rojo
   pasó de la letra al fondo: pantallazo rojo y remate en blanco, que es lo que
   mejor se lee de las cuatro opciones probadas.
-- **El cambio al cierre tiene que ser suave.** El vídeo se disuelve en el rojo
-  durante un segundo entero, y la frase se va **antes** de que empiece esa
-  disolución: con el texto clavado mientras la imagen se funde, el cambio se
-  ve duro por mucho que la imagen sea suave, porque lo que mira el ojo es la
-  letra. El remate entra al otro lado del cruce, con el rojo ya entero.
+- **El cambio al cierre tiene que ser suave.** Cada texto se va **antes** de
+  que empiece su disolución: con la letra clavada mientras la imagen se funde,
+  el cambio se ve duro por suave que sea la imagen, porque lo que mira el ojo
+  es la letra. Y la frase y el remate entran y salen con la animación
+  `suave` —el fundido del doble de largo, 600 ms por lado—, en vez de aparecer
+  de golpe.
 
 Por eso los dos números de tiempo son **cuánto se ve cada texto**, no cuánto
 dura su plano: la escena añade por su cuenta la media disolución que se le

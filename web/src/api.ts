@@ -137,7 +137,14 @@ export type Preset = {
 };
 
 export type Posicion = "arriba" | "centro" | "abajo";
-export type Animacion = "ninguna" | "fundido" | "subir" | "zoom" | "resaltar" | "apareciendo";
+export type Animacion =
+  | "ninguna"
+  | "fundido"
+  | "suave"
+  | "subir"
+  | "zoom"
+  | "resaltar"
+  | "apareciendo";
 export type Efecto =
   | "ninguno"
   | "zoomLento"

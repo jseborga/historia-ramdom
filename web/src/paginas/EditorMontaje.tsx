@@ -44,7 +44,8 @@ function masRepetida<T extends string>(valores: T[], admitidos: string[]): T | n
 }
 
 const ANIMACIONES: [Animacion, string][] = [
-  ["ninguna", "ninguna"], ["fundido", "fundido"], ["subir", "subir"], ["zoom", "zoom"],
+  ["ninguna", "ninguna"], ["fundido", "fundido"], ["suave", "fundido largo (entra y sale suave)"],
+  ["subir", "subir"], ["zoom", "zoom"],
   ["resaltar", "resaltar palabra a palabra"],
   ["apareciendo", "aparece a la vez que la voz"],
 ];

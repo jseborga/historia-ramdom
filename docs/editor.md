@@ -313,13 +313,14 @@ los trozos se reparten sobre esa duración real.
 
 ## Animaciones
 
-Seis, elegidas porque ffmpeg las reproduce **exactamente** igual que la vista
+Siete, elegidas porque ffmpeg las reproduce **exactamente** igual que la vista
 previa, vía etiquetas ASS:
 
 | Animación | Qué hace | En el render |
 |---|---|---|
 | `ninguna` | Aparece y ya | `\pos` |
 | `fundido` | Entra y sale fundido | `\fad(300,300)` |
+| `suave` | Lo mismo, del doble de largo | `\fad(600,600)` |
 | `subir` | Sube 70 px al entrar | `\move(...)` + fundido |
 | `zoom` | Entra al 82 % y crece | `\t(\fscx\fscy)` + fundido |
 | `resaltar` | Ilumina palabra a palabra al ritmo del trozo | Karaoke ASS `\kf` por palabra, con color secundario apagado |

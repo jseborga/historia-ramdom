@@ -10,9 +10,17 @@ export type Posicion = "arriba" | "centro" | "abajo";
 /**
  * `resaltar` ilumina palabra a palabra al ritmo del fragmento (karaoke ASS).
  * `apareciendo` las va enseñando una a una, como si se escribieran mientras la
- * voz en off las lee.
+ * voz en off las lee. `suave` es el fundido de siempre pero del doble de
+ * largo, para un texto que tiene que entrar y salir sin que se note el borde.
  */
-export type Animacion = "ninguna" | "fundido" | "subir" | "zoom" | "resaltar" | "apareciendo";
+export type Animacion =
+  | "ninguna"
+  | "fundido"
+  | "suave"
+  | "subir"
+  | "zoom"
+  | "resaltar"
+  | "apareciendo";
 /** Como se va mostrando un texto largo dentro de su escena. */
 export type Lectura = "todo" | "frases" | "bloques";
 
@@ -48,6 +56,7 @@ const SOMBRA_MARCADA = 3;
 export const ANIMACIONES: Animacion[] = [
   "ninguna",
   "fundido",
+  "suave",
   "subir",
   "zoom",
   "resaltar",
@@ -214,6 +223,9 @@ const tiempo = (s: number) => {
 const limpiar = (t: string) =>
   t.replace(/[\\{}]/g, "").replace(/\r?\n/g, "\\N").replace(/[ \t]+/g, " ").trim();
 
+/** Lo que tarda `suave` en entrar y en irse. */
+const SUAVE_MS = 600;
+
 /** Color apagado del karaoke: gris medio, se ve sobre casi cualquier clip. */
 const SECUNDARIO_APAGADO = "&H00909090&";
 
@@ -234,6 +246,8 @@ function etiquetas(estilo: EstiloTexto, animacion: Animacion, p: Preset) {
   switch (animacion) {
     case "fundido":
       return `${base}\\pos(${x},${y})\\fad(300,300)`;
+    case "suave":
+      return `${base}\\pos(${x},${y})\\fad(${SUAVE_MS},${SUAVE_MS})`;
     case "subir":
       return `${base}\\move(${x},${y + 70},${x},${y},0,350)\\fad(200,200)`;
     case "zoom":
