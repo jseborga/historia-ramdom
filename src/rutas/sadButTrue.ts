@@ -6,6 +6,7 @@ import { IdiomaCampo, MOTORES } from "../servicios/guion.js";
 import { elegirClips, esBancoElegible, esMedio, type TipoMedio } from "../servicios/clips.js";
 import { ProyectoSchema, PublicacionSchema } from "../servicios/proyecto.js";
 import {
+  SECCIONES,
   SadButTrueSchema,
   TONOS,
   descripcionSadButTrue,
@@ -37,7 +38,11 @@ import { conMotivo } from "./errores.js";
  * entera aquí y el proyecto nace listo para renderizar.
  */
 
+/** De qué sección: la de siempre, motivación o sarcasmo. */
+const SeccionCampo = z.enum(SECCIONES).default("triste");
+
 const PeticionSchema = z.object({
+  seccion: SeccionCampo,
   tema: z.string().max(300).default(""),
   tono: z.enum(TONOS).or(z.literal("")).default(""),
   motor: z.enum(MOTORES).default("groq"),
@@ -73,6 +78,7 @@ const FraseSchema = z.object({
   tema: z.string().max(80).default(""),
   idioma: IdiomaCampo.default("es"),
   tono: z.enum(TONOS).default("reflexiva"),
+  seccion: SeccionCampo,
 });
 
 export async function rutasSadButTrue(app: FastifyInstance) {
@@ -81,10 +87,10 @@ export async function rutasSadButTrue(app: FastifyInstance) {
     const p = PeticionSchema.parse(req.body);
     return conMotivo(reply, async () => {
       const g = await generarSadButTrue(p);
-      // Lo escrito se queda en el banco: la próxima vez puede salir sorteado
-      // sin gastar una llamada, y su palabra llena el bombo de las demás.
-      await guardarGuion(g, p.tema || g.titulo, p.idioma);
-      return g;
+      // Lo escrito se queda en el banco, la familia entera: la próxima vez
+      // sale sorteado sin gastar una llamada, y cada vez gana otra palabra.
+      const guardado = await guardarGuion(g, g.tema || p.tema || g.titulo, p.idioma);
+      return { ...g, guardado };
     });
   });
 
@@ -92,12 +98,15 @@ export async function rutasSadButTrue(app: FastifyInstance) {
   app.post("/api/sadbuttrue/azar", async (req, reply) => {
     const p = z
       .object({
+        seccion: SeccionCampo,
         tema: z.string().max(80).default(""),
         tono: z.enum(TONOS).or(z.literal("")).default(""),
         idioma: IdiomaCampo.default("es"),
       })
       .parse(req.body ?? {});
-    return conMotivo(reply, () => sortearGuion({ tema: p.tema || undefined, tono: p.tono, idioma: p.idioma }));
+    return conMotivo(reply, () =>
+      sortearGuion({ seccion: p.seccion, tema: p.tema || undefined, tono: p.tono, idioma: p.idioma }),
+    );
   });
 
   /** El banco: lo que hay, y de qué temas. */
@@ -108,9 +117,10 @@ export async function rutasSadButTrue(app: FastifyInstance) {
         tema: z.string().max(80).optional(),
         idioma: IdiomaCampo.optional(),
         buscar: z.string().max(80).optional(),
+        seccion: z.enum(SECCIONES).optional(),
       })
       .parse(req.query);
-    const [frases, temas] = await Promise.all([listarFrases(f), temasDelBanco(f.idioma)]);
+    const [frases, temas] = await Promise.all([listarFrases(f), temasDelBanco(f.idioma, f.seccion)]);
     return { frases, temas };
   });
 
@@ -129,8 +139,9 @@ export async function rutasSadButTrue(app: FastifyInstance) {
    * forma más rápida de llenar el banco de basura.
    */
   app.post("/api/frases/pegar", async (req) => {
-    const { texto, tema, idioma, tono, formato, guardar } = z
+    const { texto, tema, idioma, tono, formato, guardar, seccion } = z
       .object({
+        seccion: SeccionCampo,
         texto: z.string().max(40_000),
         tema: z.string().max(80).default(""),
         idioma: IdiomaCampo.default("es"),
@@ -142,7 +153,7 @@ export async function rutasSadButTrue(app: FastifyInstance) {
       .parse(req.body);
 
     const lineas = analizarPegado(texto, formato);
-    const filas = filasDePegado(lineas, { tema, idioma, tono });
+    const filas = filasDePegado(lineas, { tema, idioma, tono, seccion });
     if (!guardar) return { lineas, listas: filas.length };
 
     const r = await guardarFrases(filas, "MANUAL");

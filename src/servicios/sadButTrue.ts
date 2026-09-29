@@ -16,6 +16,7 @@ import {
   type InformeMotor,
 } from "./guion.js";
 import type { ClipInfo } from "./clips.js";
+import type { Seccion } from "./sadButTrueBase.js";
 
 /**
  * **Sad but true**: el formato más corto de todos y el más rígido, que es
@@ -45,8 +46,63 @@ export const NOMBRES_TONO: Record<Tono, string> = {
   desmotivadora: "desmotivadora (la verdad que nadie pide)",
 };
 
+/**
+ * Las tres secciones del formato. Se hacen igual —sorteo, frase sobre el
+ * vídeo, remate sobre negro— y solo cambia lo que se dice. Por eso son
+ * secciones y no pestañas: lo que distingue una de otra es el encargo a la IA
+ * y de qué parte del banco se sortea, no el montaje.
+ */
+export const SECCIONES = ["triste", "motivacion", "sarcasmo"] as const;
+export type { Seccion };
+export const esSeccion = (v: string): v is Seccion => (SECCIONES as readonly string[]).includes(v);
+
+export const NOMBRES_SECCION: Record<Seccion, string> = {
+  triste: "Sad but true",
+  motivacion: "Motivación",
+  sarcasmo: "Sarcasmo",
+};
+
+/** Lo que tiene que hacer la frase en cada sección, dicho como se le dice al modelo. */
+const ENCARGO: Record<Seccion, { formato: string; frase: string; limite: string; ejemplo: string }> = {
+  triste: {
+    formato: "'Sad but true'",
+    frase:
+      "La frase es lo que le pasa de verdad a esa palabra: concreta, cotidiana, ligeramente desmotivadora. Que incomode y dé una media sonrisa, no que hunda a nadie.",
+    limite: "Nada de consejos, de moralina ni de 'pero todo mejora'.",
+    ejemplo: "cosas que se posponen, promesas que se hacen, motivos para no llamar",
+  },
+  motivacion: {
+    formato: "de motivación (frases que levantan el ánimo)",
+    frase:
+      "La frase levanta el ánimo con algo CONCRETO y comprobable: un dato pequeño, un gesto, una forma de mirar lo que ya se hizo. Tiene que dar ganas de hacer algo hoy.",
+    limite:
+      "Prohibidas las frases de taza: nada de 'tú puedes', 'nunca te rindas', 'cree en ti', 'todo pasa por algo' ni 'el universo'. Se leen y se olvidan en el mismo segundo.",
+    ejemplo: "hábitos pequeños, lo que ya aguantaste, empezar de nuevo",
+  },
+  sarcasmo: {
+    formato: "de sarcasmo (lo que sabes que está mal y no quieres escuchar)",
+    frase:
+      "La frase es la verdad incómoda que quien mira ya sabe y no quiere oír: la excusa de siempre, el hábito que defiende, la mentira que se cuenta. Dicha con ironía seca, de las que hacen reír y dan un poco de vergüenza.",
+    limite:
+      "El blanco del sarcasmo es quien mira y sus excusas, NUNCA un grupo de gente, una persona real ni el físico de nadie. Burla del hábito, no de la persona.",
+    ejemplo: "mentiras que te cuentas, excusas de siempre, lo que postergas",
+  },
+};
+
+/** Una palabra del bombo con su frase y su cierre: una familia sale entera. */
+export const ParejaSchema = z.object({
+  palabra: z.string().min(1).max(40),
+  frase: z.string().min(1).max(300),
+  remate: z.string().max(300).default(""),
+});
+export type Pareja = z.infer<typeof ParejaSchema>;
+
 export const SadButTrueSchema = z.object({
   titulo: z.string().min(1).max(120),
+  /** De qué sección es. Lo de siempre es "triste". */
+  seccion: z.enum(SECCIONES).default("triste"),
+  /** La familia de las palabras: con este nombre se guarda en el banco. */
+  tema: z.string().max(80).default(""),
   /** Las del sorteo. Cortas: tienen que leerse en una décima de segundo. */
   palabras: z.array(z.string().min(1).max(40)).min(4).max(14),
   /** La que gana el sorteo. Siempre una de las de arriba. */
@@ -59,6 +115,13 @@ export const SadButTrueSchema = z.object({
   /** EN INGLÉS: con esto se busca el vídeo del medio. */
   keywords: z.array(z.string().min(1).max(40)).min(1).max(6),
   hashtags: z.array(z.string().max(40)).max(8).default([]),
+  /**
+   * La familia entera, cada palabra con su frase y su cierre. Es lo que se
+   * guarda en el banco: con una sola pareja por generación ningún tema
+   * llegaba a las cuatro que hacen falta para sortearse, y lo escrito con IA
+   * no volvía a salir nunca.
+   */
+  parejas: z.array(ParejaSchema).max(14).default([]),
   motorUsado: z.string().max(20).optional(),
   avisoMotor: z.string().max(300).optional(),
 });
@@ -77,10 +140,25 @@ const limpiar = (v: unknown) => (typeof v === "string" ? v.replace(/\s+/g, " ").
 export function repararSadButTrue(crudo: unknown): unknown {
   if (!crudo || typeof crudo !== "object") return crudo;
   const d = { ...(crudo as Record<string, unknown>) };
-
-  const palabras = Array.isArray(d.palabras) ? d.palabras.map(limpiar).filter(Boolean) : [];
-  const elegida = limpiar(d.elegida) || palabras[0] || "";
   const iguales = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+
+  // La familia entera, si vino: cada palabra con su frase y su cierre. De ahí
+  // salen las palabras del bombo y, si falta, la frase y el remate de la que
+  // gana. Las parejas a medias (palabra sin frase) no valen para el banco.
+  const parejas = (Array.isArray(d.parejas) ? d.parejas : [])
+    .map((x) => (x && typeof x === "object" ? (x as Record<string, unknown>) : {}))
+    .map((x) => ({ palabra: limpiar(x.palabra), frase: limpiar(x.frase), remate: limpiar(x.remate) }))
+    .filter((x) => x.palabra && x.frase && x.palabra.length <= 40);
+  d.parejas = parejas.slice(0, 14);
+
+  const sueltas = Array.isArray(d.palabras) ? d.palabras.map(limpiar).filter(Boolean) : [];
+  const palabras = [...parejas.map((x) => x.palabra), ...sueltas];
+  const elegida = limpiar(d.elegida) || palabras[0] || "";
+  const suya = parejas.find((x) => iguales(x.palabra, elegida));
+  if (suya) {
+    if (!limpiar(d.frase)) d.frase = suya.frase;
+    if (!limpiar(d.remate)) d.remate = suya.remate;
+  }
 
   // Sin repetidas: dos veces la misma palabra en el sorteo se nota.
   const unicas: string[] = [];
@@ -89,13 +167,15 @@ export function repararSadButTrue(crudo: unknown): unknown {
 
   d.palabras = unicas.slice(0, 14);
   d.elegida = elegida;
-  for (const campo of ["titulo", "frase", "remate"]) d[campo] = limpiar(d[campo]);
+  for (const campo of ["titulo", "frase", "remate", "tema"]) d[campo] = limpiar(d[campo]);
   return d;
 }
 
 export type PeticionSadButTrue = {
   motor: string;
   modelo?: string | null;
+  /** De qué sección: la de siempre, motivación o sarcasmo. */
+  seccion?: Seccion;
   /** De qué va el sorteo; vacío = lo elige el modelo. */
   tema?: string;
   /** Humor del remate; vacío = el que le pegue a la frase. */
@@ -118,34 +198,43 @@ export async function generarSadButTrue(p: PeticionSadButTrue): Promise<SadButTr
   if (!esMotor(p.motor)) throw new Error(`Motor desconocido: ${p.motor}`);
   const idioma = p.idioma ?? "es";
   const tono = p.tono || "";
+  const seccion: Seccion = p.seccion ?? "triste";
+  const e = ENCARGO[seccion];
 
   const prompt = [
-    "Escribe el guion de un vídeo vertical de diez segundos del formato 'Sad but true'.",
+    `Escribe el guion de un vídeo vertical de diez segundos del formato ${e.formato}.`,
     "El vídeo es así: sobre negro pasan palabras sueltas como en un sorteo, se para en una,",
     "y sobre un vídeo cualquiera aparece la frase que le toca a esa palabra. Cierra en negro con un remate.",
     p.tema ? `El sorteo va de esto: ${p.tema}.` : "Elige tú de qué va el sorteo.",
     "",
+    "Escribe la FAMILIA ENTERA, no solo la que gana: cada palabra del sorteo con su frase y su remate.",
+    "Lo que no gane esta vez se guarda para otros vídeos, así que todas tienen que valer por sí solas.",
+    "",
     "Cómo tiene que ser:",
-    "- De 8 a 12 palabras para el sorteo, TODAS de la misma familia (cosas que se posponen, promesas que se hacen, motivos para no llamar...). Si no son de la misma familia no parece un sorteo, parece una lista.",
-    "- Cada una de una a tres palabras: se leen en una décima de segundo.",
-    "- 'elegida' tiene que ser EXACTAMENTE una de las de la lista.",
-    "- La frase es lo que le pasa de verdad a esa palabra: concreta, cotidiana, de una o dos líneas. Ligeramente desmotivadora es que incomode y dé una media sonrisa, no que hunda a nadie.",
-    "- Nada de consejos, de moralina ni de 'pero todo mejora'. Tampoco crueldad, ni insultos, ni nada dirigido a una persona real.",
-    "- Nada que empuje a rendirse, a hacerse daño ni a dejar de pedir ayuda: esto es un chiste amargo sobre la vida, no un consejo sobre ella.",
+    `- De 8 a 10 parejas, TODAS de la misma familia (${e.ejemplo}...). Si no son de la misma familia no parece un sorteo, parece una lista.`,
+    "- Cada palabra, de una a tres palabras: se leen en una décima de segundo.",
+    "- Cada frase EMPIEZA por su palabra, así el sorteo se para en ella y el vídeo la termina. Ejemplo: palabra 'La constancia', frase 'La constancia le gana a las ganas todos los martes.'",
+    `- ${e.frase}`,
+    "- Una o dos líneas por frase, como mucho veinte palabras.",
+    `- ${e.limite}`,
+    "- Nada de crueldad, de insultos ni de nada dirigido a una persona real.",
+    "- Nada que empuje a rendirse, a hacerse daño ni a dejar de pedir ayuda.",
     tono
-      ? `- El remate cierra con una filosofía de vida de tono ${NOMBRES_TONO[tono as Tono]}.`
-      : "- El remate cierra con una filosofía de vida: puede ser feliz, triste, reflexiva o desmotivadora, la que le pegue a la frase.",
-    "- El remate no repite la frase ni la explica: la empuja un paso más.",
+      ? `- Cada remate cierra con una filosofía de vida de tono ${NOMBRES_TONO[tono as Tono]}.`
+      : "- Cada remate cierra con una filosofía de vida: feliz, triste, reflexiva o desmotivadora, la que le pegue a su frase.",
+    "- El remate no repite la frase ni la explica: la empuja un paso más. Corto: menos de quince palabras.",
+    "- 'elegida' es la palabra de la pareja más fuerte, EXACTAMENTE como está escrita en la lista.",
     "- Nada de emojis, de hashtags dentro del texto ni de acotaciones.",
     ortografia(idioma),
     "",
     "Devuelve exactamente este JSON:",
     "{",
     '  "titulo": "título corto del vídeo",',
-    '  "palabras": ["una", "otra", "otra mas"],',
-    '  "elegida": "la del sorteo que gana",',
-    '  "frase": "la frase ligeramente desmotivadora",',
-    '  "remate": "la filosofía de vida con la que cierra",',
+    '  "tema": "la familia de las palabras, en tres o cuatro palabras",',
+    '  "parejas": [',
+    '    { "palabra": "La palabra", "frase": "La palabra y lo que le pasa.", "remate": "el cierre de esta frase" }',
+    "  ],",
+    '  "elegida": "la palabra de la pareja más fuerte",',
     `  "tono": "${tono || "feliz|triste|reflexiva|desmotivadora"}",`,
     '  "keywords": ["visual keyword in english", "another"],',
     '  "hashtags": ["sinAlmohadilla", "otro"]',
@@ -167,13 +256,25 @@ export async function generarSadButTrue(p: PeticionSadButTrue): Promise<SadButTr
   );
   if (!crudo) throw new Error(`El motor ${informe.motor ?? p.motor} no devolvió contenido`);
   const datos = repararSadButTrue(extraerJSON(crudo)) as Record<string, unknown>;
+  const etiqueta = HASHTAG_SECCION[seccion];
+  const hashtags = Array.isArray(datos.hashtags) ? (datos.hashtags as unknown[]).map(String) : [];
   return SadButTrueSchema.parse({
     ...datos,
+    seccion,
+    tema: p.tema || (datos.tema as string) || (datos.titulo as string) || "",
+    hashtags: [...new Set([etiqueta, ...hashtags])].slice(0, 8),
     ...(tono ? { tono } : {}),
     motorUsado: informe.motor,
     avisoMotor: informe.aviso,
   });
 }
+
+/** La etiqueta que lleva siempre cada sección al publicar. */
+export const HASHTAG_SECCION: Record<Seccion, string> = {
+  triste: "sadbuttrue",
+  motivacion: "motivacion",
+  sarcasmo: "sarcasmo",
+};
 
 /** Los tiempos del formato, en segundos. Los de fábrica son los del guion. */
 export type TiemposSadButTrue = {
@@ -365,9 +466,16 @@ export function arranqueDeFrase(frase: string, palabra: string): string {
   const ws = frase.trim().split(/\s+/).filter(Boolean);
   if (!ws.length) return palabra;
   if (!pelado(frase).startsWith(pelado(palabra))) return palabra;
-  const dos = ws.slice(0, 2).join(" ");
-  // Dos palabras si caben de un vistazo; si no, con una basta.
-  return dos.length <= 22 ? dos : ws[0];
+  // Tantas palabras de la frase como tenga lo sorteado: ni una menos, porque
+  // cortar «Un mal día» en «Un mal» deja una parada que no dice nada. Se
+  // cogen de la frase y no de la palabra para que salgan con sus mayúsculas y
+  // sus tildes tal como se van a leer un segundo después.
+  const cuantas = palabra.trim().split(/\s+/).filter(Boolean).length;
+  // Sin la coma o el punto con que siga la frase: en la parada, sola, sobra.
+  return ws
+    .slice(0, Math.max(1, cuantas))
+    .join(" ")
+    .replace(/[,;:.…]+$/, "");
 }
 
 /**

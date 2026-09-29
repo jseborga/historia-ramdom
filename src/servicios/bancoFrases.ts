@@ -1,6 +1,14 @@
 import { db } from "../db.js";
-import { filasDeBase } from "./sadButTrueBase.js";
-import { SadButTrueSchema, TONOS, type SadButTrue, type Tono } from "./sadButTrue.js";
+import { filasDeBase, type Seccion } from "./sadButTrueBase.js";
+import {
+  HASHTAG_SECCION,
+  SECCIONES,
+  SadButTrueSchema,
+  TONOS,
+  esSeccion,
+  type SadButTrue,
+  type Tono,
+} from "./sadButTrue.js";
 
 /**
  * El banco de "Sad but true": de aquí sale un vídeo sin gastar una sola
@@ -22,15 +30,25 @@ const BOMBO = 8;
 /** Menos de esto no es un sorteo: es enseñar la respuesta con dos distracciones. */
 const BOMBO_MINIMO = 4;
 
-/** Mete la base la primera vez. Después no vuelve a tocar nada. */
+/**
+ * Mete la base de cada sección la primera vez que esa sección está vacía.
+ *
+ * Por sección y no de golpe: una instalación que ya tenía el banco de la de
+ * siempre no recibiría nunca la base de motivación ni la de sarcasmo si se
+ * mirase solo si la tabla está vacía. Y una sección que alguien vació a mano
+ * a propósito tampoco se vuelve a rellenar sola: solo cuenta la primera vez.
+ */
 export async function asegurarBase(): Promise<number> {
-  if (await db.frase.count()) return 0;
-  const filas = filasDeBase();
-  const { count } = await db.frase.createMany({
-    data: filas.map((f) => ({ ...f, fuente: "MANUAL" as const })),
-    skipDuplicates: true,
-  });
-  return count;
+  let metidas = 0;
+  for (const seccion of SECCIONES) {
+    if (await db.frase.count({ where: { seccion } })) continue;
+    const { count } = await db.frase.createMany({
+      data: filasDeBase(seccion).map((f) => ({ ...f, fuente: "MANUAL" as const })),
+      skipDuplicates: true,
+    });
+    metidas += count;
+  }
+  return metidas;
 }
 
 export type FraseNueva = {
@@ -42,6 +60,7 @@ export type FraseNueva = {
   tema?: string;
   idioma?: string;
   tono?: string;
+  seccion?: string;
 };
 
 /**
@@ -62,6 +81,7 @@ export async function guardarFrases(
       tema: (f.tema ?? "").replace(/\s+/g, " ").trim(),
       idioma: f.idioma ?? "es",
       tono: TONOS.includes((f.tono ?? "") as Tono) ? (f.tono as string) : "reflexiva",
+      seccion: esSeccion(f.seccion ?? "") ? (f.seccion as Seccion) : "triste",
       fuente,
     }))
     // Una pareja sin palabra no puede ganar un sorteo, y un texto vacío no es
@@ -73,12 +93,37 @@ export async function guardarFrases(
   return { nuevas: count, repetidas: limpias.length - count };
 }
 
-/** Lo que escribió la IA se queda en el banco: la pareja y el remate. */
+/**
+ * Lo que escribió la IA se queda en el banco: **la familia entera**.
+ *
+ * Antes se guardaba solo la pareja que ganó, y eso dejaba lo escrito con IA
+ * fuera de juego: un tema necesita cuatro parejas para poder sortearse, y con
+ * una por generación no llegaba nunca. Ahora cada palabra del bombo viene con
+ * su frase y su cierre, así que una sola generación deja un tema completo que
+ * se puede volver a sortear —y cada vez gana otra— sin volver a pagar la IA.
+ *
+ * Los cierres entran además al montón de remates de su sección, para las
+ * parejas que no traen el suyo.
+ */
 export async function guardarGuion(g: SadButTrue, tema: string, idioma: string) {
+  const seccion = g.seccion ?? "triste";
+  const parejas = g.parejas.length
+    ? g.parejas
+    : [{ palabra: g.elegida, frase: g.frase, remate: g.remate }];
+  const cierres = [...new Set([...parejas.map((p) => p.remate), g.remate].filter(Boolean))];
   return guardarFrases(
     [
-      { tipo: "SORTEO", palabra: g.elegida, texto: g.frase, remate: g.remate, tema, idioma, tono: g.tono },
-      { tipo: "REMATE", texto: g.remate, tono: g.tono, idioma },
+      ...parejas.map((p) => ({
+        tipo: "SORTEO" as const,
+        palabra: p.palabra,
+        texto: p.frase,
+        remate: p.remate,
+        tema,
+        idioma,
+        tono: g.tono,
+        seccion,
+      })),
+      ...cierres.map((texto) => ({ tipo: "REMATE" as const, texto, tono: g.tono, idioma, seccion })),
     ],
     "IA",
   );
@@ -181,7 +226,7 @@ export function analizarPegado(texto: string, formato: FormatoPegado = "palabra"
 /** Las líneas buenas, ya como filas del banco. */
 export function filasDePegado(
   lineas: LineaPegada[],
-  datos: { tema?: string; idioma?: string; tono?: string },
+  datos: { tema?: string; idioma?: string; tono?: string; seccion?: string },
 ): FraseNueva[] {
   const salida: FraseNueva[] = [];
   for (const l of lineas) {
@@ -198,11 +243,12 @@ export function filasDePegado(
         tema: datos.tema,
         idioma: datos.idioma,
         tono: datos.tono,
+        seccion: datos.seccion,
       });
     }
     // Y además al montón, porque un buen cierre vale para más de una frase.
     if (l.remate) {
-      salida.push({ tipo: "REMATE", texto: l.remate, idioma: datos.idioma, tono: datos.tono });
+      salida.push({ tipo: "REMATE", texto: l.remate, idioma: datos.idioma, tono: datos.tono, seccion: datos.seccion });
     }
   }
   return salida;
@@ -213,6 +259,7 @@ export type FiltroFrases = {
   tema?: string;
   idioma?: string;
   buscar?: string;
+  seccion?: Seccion;
 };
 
 export async function listarFrases(f: FiltroFrases = {}, limite = 300) {
@@ -222,6 +269,7 @@ export async function listarFrases(f: FiltroFrases = {}, limite = 300) {
       ...(f.tipo ? { tipo: f.tipo } : {}),
       ...(f.tema ? { tema: f.tema } : {}),
       ...(f.idioma ? { idioma: f.idioma } : {}),
+      ...(f.seccion ? { seccion: f.seccion } : {}),
       ...(f.buscar
         ? {
             OR: [
@@ -237,15 +285,24 @@ export async function listarFrases(f: FiltroFrases = {}, limite = 300) {
 }
 
 /** Los temas que hay, con cuántas parejas tiene cada uno. */
-export async function temasDelBanco(idioma?: string) {
+/**
+ * Los temas que hay, con cuántas palabras **distintas** tiene cada uno.
+ *
+ * Distintas, y no filas: dos frases de "la confianza" son dos parejas pero una
+ * sola palabra en el bombo, y lo que decide si un tema da para un sorteo es
+ * cuántas cosas distintas pueden pasar por delante.
+ */
+export async function temasDelBanco(idioma?: string, seccion?: Seccion) {
   await asegurarBase();
   const filas = await db.frase.groupBy({
-    by: ["tema"],
-    where: { tipo: "SORTEO", ...(idioma ? { idioma } : {}) },
-    _count: { _all: true },
-    orderBy: { tema: "asc" },
+    by: ["tema", "palabra"],
+    where: { tipo: "SORTEO", ...(idioma ? { idioma } : {}), ...(seccion ? { seccion } : {}) },
   });
-  return filas.filter((f) => f.tema).map((f) => ({ tema: f.tema, cuantas: f._count._all }));
+  const cuenta = new Map<string, number>();
+  for (const f of filas) if (f.tema) cuenta.set(f.tema, (cuenta.get(f.tema) ?? 0) + 1);
+  return [...cuenta]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([tema, cuantas]) => ({ tema, cuantas }));
 }
 
 /** Una al azar de las que menos se han usado, para que no salga siempre la misma. */
@@ -264,14 +321,17 @@ export async function sortearGuion(opciones: {
   tema?: string;
   tono?: Tono | "";
   idioma?: string;
+  seccion?: Seccion;
 } = {}): Promise<SadButTrue> {
   await asegurarBase();
   const idioma = opciones.idioma ?? "es";
+  // Un sorteo nunca mezcla secciones: ni el bombo, ni la frase, ni el remate.
+  const seccion: Seccion = opciones.seccion ?? "triste";
 
   // Un tema con tres palabras no da para un sorteo, y mezclar temas rompe lo
   // único que sostiene el formato. Así que se sortea solo entre los temas que
   // llegan al mínimo, y si el pedido a mano no llega, se dice por qué.
-  const temas = await temasDelBanco(idioma);
+  const temas = await temasDelBanco(idioma, seccion);
   const llenos = temas.filter((t) => t.cuantas >= BOMBO_MINIMO).map((t) => t.tema);
 
   if (opciones.tema) {
@@ -287,12 +347,12 @@ export async function sortearGuion(opciones: {
     }
   } else if (!llenos.length) {
     throw new Error(
-      `No hay ningún tema con al menos ${BOMBO_MINIMO} palabras. Pega unas cuantas de la misma familia y vuelve a intentarlo.`,
+      `No hay ningún tema de esta sección con al menos ${BOMBO_MINIMO} palabras. Pega unas cuantas de la misma familia o escribe una con IA.`,
     );
   }
 
   const candidatas = await db.frase.findMany({
-    where: { tipo: "SORTEO", idioma, tema: opciones.tema ? opciones.tema : { in: llenos } },
+    where: { tipo: "SORTEO", idioma, seccion, tema: opciones.tema ? opciones.tema : { in: llenos } },
     orderBy: [{ usos: "asc" }, { creadaEn: "asc" }],
     take: 20,
   });
@@ -305,7 +365,7 @@ export async function sortearGuion(opciones: {
   // dos frases distintas de "la confianza", excluir solo la fila ganadora
   // dejaba su palabra en el bombo y el final se veía venir.
   const hermanas = await db.frase.findMany({
-    where: { tipo: "SORTEO", idioma, tema: ganadora.tema, palabra: { not: ganadora.palabra } },
+    where: { tipo: "SORTEO", idioma, seccion, tema: ganadora.tema, palabra: { not: ganadora.palabra } },
     select: { palabra: true },
     take: 40,
   });
@@ -315,13 +375,17 @@ export async function sortearGuion(opciones: {
   // Si la pareja trae su propio cierre, ese y no otro: viene escrito para esa
   // frase. Solo cuando no lo trae se coge uno del montón.
   const suyo = ganadora.remate.trim();
-  const remates = suyo
-    ? []
-    : await db.frase.findMany({
-        where: { tipo: "REMATE", idioma, ...(opciones.tono ? { tono: opciones.tono } : {}) },
-        orderBy: [{ usos: "asc" }, { creadaEn: "asc" }],
-        take: 20,
-      });
+  const buscarRemates = (tono?: string) =>
+    db.frase.findMany({
+      where: { tipo: "REMATE", idioma, seccion, ...(tono ? { tono } : {}) },
+      orderBy: [{ usos: "asc" }, { creadaEn: "asc" }],
+      take: 20,
+    });
+  // Con el tono pedido si lo hay; si esa sección no tiene ninguno de ese tono
+  // (un remate "feliz" en sarcasmo, por ejemplo), cualquiera de la sección
+  // antes que dejar el vídeo sin cierre.
+  let remates = suyo ? [] : await buscarRemates(opciones.tono || undefined);
+  if (!suyo && !remates.length && opciones.tono) remates = await buscarRemates();
   const prestado = suyo ? null : alAzar(remates);
   if (!suyo && !prestado) throw new Error("No hay remates guardados para cerrar el vídeo.");
 
@@ -335,6 +399,8 @@ export async function sortearGuion(opciones: {
 
   return SadButTrueSchema.parse({
     titulo: ganadora.tema || ganadora.palabra,
+    seccion,
+    tema: ganadora.tema,
     palabras,
     elegida: ganadora.palabra,
     frase: ganadora.texto,
@@ -342,8 +408,8 @@ export async function sortearGuion(opciones: {
     tono: TONOS.includes((prestado?.tono ?? ganadora.tono) as Tono)
       ? (prestado?.tono ?? ganadora.tono)
       : "reflexiva",
-    keywords: palabrasDeBusqueda(ganadora.tema),
-    hashtags: ["sadbuttrue"],
+    keywords: palabrasDeBusqueda(ganadora.tema, seccion),
+    hashtags: [HASHTAG_SECCION[seccion]],
   });
 }
 
@@ -354,16 +420,32 @@ export async function sortearGuion(opciones: {
  * ilustración. Estos ambientes pegan con cualquier cosa y no compiten con el
  * texto, que es lo único que hay que leer.
  */
-const AMBIENTES = [
-  ["rain window night", "empty street night", "city lights blur"],
-  ["empty room light", "dust sunlight window", "old apartment"],
-  ["ocean grey waves", "fog forest", "long road empty"],
-  ["walking alone night", "subway window", "bus night city"],
-];
+const AMBIENTES: Record<Seccion, string[][]> = {
+  triste: [
+    ["rain window night", "empty street night", "city lights blur"],
+    ["empty room light", "dust sunlight window", "old apartment"],
+    ["ocean grey waves", "fog forest", "long road empty"],
+    ["walking alone night", "subway window", "bus night city"],
+  ],
+  // Luz y movimiento: amanecer, gente en marcha, horizonte. Nada de montañas
+  // de póster con puño en alto, que es lo que hace que suene a taza.
+  motivacion: [
+    ["sunrise city rooftop", "morning light window", "coffee morning"],
+    ["running early morning", "stairs climbing", "bike road sunrise"],
+    ["ocean sunrise", "field golden hour", "clouds moving sky"],
+  ],
+  // Lo cotidiano de las excusas: la pantalla, el sofá, la nevera a las tantas.
+  sarcasmo: [
+    ["phone screen night bed", "scrolling phone", "laptop late night"],
+    ["couch tv remote", "fridge open night", "alarm clock morning"],
+    ["office desk boring", "traffic jam city", "queue waiting people"],
+  ],
+};
 
-export function palabrasDeBusqueda(tema: string): string[] {
+export function palabrasDeBusqueda(tema: string, seccion: Seccion = "triste"): string[] {
   // Del tema sale siempre el mismo ambiente, no uno al azar: dos vídeos de la
   // misma familia se parecen entre ellos y se distinguen de los demás.
+  const lista = AMBIENTES[seccion];
   const suma = [...tema].reduce((s, c) => s + c.charCodeAt(0), 0);
-  return AMBIENTES[suma % AMBIENTES.length];
+  return lista[suma % lista.length];
 }

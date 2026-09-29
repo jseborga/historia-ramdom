@@ -7,6 +7,7 @@ import {
   type Preset,
   type Proyecto,
   type Region,
+  type SeccionSbt,
   type TemaBanco,
   type TonoSadButTrue,
 } from "../api";
@@ -34,7 +35,33 @@ const TONOS: [TonoSadButTrue | "", string][] = [
   ["desmotivadora", "desmotivadora (la verdad que nadie pide)"],
 ];
 
-const TIEMPOS = { sorteoSeg: 3, retencionSeg: 0, clipSeg: 3.5, cierreSeg: 2 };
+const TIEMPOS = { sorteoSeg: 3, retencionSeg: 0.9, clipSeg: 3.5, cierreSeg: 2 };
+
+/**
+ * Las tres secciones: el mismo formato, distinto tono. Se elige arriba del
+ * todo porque cambia las dos vistas a la vez —de que parte del banco se
+ * sortea y que se le pide a la IA—, y un sorteo nunca mezcla secciones.
+ */
+const SECCIONES: { id: SeccionSbt; nombre: string; nota: string; ejemplo: string }[] = [
+  {
+    id: "triste",
+    nombre: "Sad but true",
+    nota: "La verdad que da una media sonrisa de lado: ligeramente desmotivadora, nunca cruel.",
+    ejemplo: "cosas que ibas a empezar el lunes",
+  },
+  {
+    id: "motivacion",
+    nombre: "Motivacion",
+    nota: "Frases que levantan el animo con algo concreto. Nada de frases de taza: ni 'tu puedes' ni 'nunca te rindas'.",
+    ejemplo: "lo que ya aguantaste",
+  },
+  {
+    id: "sarcasmo",
+    nombre: "Sarcasmo",
+    nota: "Lo que sabes que esta mal y no quieres escuchar. El blanco son tus excusas, nunca un grupo ni una persona.",
+    ejemplo: "mentiras que te cuentas a las dos de la manana",
+  },
+];
 
 /**
  * Lo que se tarda en leer un texto en pantalla. Misma cuenta que el servidor
@@ -61,6 +88,7 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
   const [lecturaAuto, setLecturaAuto] = useState(true);
   const [revelarFrase, setRevelarFrase] = useState(false);
   const [vista, setVista] = useState<"video" | "banco">("video");
+  const [seccion, setSeccion] = useState<SeccionSbt>("triste");
   const [temas, setTemas] = useState<TemaBanco[]>([]);
   const [temaBanco, setTemaBanco] = useState("");
   const [presets, setPresets] = useState<Preset[]>([]);
@@ -74,14 +102,22 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
     api.get<Preset[]>("/api/presets").then(setPresets).catch(() => {});
   }, []);
 
-  // Los temas del banco: son los que se pueden sortear sin IA.
+  // Los temas del banco de esta seccion: son los que se pueden sortear sin IA.
   useEffect(() => {
     if (vista !== "video") return;
     api
-      .get<{ temas: TemaBanco[] }>("/api/frases")
+      .get<{ temas: TemaBanco[] }>(`/api/frases?seccion=${seccion}`)
       .then((r) => setTemas(r.temas))
       .catch(() => {});
-  }, [vista]);
+  }, [vista, seccion]);
+
+  // Al cambiar de seccion, lo que habia en pantalla es de otra: fuera.
+  useEffect(() => {
+    setGuion(null);
+    setTemaBanco("");
+    setOk("");
+    setError("");
+  }, [seccion]);
 
   if (abierto) {
     return <EditorMontaje id={abierto} catalogo={catalogo} alSalir={() => setAbierto(null)} />;
@@ -121,6 +157,7 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
     setOk("");
     try {
       const g = await api.post<GuionSadButTrue>("/api/sadbuttrue", {
+        seccion,
         tema,
         tono,
         motor,
@@ -130,10 +167,19 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
         modismos,
       });
       setGuion(g);
+      const guardadas = g.guardado?.nuevas ?? 0;
       setOk(
         `Sorteo escrito con ${g.motorUsado ?? motor}: ${g.palabras.length} palabras, gana "${g.elegida}". ` +
+          (guardadas
+            ? `La familia entera se guardo en el banco (${guardadas} entradas): el tema "${g.tema}" ya se puede volver a sortear sin IA. `
+            : "") +
           `Cambia lo que quieras antes de montarlo.${g.avisoMotor ? ` ${g.avisoMotor}` : ""}`,
       );
+      // El tema nuevo aparece ya en la lista de los que se pueden sortear.
+      api
+        .get<{ temas: TemaBanco[] }>(`/api/frases?seccion=${seccion}`)
+        .then((r) => setTemas(r.temas))
+        .catch(() => {});
     } catch (err) {
       setError(mensajeDe(err));
     } finally {
@@ -148,6 +194,7 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
     setOk("");
     try {
       const g = await api.post<GuionSadButTrue>("/api/sadbuttrue/azar", {
+        seccion,
         tema: temaBanco,
         tono,
         idioma,
@@ -193,7 +240,18 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
     }
   }
 
+  const actual = SECCIONES.find((x) => x.id === seccion)!;
   const pestanas = (
+    <>
+    <div className="fila" style={{ marginBottom: 6 }}>
+      <span className="suave">Seccion:</span>
+      {SECCIONES.map((x) => (
+        <button key={x.id} className={seccion === x.id ? "activo" : ""} onClick={() => setSeccion(x.id)}>
+          {x.nombre}
+        </button>
+      ))}
+    </div>
+    <p className="suave" style={{ marginTop: 0 }}>{actual.nota}</p>
     <div className="fila" style={{ marginBottom: 12 }}>
       <button className={vista === "video" ? "activo" : ""} onClick={() => setVista("video")}>
         Hacer un video
@@ -202,13 +260,14 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
         Banco de frases
       </button>
     </div>
+    </>
   );
 
   if (vista === "banco") {
     return (
       <>
         {pestanas}
-        <BancoFrases catalogo={catalogo} />
+        <BancoFrases catalogo={catalogo} seccion={seccion} />
       </>
     );
   }
@@ -233,7 +292,7 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
             <input
               id="temaSbt"
               value={tema}
-              placeholder="cosas que ibas a empezar el lunes"
+              placeholder={actual.ejemplo}
               onChange={(e) => setTema(e.target.value)}
             />
           </div>

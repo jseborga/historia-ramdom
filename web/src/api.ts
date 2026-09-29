@@ -364,8 +364,17 @@ export type TonoSadButTrue = "feliz" | "triste" | "reflexiva" | "desmotivadora";
  * El guion de un "Sad but true": el sorteo, la que gana, la frase que le toca
  * y el remate. Es todo lo que hay: el resto del formato son los tiempos.
  */
+/** Las tres secciones de "Sad but true": mismo formato, distinto tono. */
+export type SeccionSbt = "triste" | "motivacion" | "sarcasmo";
+
 export type GuionSadButTrue = {
   titulo: string;
+  seccion?: SeccionSbt;
+  tema?: string;
+  /** La familia entera que escribio la IA; es lo que se guarda en el banco. */
+  parejas?: { palabra: string; frase: string; remate: string }[];
+  /** Lo que se guardo en el banco al escribirlo. */
+  guardado?: { nuevas: number; repetidas: number };
   palabras: string[];
   elegida: string;
   frase: string;
@@ -381,8 +390,11 @@ export type GuionSadButTrue = {
 export type Frase = {
   id: string;
   tipo: "SORTEO" | "REMATE";
+  seccion: SeccionSbt;
   palabra: string;
   texto: string;
+  /** El cierre propio de esta pareja, si lo trae. */
+  remate?: string;
   tema: string;
   idioma: string;
   tono: string;

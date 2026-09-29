@@ -425,8 +425,12 @@ servidor.registerTool(
   "sad_but_true",
   {
     description:
-      "Escribe un 'Sad but true': el sorteo de palabras, la que gana, la frase ligeramente desmotivadora que le toca y el remate de filosofia de vida. No monta nada.",
+      "Escribe un 'Sad but true' (o de motivacion, o de sarcasmo): la familia entera de palabras, cada una con su frase y su cierre, y cual gana. Se guarda sola en el banco, asi que ese tema ya se puede volver a sortear sin IA. No monta nada.",
     inputSchema: {
+      seccion: z
+        .enum(["triste", "motivacion", "sarcasmo"])
+        .describe("triste = sad but true (lo de siempre), motivacion o sarcasmo")
+        .optional(),
       tema: z.string().max(300).describe("De que va el sorteo; vacio = lo elige la IA").optional(),
       tono: z
         .enum(["feliz", "triste", "reflexiva", "desmotivadora"])
@@ -478,8 +482,12 @@ servidor.registerTool(
   "sortear_sad_but_true",
   {
     description:
-      "Saca un 'Sad but true' del banco de frases, sin gastar IA: una pareja de las menos usadas, su bombo del mismo tema y un remate. Devuelve el guion listo para montar_sad_but_true.",
+      "Saca un 'Sad but true' del banco de frases, sin gastar IA: una pareja de las menos usadas, su bombo del mismo tema y un remate, todo de la misma seccion. Devuelve el guion listo para montar_sad_but_true.",
     inputSchema: {
+      seccion: z
+        .enum(["triste", "motivacion", "sarcasmo"])
+        .describe("triste = sad but true (lo de siempre), motivacion o sarcasmo")
+        .optional(),
       tema: z.string().max(80).describe("Familia de palabras; vacio = cualquiera").optional(),
       tono: z.enum(["feliz", "triste", "reflexiva", "desmotivadora"]).optional(),
       idioma: z.enum(["es", "en", "spanglish"]).optional(),
@@ -492,8 +500,12 @@ servidor.registerTool(
   "banco_frases",
   {
     description:
-      "Lo que hay en el banco de 'Sad but true': parejas palabra/frase, remates y de que temas. De aqui salen los sorteos sin IA.",
+      "Lo que hay en el banco de 'Sad but true': parejas palabra/frase, remates y de que temas, por seccion. De aqui salen los sorteos sin IA.",
     inputSchema: {
+      seccion: z
+        .enum(["triste", "motivacion", "sarcasmo"])
+        .describe("triste = sad but true (lo de siempre), motivacion o sarcasmo")
+        .optional(),
       tipo: z.enum(["SORTEO", "REMATE"]).optional(),
       tema: z.string().max(80).optional(),
       buscar: z.string().max(80).optional(),
@@ -512,6 +524,10 @@ servidor.registerTool(
     description:
       "Mete frases en el banco de 'Sad but true'. Una por linea, con ; entre campos. Con formato 'palabra': 'palabra ; frase ; remate'. Con formato 'frase': 'frase ; remate ; sobre X', que es como salen las sentencias en dos tiempos. En los dos, una linea sin ningun ; es un remate suelto. Con guardar=false solo dice que ha entendido de cada linea.",
     inputSchema: {
+      seccion: z
+        .enum(["triste", "motivacion", "sarcasmo"])
+        .describe("triste = sad but true (lo de siempre), motivacion o sarcasmo")
+        .optional(),
       texto: z.string().max(40_000).describe("Las lineas, separadas por saltos de linea"),
       formato: z
         .enum(["palabra", "frase"])

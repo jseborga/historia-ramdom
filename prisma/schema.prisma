@@ -279,6 +279,10 @@ model Frase {
   remate   String     @default("")
   /// Lo que tienen en común las palabras de un mismo sorteo.
   tema     String     @default("")
+  /// De qué sección es: triste (sad but true), motivacion o sarcasmo. Un
+  /// sorteo nunca mezcla secciones: un remate de ánimo detrás de una frase
+  /// sarcástica no es un giro, es un error.
+  seccion  String     @default("triste")
   idioma   String     @default("es")
   /// Solo en los remates: feliz, triste, reflexiva o desmotivadora.
   tono     String     @default("reflexiva")
@@ -289,6 +293,7 @@ model Frase {
 
   @@unique([tipo, palabra, texto])
   @@index([tipo, tema, idioma])
+  @@index([seccion, tipo, idioma])
   @@index([usos])
 }
 

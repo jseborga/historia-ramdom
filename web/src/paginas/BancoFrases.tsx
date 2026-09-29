@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Catalogo, type Frase, type Idioma, type LineaPegada, type TemaBanco, type TonoSadButTrue } from "../api";
+import {
+  api,
+  type Catalogo,
+  type Frase,
+  type Idioma,
+  type LineaPegada,
+  type SeccionSbt,
+  type TemaBanco,
+  type TonoSadButTrue,
+} from "../api";
 import { mensajeDe } from "../App";
 import { nombreIdioma } from "./comunes";
 
@@ -54,7 +63,18 @@ const TONOS: [TonoSadButTrue, string][] = [
   ["desmotivadora", "desmotivadora"],
 ];
 
-export function BancoFrases({ catalogo }: { catalogo: Catalogo }) {
+const NOMBRE_SECCION: Record<SeccionSbt, string> = {
+  triste: "Sad but true",
+  motivacion: "Motivacion",
+  sarcasmo: "Sarcasmo",
+};
+
+/**
+ * `seccion` viene de arriba: lo que se pega entra en la seccion que se esta
+ * viendo, y la lista ensena solo esa. Mezclarlas es lo unico que no puede
+ * pasar, porque un sorteo nunca cruza secciones.
+ */
+export function BancoFrases({ catalogo, seccion }: { catalogo: Catalogo; seccion: SeccionSbt }) {
   const [texto, setTexto] = useState("");
   const [formato, setFormato] = useState<Formato>("palabra");
   const [tema, setTema] = useState("");
@@ -74,6 +94,7 @@ export function BancoFrases({ catalogo }: { catalogo: Catalogo }) {
   const cargar = useCallback(async () => {
     try {
       const q = new URLSearchParams();
+      q.set("seccion", seccion);
       if (filtroTema) q.set("tema", filtroTema);
       if (filtroTipo) q.set("tipo", filtroTipo);
       if (buscar.trim()) q.set("buscar", buscar.trim());
@@ -83,7 +104,13 @@ export function BancoFrases({ catalogo }: { catalogo: Catalogo }) {
     } catch (err) {
       setError(mensajeDe(err));
     }
-  }, [filtroTema, filtroTipo, buscar]);
+  }, [filtroTema, filtroTipo, buscar, seccion]);
+
+  // Otra seccion, otros temas: el filtro de la anterior ya no vale.
+  useEffect(() => {
+    setFiltroTema("");
+    setLineas(null);
+  }, [seccion]);
 
   useEffect(() => {
     cargar();
@@ -97,6 +124,7 @@ export function BancoFrases({ catalogo }: { catalogo: Catalogo }) {
     setOk("");
     try {
       const r = await api.post<{ lineas: LineaPegada[]; listas: number }>("/api/frases/pegar", {
+        seccion,
         texto,
         tema,
         idioma,
@@ -124,6 +152,7 @@ export function BancoFrases({ catalogo }: { catalogo: Catalogo }) {
     setOk("");
     try {
       const r = await api.post<{ nuevas: number; repetidas: number; listas: number }>("/api/frases/pegar", {
+        seccion,
         texto,
         tema,
         idioma,
@@ -132,7 +161,7 @@ export function BancoFrases({ catalogo }: { catalogo: Catalogo }) {
         guardar: true,
       });
       setOk(
-        `Guardadas ${r.nuevas}${r.repetidas ? `, y ${r.repetidas} ya estaban` : ""}. ` +
+        `Guardadas ${r.nuevas} en ${NOMBRE_SECCION[seccion]}${r.repetidas ? `, y ${r.repetidas} ya estaban` : ""}. ` +
           "Ya pueden salir sorteadas.",
       );
       setTexto("");
@@ -162,7 +191,7 @@ export function BancoFrases({ catalogo }: { catalogo: Catalogo }) {
       {ok && <p className="aviso ok">{ok}</p>}
 
       <section className="tarjeta">
-        <h2>Pegar frases</h2>
+        <h2>Pegar frases en {NOMBRE_SECCION[seccion]}</h2>
         <div className="campos">
           <div style={{ gridColumn: "1 / -1" }}>
             <label htmlFor="formatoPegado">En que orden las escribes</label>
@@ -294,7 +323,7 @@ export function BancoFrases({ catalogo }: { catalogo: Catalogo }) {
       </section>
 
       <section className="tarjeta">
-        <h2>Lo que hay</h2>
+        <h2>Lo que hay en {NOMBRE_SECCION[seccion]}</h2>
         <p className="suave">
           {parejas} parejas en {temas.length} temas. Un tema necesita <strong>4 palabras</strong> para
           poder sortearse; con menos no parece un sorteo.
@@ -332,12 +361,18 @@ export function BancoFrases({ catalogo }: { catalogo: Catalogo }) {
                 <span className="estado">{f.tipo === "REMATE" ? "REMATE" : "SORTEO"}</span>
                 {f.palabra && <strong>{f.palabra}</strong>}
                 <span className="suave">
-                  {f.tema || (f.tipo === "REMATE" ? f.tono : "sin tema")} · {f.fuente === "IA" ? "IA" : "a mano"}
+                  {f.tema || (f.tipo === "REMATE" ? f.tono : "sin tema")} ·{" "}
+                  {f.fuente === "IA" ? "escrita con IA" : "a mano"}
                   {f.usos ? ` · usada ${f.usos}` : ""}
                 </span>
                 <button onClick={() => borrar(f.id)}>Borrar</button>
               </div>
               <p style={{ margin: "2px 0 0" }}>{f.texto}</p>
+              {f.remate && (
+                <p className="suave" style={{ margin: "2px 0 0" }}>
+                  cierre: {f.remate}
+                </p>
+              )}
             </div>
           ))}
           {!frases.length && <p className="suave">Nada por aqui todavia.</p>}

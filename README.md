@@ -40,10 +40,12 @@ Implementa la guía de `docs/guia-original.md`.
   instrucciones en vez de cantarlos.
 - **Tres idiomas.** Español, inglés y **spanglish**: base en español con el
   inglés en el gancho, que es como se canta la cumbia y el reggaetón.
-- **Sad but true.** Once segundos, sin voz: un sorteo de palabras en gris
-  sobre negro que se para en el arranque de la frase ganadora, el vídeo
-  terminándola con esas palabras todavía en amarillo, y el remate en blanco
-  sobre el negro del cierre. Con **banco de
+- **Sad but true, motivación y sarcasmo.** Once segundos, sin voz: un sorteo
+  de palabras en gris sobre negro que se para en el arranque de la frase
+  ganadora, el vídeo terminándola con esas palabras todavía en amarillo, y el
+  remate en blanco sobre el negro del cierre. Tres secciones con el mismo
+  formato, y lo que escribe la IA se guarda como familia entera para volver a
+  sortearlo sin gastar. Con **banco de
   frases** precargado que crece solo, así que se puede sacar uno sin gastar IA,
   y cada texto se queda lo que se tarda en leerlo.
 - **Productos con reflexión.** Un objeto real de Amazon como gancho y un giro
@@ -886,7 +888,28 @@ y un vídeo dura meses.
 ## Sad but true: el sorteo, la frase y el remate
 
 La pestaña **Sad but true** hace un formato y solo uno, de unos once segundos y
-sin voz:
+sin voz, en **tres secciones** que se montan igual y solo cambian lo que dicen:
+
+| Sección | Qué dice | Lo que no puede hacer |
+|---|---|---|
+| **Sad but true** | La verdad que da una media sonrisa de lado: ligeramente desmotivadora | Hundir a nadie, ni moralina |
+| **Motivación** | Algo concreto que levanta el ánimo y se puede comprobar el martes siguiente | Frases de taza: ni «tú puedes» ni «nunca te rindas» |
+| **Sarcasmo** | Lo que sabes que está mal y no quieres escuchar: la excusa, el hábito, la mentira que te cuentas | Apuntar a un grupo o a una persona: el blanco son las excusas de quien mira |
+
+Se elige arriba del todo y cambia las dos vistas a la vez: qué se le pide a la
+IA y de qué parte del banco se sortea. **Un sorteo nunca mezcla secciones** —ni
+el bombo, ni la frase, ni el cierre—, porque un remate de ánimo detrás de una
+frase sarcástica no es un giro, es un error. Cada sección trae su base
+precargada (dos familias de ocho parejas con su cierre y seis remates sueltos),
+sus ambientes para buscar el vídeo del medio —amanecer y gente en marcha en
+motivación; pantallas, sofá y nevera a las tantas en sarcasmo— y su etiqueta
+al publicar.
+
+En una instalación que ya tenía banco, la base de las secciones nuevas entra
+sola la primera vez que se usan: se mira sección por sección si está vacía, no
+la tabla entera.
+
+El formato:
 
 ```
 0.0 ─2,1s─►  negro: palabras en GRIS pasando a toda velocidad, frenando
@@ -911,13 +934,15 @@ negrita aunque no lo esté. Los rótulos tienen ahora `borde` aparte del color, 
 este formato usa dos: la letra es la que es y lo que la separa del fondo sigue
 siendo la sombra.
 
-**El sorteo se para en las primeras palabras de la frase** cuando la frase
-empieza por lo que salió sorteado, que es como se escriben las sentencias en
-dos tiempos. Antes paraba en «la paciencia» y acto seguido el vídeo enseñaba
-«La paciencia es infinita»: se leía dos veces lo mismo con dos caras
-distintas. Ahora el sorteo dice *«La paciencia»* y el corte al vídeo la
-**termina**: *«…es infinita»*. Son las dos primeras palabras si caben de un
-vistazo (22 caracteres), y si no, la primera.
+**El sorteo se para en el arranque de la frase** cuando la frase empieza por
+lo que salió sorteado, que es como se escriben las sentencias en dos tiempos.
+Antes paraba en «la paciencia» y acto seguido el vídeo enseñaba «La paciencia
+es infinita»: se leía dos veces lo mismo con dos caras distintas. Ahora el
+sorteo dice *«La paciencia»* y el corte al vídeo la **termina**: *«…es
+infinita»*. Se para en **tantas palabras como tenga lo sorteado**, ni una
+menos —cortar «Un mal día» en «Un mal» deja una parada que no dice nada—, y
+cogidas de la frase, con sus mayúsculas y sus tildes, sin la coma que las
+siga.
 
 Cuando la frase **no** empieza por ahí —el otro formato del banco, donde la
 palabra va aparte— el sorteo se para en la palabra de siempre. Ahí las dos
@@ -1004,6 +1029,23 @@ reparte los planos según lo que dure la voz; aquí no hay voz y los tiempos
 *son* el formato, así que la línea de tiempo se monta entera de una vez y el
 proyecto nace listo para renderizar. Después se abre en el editor de siempre:
 se le puede poner música, cambiar el clip o mover cualquier rótulo.
+
+### Lo que escribe la IA se queda, entero
+
+Cada vez que la IA escribe un sorteo, **escribe la familia entera**: cada
+palabra del bombo con su frase y su cierre, no solo la que gana. Y la familia
+entera se guarda en el banco, en su sección y con su tema.
+
+Antes se guardaba solo la pareja ganadora, y eso dejaba lo escrito con IA
+fuera de juego: un tema necesita cuatro palabras para poder sortearse y con una
+por generación no llegaba nunca. Ahora una sola generación deja un tema
+completo —cinco, ocho, diez parejas— que se vuelve a sortear sin IA todas las
+veces que haga falta, y cada vez gana otra palabra. Pagar la IA una vez da
+material para varios vídeos.
+
+Se le pide además que **cada frase empiece por su palabra**, que es el formato
+en el que el sorteo aterriza mejor. En el banco, lo escrito con IA sale
+marcado como tal, y cada pareja enseña su cierre debajo.
 
 ### El banco de frases: de dónde sale el sorteo sin gastar IA
 
@@ -1108,8 +1150,10 @@ hay que cuadrar el vídeo con una música.
 
 - **Los tiempos** (3 de sorteo, 3,5 de frase y 2 de remate) se pueden mover en
   el paso 3, pero moverlos mucho deja de ser este formato.
-- **API**: `POST /api/sadbuttrue` (escribe el guion con IA y lo guarda en el
-  banco), `POST /api/sadbuttrue/azar` (lo saca del banco, sin IA),
+- **Sección**: todas las llamadas llevan `seccion` (`triste`, `motivacion` o
+  `sarcasmo`; sin ella, la de siempre).
+- **API**: `POST /api/sadbuttrue` (escribe la familia con IA y la guarda en el
+  banco; devuelve cuántas entradas guardó), `POST /api/sadbuttrue/azar` (lo saca del banco, sin IA),
   `POST /api/sadbuttrue/video` (lo monta y crea el proyecto), `GET /api/frases`,
   `POST /api/frases/pegar` (con `formato` y, con `guardar: false`, solo enseña
   lo que entendió) y
