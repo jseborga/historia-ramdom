@@ -187,11 +187,18 @@ export type TiemposSadButTrue = {
   cierreSeg?: number;
 };
 
+/**
+ * Los tiempos del formato. `clipSeg` y `cierreSeg` no son duraciones fijas
+ * sino **suelos**: de ahí para arriba manda lo que se tarde en leer el texto,
+ * porque no hay voz que marque el ritmo.
+ */
 export const TIEMPOS: Required<TiemposSadButTrue> = {
-  sorteoSeg: 2,
-  retencionSeg: 1,
-  clipSeg: 5,
-  cierreSeg: 3,
+  sorteoSeg: 3,
+  // Sin parón: el sorteo corre hasta el corte y la frase entra ya sobre el
+  // vídeo. Parar antes en negro contaba el final dos veces.
+  retencionSeg: 0,
+  clipSeg: 3.5,
+  cierreSeg: 2,
 };
 
 /** Palabras por segundo que se leen en pantalla, y lo que cuesta enterarse. */
@@ -218,9 +225,9 @@ export function tiempoDeLectura(texto: string, minimo: number): number {
 }
 
 /** Lo rápido y lo lento del sorteo, y cuánto frena en cada paso. */
-const RAPIDO = 0.1;
-const LENTO = 0.34;
-const FRENO = 1.22;
+const RAPIDO = 0.075;
+const LENTO = 0.26;
+const FRENO = 1.11;
 
 /**
  * Cuánto dura cada palabra del sorteo.
@@ -255,10 +262,26 @@ function barajar<T>(xs: T[]): T[] {
   return a;
 }
 
-const ESTILO_SORTEO = { ...ESTILO_POR_DEFECTO, tamano: 72, color: "#9AA3AE", posicion: "centro" as const };
-const ESTILO_ELEGIDA = { ...ESTILO_POR_DEFECTO, tamano: 96, color: "#FFE500", posicion: "centro" as const, negrita: true };
-const ESTILO_FRASE = { ...ESTILO_POR_DEFECTO, tamano: 68, color: "#FFFFFF", posicion: "centro" as const, negrita: true };
-const ESTILO_REMATE = { ...ESTILO_POR_DEFECTO, tamano: 60, color: "#E8E2D4", posicion: "centro" as const };
+/**
+ * Los cuatro colores del formato, y por qué cada uno.
+ *
+ * El sorteo va en gris sobre negro: tiene que verse que pasa algo sin que
+ * nadie intente leerlo, porque a diez por segundo no da tiempo. La frase entra
+ * en amarillo —el color del premio— con el contorno blanco y una **sombra
+ * negra marcada**: el contorno blanco solo se sostiene sobre vídeo oscuro, y
+ * los clips salen al azar. Y el remate cierra en rojo sobre negro, con el
+ * contorno en rojo muy oscuro en vez del mismo rojo: a igual color la letra
+ * engorda y se emborrona.
+ */
+const GRIS = "#8A8F98";
+const AMARILLO = "#FFE500";
+const ROJO = "#FF2D2D";
+const ROJO_FONDO = "#3A0000";
+
+const ESTILO_SORTEO = { ...ESTILO_POR_DEFECTO, tamano: 64, color: GRIS, contorno: "#000000", posicion: "centro" as const };
+const ESTILO_ELEGIDA = { ...ESTILO_POR_DEFECTO, tamano: 96, color: AMARILLO, contorno: "#FFFFFF", posicion: "centro" as const, negrita: true, sombra: 6 };
+const ESTILO_FRASE = { ...ESTILO_POR_DEFECTO, tamano: 78, color: AMARILLO, contorno: "#FFFFFF", posicion: "centro" as const, negrita: true, sombra: 6 };
+const ESTILO_REMATE = { ...ESTILO_POR_DEFECTO, tamano: 78, color: ROJO, contorno: ROJO_FONDO, posicion: "centro" as const, negrita: true };
 
 /** El negro de las dos pantallas. Negro de verdad, no el gris del editor. */
 const NEGRO = "#000000";
@@ -286,7 +309,7 @@ export function pistasDeSadButTrue(
   const clipSeg = o.clipSeg ?? tiempoDeLectura(s.frase, TIEMPOS.clipSeg);
   const cierreSeg = o.cierreSeg ?? tiempoDeLectura(s.remate, TIEMPOS.cierreSeg);
   // La retención nunca se come el sorteo entero: siempre queda algo girando.
-  const retencionSeg = Math.min(o.retencionSeg ?? TIEMPOS.retencionSeg, sorteoSeg - RAPIDO);
+  const retencionSeg = Math.max(0, Math.min(o.retencionSeg ?? TIEMPOS.retencionSeg, sorteoSeg - RAPIDO));
 
   const sobra = Math.max((clip?.duracion ?? 0) - clipSeg, 0);
   const video: ClipPista[] = [
@@ -329,21 +352,24 @@ export function pistasDeSadButTrue(
     t += paso;
   }
 
-  // 2. La elegida, sola y en grande hasta el corte.
-  textos.push(
-    RotuloPistaSchema.parse({
-      id: randomUUID(),
-      inicio: Number(ventana.toFixed(3)),
-      duracion: Number((sorteoSeg - ventana).toFixed(3)),
-      texto: s.elegida,
-      estilo: ESTILO_ELEGIDA,
-      animacion: "zoom",
-      lectura: "todo",
-    }),
-  );
+  // 2. La elegida, sola y en grande hasta el corte. Solo si se pide parar: de
+  //    fábrica el sorteo corre hasta el final y la revelación es el corte.
+  if (sorteoSeg - ventana > 0.01) {
+    textos.push(
+      RotuloPistaSchema.parse({
+        id: randomUUID(),
+        inicio: Number(ventana.toFixed(3)),
+        duracion: Number((sorteoSeg - ventana).toFixed(3)),
+        texto: s.elegida,
+        estilo: ESTILO_ELEGIDA,
+        animacion: "zoom",
+        lectura: "todo",
+      }),
+    );
+  }
 
-  // 3. La frase, que entra con el corte al vídeo: un segundo justo después de
-  //    la elegida, que es lo que tarda en leerse la palabra.
+  // 3. La frase, que entra con el corte al vídeo. Es el premio del sorteo, así
+  //    que aterriza con el zoom en vez de aparecer sin más.
   textos.push(
     RotuloPistaSchema.parse({
       id: randomUUID(),
@@ -351,7 +377,7 @@ export function pistasDeSadButTrue(
       duracion: clipSeg,
       texto: s.frase,
       estilo: ESTILO_FRASE,
-      animacion: o.revelarFrase ? "apareciendo" : "fundido",
+      animacion: o.revelarFrase ? "apareciendo" : "zoom",
       lectura: "todo",
     }),
   );

@@ -234,7 +234,13 @@ export function Lienzo({
               color: r.estilo.color,
               fontWeight: r.estilo.negrita ? 700 : 400,
               fontFamily: `"${r.estilo.fuente}", "DejaVu Serif", Georgia, serif`,
-              textShadow: `0 0 6px ${r.estilo.contorno}, 0 2px 4px ${r.estilo.contorno}`,
+              // La sombra marcada del render (negra y separada) tambien aqui:
+              // si no, la vista previa enseña un texto que no se lee y el
+              // video si, o al reves.
+              textShadow:
+                (r.estilo.sombra ?? 2) >= 3
+                  ? `0 0 6px ${r.estilo.contorno}, 0 ${(r.estilo.sombra ?? 2) / 2}px ${r.estilo.sombra ?? 2}px rgba(0,0,0,0.9)`
+                  : `0 0 6px ${r.estilo.contorno}, 0 2px 4px ${r.estilo.contorno}`,
               WebkitTextStroke: `1px ${r.estilo.contorno}`,
             }}
           >

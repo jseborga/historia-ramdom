@@ -51,6 +51,8 @@ export const EstiloSchema = z.object({
   contorno: hex.default(ESTILO_POR_DEFECTO.contorno),
   posicion: z.enum(["arriba", "centro", "abajo"]).default(ESTILO_POR_DEFECTO.posicion),
   negrita: z.boolean().default(ESTILO_POR_DEFECTO.negrita),
+  /** Píxeles de sombra; 3 o más la pone negra del todo, para fondos claros. */
+  sombra: z.number().int().min(0).max(12).default(2),
 });
 
 export const ClipSchema = z.object({

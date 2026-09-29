@@ -347,6 +347,19 @@ un reconocedor—, pero el trozo sí dura exactamente lo que dura su parte de la
 narración, así que la palabra cae donde la voz la dice, con el error dentro de
 la propia frase.
 
+### La sombra, y cuándo subirla
+
+Cada rótulo lleva `\bord4\shad2` con la sombra del estilo (negra a medias), y
+eso basta sobre casi cualquier clip. La excepción es un texto de color con el
+contorno claro —el amarillo con contorno blanco de *Sad but true*— sobre un
+clip blanco: ahí el contorno se funde con el fondo y la letra desaparece.
+
+Por eso el estilo tiene `sombra`: son los píxeles que se separa, y **de 3 para
+arriba la sombra se pone negra del todo** (`\4c&H00000000&\4a&H20&`), porque a
+esa distancia una sombra translúcida ya no sostiene nada. La vista previa hace
+lo mismo con `text-shadow`, así que lo que se ve antes de renderizar es lo que
+sale.
+
 ## Efectos de imagen
 
 Sobre el clip o el fondo de cada escena, ya encajado en el lienzo:

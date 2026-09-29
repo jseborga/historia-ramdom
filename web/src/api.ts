@@ -156,6 +156,8 @@ export type EstiloTexto = {
   contorno: string;
   posicion: Posicion;
   negrita: boolean;
+  /** Pixeles de sombra; 3 o mas la pone negra del todo, para fondos claros. */
+  sombra?: number;
 };
 
 export type Lectura = "todo" | "frases" | "bloques";

@@ -34,7 +34,7 @@ const TONOS: [TonoSadButTrue | "", string][] = [
   ["desmotivadora", "desmotivadora (la verdad que nadie pide)"],
 ];
 
-const TIEMPOS = { sorteoSeg: 2, retencionSeg: 1, clipSeg: 5, cierreSeg: 3 };
+const TIEMPOS = { sorteoSeg: 3, retencionSeg: 0, clipSeg: 3.5, cierreSeg: 2 };
 
 /**
  * Lo que se tarda en leer un texto en pantalla. Misma cuenta que el servidor
@@ -218,9 +218,9 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
       <section className="tarjeta">
         <h2>1. El sorteo</h2>
         <p className="suave">
-          Diez segundos, sin voz: sobre negro pasan palabras como en un sorteo, se para en una, y
-          sobre un video cualquiera aparece la frase que le toca. Cierra en negro con un remate que
-          se desvanece.
+          Nueve segundos, sin voz: tres de palabras en gris pasando a toda velocidad sobre negro, y
+          al corte aparece la frase que gano, en amarillo, sobre un video cualquiera. Cierra en
+          negro con el remate en rojo, que se desvanece.
         </p>
         <div className="campos">
           <div>
@@ -400,11 +400,11 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
               />
             </div>
             <div>
-              <label htmlFor="retencionSeg">De esa, cuanto se queda la que gana (s)</label>
+              <label htmlFor="retencionSeg">Parar en la que gana antes del corte (s)</label>
               <input
                 id="retencionSeg"
                 type="number"
-                min={0.3}
+                min={0}
                 max={4}
                 step="0.1"
                 value={tiempos.retencionSeg}
@@ -470,10 +470,11 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
             />
           </div>
           <p className="suave">
-            Duracion: <strong>{total.toFixed(1)}s</strong> · {tiempos.sorteoSeg}s de sorteo (la que gana
-            se queda {tiempos.retencionSeg}s) + {clipSeg}s de video + {cierreSeg}s de negro.
+            Duracion: <strong>{total.toFixed(1)}s</strong> · {tiempos.sorteoSeg}s de sorteo (
+            {tiempos.retencionSeg ? ` para ${tiempos.retencionSeg}s en la que gana` : " sin parar"}) +{" "}
+            {clipSeg}s de video + {cierreSeg}s de negro.
             {lecturaAuto
-              ? " Los dos textos se quedan lo que se tarda en leerlos (un segundo en darse cuenta y 0,33s por palabra), con 5 y 3 segundos de suelo: aqui no hay voz que marque el ritmo y no hay forma de volver atras."
+              ? " Los dos textos se quedan lo que se tarda en leerlos (un segundo en darse cuenta y 0,33s por palabra), con 3,5 y 2 segundos de suelo: aqui no hay voz que marque el ritmo y no hay forma de volver atras."
               : " Ojo con quedarte corto: sin voz, un texto que se va antes de tiempo no se entiende."}{" "}
             El video sale al azar de las bibliotecas y entra por un punto cualquiera de su metraje,
             asi que dos videos del mismo tema no se parecen.

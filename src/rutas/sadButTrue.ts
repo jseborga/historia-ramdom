@@ -57,7 +57,7 @@ const PeticionSchema = z.object({
  */
 const TiemposSchema = z.object({
   sorteoSeg: z.number().min(0.8).max(8).default(TIEMPOS.sorteoSeg),
-  retencionSeg: z.number().min(0.3).max(4).default(TIEMPOS.retencionSeg),
+  retencionSeg: z.number().min(0).max(4).default(TIEMPOS.retencionSeg),
   clipSeg: z.number().min(2).max(15).optional(),
   cierreSeg: z.number().min(1).max(10).optional(),
 });

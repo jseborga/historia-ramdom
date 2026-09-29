@@ -24,6 +24,12 @@ export type EstiloTexto = {
   contorno: string; // #RRGGBB
   posicion: Posicion;
   negrita: boolean;
+  /**
+   * Cuánto se separa la sombra, en píxeles. Dos es lo de siempre; subirlo es
+   * lo que salva un texto de color sobre un clip claro, donde el contorno
+   * blanco se funde con el fondo y la letra deja de leerse.
+   */
+  sombra?: number;
 };
 
 export const ESTILO_POR_DEFECTO: EstiloTexto = {
@@ -33,7 +39,11 @@ export const ESTILO_POR_DEFECTO: EstiloTexto = {
   contorno: "#000000",
   posicion: "abajo",
   negrita: false,
+  sombra: 2,
 };
+
+/** A partir de aquí la sombra deja de ser un detalle y pasa a ser el fondo. */
+const SOMBRA_MARCADA = 3;
 
 export const ANIMACIONES: Animacion[] = [
   "ninguna",
@@ -212,9 +222,14 @@ function etiquetas(estilo: EstiloTexto, animacion: Animacion, p: Preset) {
   const y = Math.round(p.alto * ALTURA[estilo.posicion]);
   // El nombre de fuente va entre \fn y la siguiente barra: sin barras ni llaves dentro.
   const fuente = estilo.fuente.replace(/[\\{}]/g, "").trim() || FUENTE_POR_DEFECTO;
+  const sombra = Math.max(0, Math.min(estilo.sombra ?? 2, 12));
+  // La sombra de siempre es la del estilo (negro a medias). Cuando se pide
+  // marcada se pone negra del todo: es lo único que sostiene un texto de color
+  // sobre un clip blanco, y a esa distancia una sombra translúcida no se ve.
+  const fondo = sombra >= SOMBRA_MARCADA ? "\\4c&H00000000&\\4a&H20&" : "";
   const base =
     `\\an5\\fn${fuente}\\fs${estilo.tamano}\\c${colorASS(estilo.color)}` +
-    `\\3c${colorASS(estilo.contorno)}\\bord4\\shad2\\b${estilo.negrita ? 1 : 0}`;
+    `\\3c${colorASS(estilo.contorno)}\\bord4\\shad${sombra}${fondo}\\b${estilo.negrita ? 1 : 0}`;
 
   switch (animacion) {
     case "fundido":
