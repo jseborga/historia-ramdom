@@ -911,12 +911,20 @@ negrita aunque no lo esté. Los rótulos tienen ahora `borde` aparte del color, 
 este formato usa dos: la letra es la que es y lo que la separa del fondo sigue
 siendo la sombra.
 
-**El sorteo se para en las primeras palabras de la frase**, no en la palabra
-del bombo. Antes paraba en «la paciencia» y acto seguido el vídeo enseñaba «La
-paciencia es infinita»: se leía dos veces lo mismo con dos caras distintas.
-Ahora el sorteo dice *«La paciencia»* y el corte al vídeo la **termina**:
-*«…es infinita»*. Son las dos primeras palabras si caben de un vistazo (22
-caracteres), y si no, la primera.
+**El sorteo se para en las primeras palabras de la frase** cuando la frase
+empieza por lo que salió sorteado, que es como se escriben las sentencias en
+dos tiempos. Antes paraba en «la paciencia» y acto seguido el vídeo enseñaba
+«La paciencia es infinita»: se leía dos veces lo mismo con dos caras
+distintas. Ahora el sorteo dice *«La paciencia»* y el corte al vídeo la
+**termina**: *«…es infinita»*. Son las dos primeras palabras si caben de un
+vistazo (22 caracteres), y si no, la primera.
+
+Cuando la frase **no** empieza por ahí —el otro formato del banco, donde la
+palabra va aparte— el sorteo se para en la palabra de siempre. Ahí las dos
+primeras palabras serían «Lo compraste» o «Tienes el»: trozos sueltos que no
+dicen nada y que encima no pegan con el resto del bombo, que son sustantivos.
+En ese caso la frase va entera en blanco, sin resalte: subrayar a medias es
+peor que no subrayar.
 
 **El cierre es negro**, el mismo del sorteo: el vídeo empieza y acaba igual.
 Hubo un rato en que cerraba con una pantalla roja y no funcionaba —disolver el

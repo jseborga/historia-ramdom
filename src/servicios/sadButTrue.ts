@@ -336,19 +336,35 @@ const NEGRO_FINAL = 1;
 /** Lo que el montaje añade por su cuenta a los dos tiempos de lectura. */
 export const EXTRAS = CRUCE_VIDEO / 2 + PUENTE + NEGRO_FINAL;
 
+/** Sin tildes, sin signos y en minúscula: para comparar, no para enseñar. */
+const pelado = (v: string) =>
+  v
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9ñ ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
 /**
- * Con qué se para el sorteo: el arranque de la frase que ganó.
+ * Con qué se para el sorteo.
  *
- * Antes se paraba en la palabra del bombo ("la paciencia") y acto seguido el
- * vídeo enseñaba la frase entera, que empieza por esa misma palabra pero
- * escrita de otra forma. Se leía dos veces lo mismo con dos caras distintas.
- * Parando en **las primeras palabras de la frase**, lo que pasa al corte es
- * que la frase se termina: el sorteo dice "La paciencia" y el vídeo remata
- * "es infinita".
+ * Lo bueno es pararlo en **las primeras palabras de la frase**, porque
+ * entonces el corte al vídeo la termina: el sorteo dice "La paciencia" y el
+ * vídeo remata "es infinita". Así no se lee dos veces lo mismo, que es lo que
+ * pasaba parando en la palabra del bombo.
+ *
+ * Pero eso solo vale cuando la frase **empieza por lo que salió sorteado**,
+ * que es como se escriben las sentencias en dos tiempos. En el otro formato
+ * del banco la palabra va aparte y la frase arranca por donde sea: ahí, las
+ * dos primeras palabras son "Lo compraste" o "Tienes el", trozos sueltos que
+ * no dicen nada y que además no pegan con el resto del bombo, que son
+ * sustantivos. Para esas, el sorteo se para en la palabra de siempre.
  */
 export function arranqueDeFrase(frase: string, palabra: string): string {
   const ws = frase.trim().split(/\s+/).filter(Boolean);
   if (!ws.length) return palabra;
+  if (!pelado(frase).startsWith(pelado(palabra))) return palabra;
   const dos = ws.slice(0, 2).join(" ");
   // Dos palabras si caben de un vistazo; si no, con una basta.
   return dos.length <= 22 ? dos : ws[0];
@@ -460,7 +476,9 @@ export function pistasDeSadButTrue(
       texto: s.frase,
       estilo: ESTILO_FRASE,
       // Lo sorteado sigue en amarillo dentro de la frase; lo que añade la
-      // frase, en blanco. Así se ve de un vistazo qué salió y qué completa.
+      // frase, en blanco. Si lo que salió no está escrito igual dentro de la
+      // frase —pasa cuando la palabra va aparte—, no se resalta nada y la
+      // frase va entera en blanco: subrayar a medias es peor que no subrayar.
       resalte: { texto: arranque, color: AMARILLO },
       animacion: o.revelarFrase ? "apareciendo" : "suave",
       lectura: "todo",
