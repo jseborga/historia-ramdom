@@ -115,7 +115,13 @@ export const ClipPistaSchema = z.object({
 export const RotuloPistaSchema = z.object({
   id: z.string().max(60),
   inicio: z.number().min(0).max(3600).default(0),
-  duracion: z.number().min(0.2).max(300).default(DURACION_CLIP),
+  /**
+   * El mínimo no es de lectura sino de render: los rótulos del sorteo de "Sad
+   * but true" pasan a diez por segundo, y con el tope en 0,2 s no habría
+   * sorteo que valga. Arrastrando en la línea de tiempo sigue sin bajar de
+   * 0,2 s, que es lo que se puede afinar con el ratón.
+   */
+  duracion: z.number().min(0.08).max(300).default(DURACION_CLIP),
   texto: z.string().max(2000).default(""),
   estilo: EstiloSchema.default({}),
   animacion: z

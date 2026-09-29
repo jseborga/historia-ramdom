@@ -40,6 +40,9 @@ Implementa la guía de `docs/guia-original.md`.
   instrucciones en vez de cantarlos.
 - **Tres idiomas.** Español, inglés y **spanglish**: base en español con el
   inglés en el gancho, que es como se canta la cumbia y el reggaetón.
+- **Sad but true.** Diez segundos, sin voz: un sorteo de palabras sobre negro
+  que frena hasta pararse en una, la frase que le toca sobre un vídeo al azar,
+  y un remate de filosofía de vida que se desvanece en negro.
 - **Productos con reflexión.** Un objeto real de Amazon como gancho y un giro
   final que habla de nosotros: enlace de afiliado y divulgación siempre en la
   descripción, y fotos solo si hay API oficial.
@@ -54,7 +57,8 @@ Implementa la guía de `docs/guia-original.md`.
   ([`docs/editor.md`](docs/editor.md)). Las series pueden dejar cada ejecución
   como montaje precargado para revisar antes de renderizar.
 - **Párrafos largos y karaoke.** Escenas de hasta tres minutos que se van
-  leyendo frase a frase o por bloques, con resaltado palabra a palabra, clips
+  leyendo frase a frase o por bloques, con resaltado palabra a palabra o
+  apareciendo al ritmo de la voz, clips
   encontrados automáticamente por parecido con el texto y efectos de imagen.
 - **Voces locales sin coste.** espeak-ng (robótica) y Piper (neural, la mejor
   sin pagar, con licencia apta para uso comercial); MBROLA opcional. Por
@@ -876,6 +880,57 @@ y un vídeo dura meses.
   `POST /api/proyectos/:id/producto` (cambia o quita el producto de uno ya
   creado).
 
+## Sad but true: el sorteo, la frase y el remate
+
+La pestaña **Sad but true** hace un formato y solo uno, de diez segundos y sin
+voz:
+
+```
+0.0 ──2s──► negro: palabras pasando como un sorteo, frenando
+1.0        se para en una: esa se queda sola, en grande, un segundo
+2.0 ──5s──► corte a un vídeo cualquiera, con la frase encima
+7.0 ──3s──► se disuelve a negro y queda el remate, que se desvanece
+```
+
+Lo que se escribe es poco a propósito: **las palabras del bombo, cuál gana, la
+frase que le toca y el remate**. La frase es la ligeramente desmotivadora —la
+verdad que da una media sonrisa de lado— y el remate cierra con una filosofía
+de vida que se elige de tono: feliz, triste, reflexiva o desmotivadora, o la
+que le pegue a la frase.
+
+Dos detalles del sorteo, que son los que hacen que parezca un sorteo:
+
+- **Frena.** Las palabras no pasan todas al mismo ritmo: empiezan a diez por
+  segundo y van frenando hasta pararse. Todas iguales parece un GIF; frenando
+  parece una ruleta.
+- **La que gana no se enseña antes.** En el bombo solo pasan las otras. Si la
+  ganadora apareciera entre medias, el final se ve venir.
+
+Y una regla al escribir: las palabras tienen que ser **de la misma familia**
+(cosas que se posponen, motivos para no llamar, promesas de enero). Si no lo
+son, no parece un sorteo, parece una lista.
+
+El vídeo del medio sale **al azar de las bibliotecas** y entra por un punto
+cualquiera de su propio metraje, así que dos vídeos del mismo tema no se
+parecen. Si el que tocó pelea con el texto, en el editor está *Otro al azar*.
+
+**Dónde está el límite.** "Ligeramente desmotivadora" es un tono, no un
+permiso: el prompt prohíbe la crueldad, lo dirigido a una persona real y
+cualquier cosa que empuje a rendirse, a hacerse daño o a dejar de pedir ayuda.
+Es un chiste amargo sobre la vida, no un consejo sobre ella.
+
+Este formato **no pasa por el ensamblado**, y es el único. El ensamblado
+reparte los planos según lo que dure la voz; aquí no hay voz y los tiempos
+*son* el formato, así que la línea de tiempo se monta entera de una vez y el
+proyecto nace listo para renderizar. Después se abre en el editor de siempre:
+se le puede poner música, cambiar el clip o mover cualquier rótulo.
+
+- **Los tiempos** (2 / 1 / 5 / 3 segundos) se pueden mover en el paso 3, pero
+  moverlos mucho deja de ser este formato.
+- **API**: `POST /api/sadbuttrue` (escribe el guion) y
+  `POST /api/sadbuttrue/video` (lo monta y crea el proyecto).
+- **MCP**: `sad_but_true` y `montar_sad_but_true`.
+
 ## Editor de montaje
 
 La pestaña **Montaje** abre una línea de tiempo al estilo CapCut: se crea desde
@@ -1114,8 +1169,8 @@ Herramientas disponibles: `catalogo`, `diagnostico`, `listar_series`,
 `listar_historias`, `listar_categorias`, `plantear_historia`, `escribir_guion`,
 `crear_historia`, `programar_subida`, `listar_ideas`, `agregar_ideas`,
 `importar_musica_suno`, `crear_videoclip`, `sugerir_lineamientos`,
-`unir_canciones`, `momentos_cancion`, `crear_cortes`, `rendimiento` y
-`sincronizar_metricas`. Con ellas puedes pedir
+`unir_canciones`, `sad_but_true`, `montar_sad_but_true`, `momentos_cancion`,
+`crear_cortes`, `rendimiento` y `sincronizar_metricas`. Con ellas puedes pedir
 cosas como *"mira qué ganchos rindieron mejor este mes y prepárame tres
 historias en inglés para el viernes"*.
 

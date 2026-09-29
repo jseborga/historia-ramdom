@@ -344,6 +344,26 @@ export type GuionDialogo = {
   avisoMotor?: string;
 };
 
+/** El humor con el que cierra el remate de un "Sad but true". */
+export type TonoSadButTrue = "feliz" | "triste" | "reflexiva" | "desmotivadora";
+
+/**
+ * El guion de un "Sad but true": el sorteo, la que gana, la frase que le toca
+ * y el remate. Es todo lo que hay: el resto del formato son los tiempos.
+ */
+export type GuionSadButTrue = {
+  titulo: string;
+  palabras: string[];
+  elegida: string;
+  frase: string;
+  remate: string;
+  tono: TonoSadButTrue;
+  keywords: string[];
+  hashtags: string[];
+  motorUsado?: string;
+  avisoMotor?: string;
+};
+
 /** Un ritmo al que se puede llevar una cancion. */
 export type Ritmo = { id: string; nombre: string; familia: string; estilo: string; bpm: string };
 

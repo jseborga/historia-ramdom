@@ -1,0 +1,355 @@
+import { randomUUID } from "node:crypto";
+import { z } from "zod";
+import { ESTILO_POR_DEFECTO } from "../render/rotulos.js";
+import {
+  ClipPistaSchema,
+  RotuloPistaSchema,
+  efectoDeClip,
+  type ClipPista,
+  type RotuloPista,
+} from "./proyecto.js";
+import {
+  esMotor,
+  extraerJSON,
+  ortografia,
+  textoConMotor,
+  type InformeMotor,
+} from "./guion.js";
+import type { ClipInfo } from "./clips.js";
+
+/**
+ * **Sad but true**: el formato más corto de todos y el más rígido, que es
+ * justo lo que lo hace funcionar.
+ *
+ *   1. Pantalla negra. Palabras sueltas pasando una tras otra, como un sorteo
+ *      que va frenando.
+ *   2. Se para en una. Esa se queda un segundo, sola, en grande.
+ *   3. Corte a un vídeo cualquiera, cinco segundos, con la frase que le toca a
+ *      esa palabra: incómoda, no cruel.
+ *   4. Se disuelve a negro y ahí queda el remate, una frase de filosofía de
+ *      vida que se desvanece.
+ *
+ * No hay voz ni narración: son diez segundos de leer. Por eso el guion es tan
+ * poco —unas palabras, una frase y un remate— y en cambio los tiempos van
+ * medidos aquí y no a ojo en el editor.
+ */
+
+/** El humor con el que cierra el remate. */
+export const TONOS = ["feliz", "triste", "reflexiva", "desmotivadora"] as const;
+export type Tono = (typeof TONOS)[number];
+
+export const NOMBRES_TONO: Record<Tono, string> = {
+  feliz: "feliz (algo que salva el día)",
+  triste: "triste (sin consuelo, pero sin crueldad)",
+  reflexiva: "reflexiva (deja pensando)",
+  desmotivadora: "desmotivadora (la verdad que nadie pide)",
+};
+
+export const SadButTrueSchema = z.object({
+  titulo: z.string().min(1).max(120),
+  /** Las del sorteo. Cortas: tienen que leerse en una décima de segundo. */
+  palabras: z.array(z.string().min(1).max(40)).min(4).max(14),
+  /** La que gana el sorteo. Siempre una de las de arriba. */
+  elegida: z.string().min(1).max(40),
+  /** La ligeramente desmotivadora, la que va sobre el vídeo. */
+  frase: z.string().min(1).max(300),
+  /** El cierre sobre negro: filosofía de vida, del humor que se haya pedido. */
+  remate: z.string().min(1).max(300),
+  tono: z.enum(TONOS).default("reflexiva"),
+  /** EN INGLÉS: con esto se busca el vídeo del medio. */
+  keywords: z.array(z.string().min(1).max(40)).min(1).max(6),
+  hashtags: z.array(z.string().max(40)).max(8).default([]),
+  motorUsado: z.string().max(20).optional(),
+  avisoMotor: z.string().max(300).optional(),
+});
+
+export type SadButTrue = z.infer<typeof SadButTrueSchema>;
+
+const limpiar = (v: unknown) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim() : "");
+
+/**
+ * Arregla lo que los modelos fallan aquí una y otra vez, que siempre es lo
+ * mismo: devolver como elegida una palabra que no está en la lista del
+ * sorteo. Si se dejara pasar, el vídeo enseñaría un sorteo entre unas
+ * palabras y se pararía en otra distinta, que es exactamente el truco al
+ * descubierto. Se mete en la lista en vez de rechazar el guion entero.
+ */
+export function repararSadButTrue(crudo: unknown): unknown {
+  if (!crudo || typeof crudo !== "object") return crudo;
+  const d = { ...(crudo as Record<string, unknown>) };
+
+  const palabras = Array.isArray(d.palabras) ? d.palabras.map(limpiar).filter(Boolean) : [];
+  const elegida = limpiar(d.elegida) || palabras[0] || "";
+  const iguales = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+
+  // Sin repetidas: dos veces la misma palabra en el sorteo se nota.
+  const unicas: string[] = [];
+  for (const p of palabras) if (!unicas.some((u) => iguales(u, p))) unicas.push(p);
+  if (elegida && !unicas.some((u) => iguales(u, elegida))) unicas.push(elegida);
+
+  d.palabras = unicas.slice(0, 14);
+  d.elegida = elegida;
+  for (const campo of ["titulo", "frase", "remate"]) d[campo] = limpiar(d[campo]);
+  return d;
+}
+
+export type PeticionSadButTrue = {
+  motor: string;
+  modelo?: string | null;
+  /** De qué va el sorteo; vacío = lo elige el modelo. */
+  tema?: string;
+  /** Humor del remate; vacío = el que le pegue a la frase. */
+  tono?: Tono | "";
+  idioma?: string;
+  region?: string;
+  modismos?: boolean;
+};
+
+/**
+ * El encargo del guion. Dos cosas se repiten a propósito, porque son las que
+ * decide el formato entero:
+ *
+ *   - las palabras del sorteo tienen que ser de la MISMA familia, si no el
+ *     sorteo no parece un sorteo sino una lista de cosas sin relación;
+ *   - "ligeramente desmotivadora" es un tono, no un permiso: es la verdad que
+ *     da un poco de risa de lado, no el empujón al vacío.
+ */
+export async function generarSadButTrue(p: PeticionSadButTrue): Promise<SadButTrue> {
+  if (!esMotor(p.motor)) throw new Error(`Motor desconocido: ${p.motor}`);
+  const idioma = p.idioma ?? "es";
+  const tono = p.tono || "";
+
+  const prompt = [
+    "Escribe el guion de un vídeo vertical de diez segundos del formato 'Sad but true'.",
+    "El vídeo es así: sobre negro pasan palabras sueltas como en un sorteo, se para en una,",
+    "y sobre un vídeo cualquiera aparece la frase que le toca a esa palabra. Cierra en negro con un remate.",
+    p.tema ? `El sorteo va de esto: ${p.tema}.` : "Elige tú de qué va el sorteo.",
+    "",
+    "Cómo tiene que ser:",
+    "- De 8 a 12 palabras para el sorteo, TODAS de la misma familia (cosas que se posponen, promesas que se hacen, motivos para no llamar...). Si no son de la misma familia no parece un sorteo, parece una lista.",
+    "- Cada una de una a tres palabras: se leen en una décima de segundo.",
+    "- 'elegida' tiene que ser EXACTAMENTE una de las de la lista.",
+    "- La frase es lo que le pasa de verdad a esa palabra: concreta, cotidiana, de una o dos líneas. Ligeramente desmotivadora es que incomode y dé una media sonrisa, no que hunda a nadie.",
+    "- Nada de consejos, de moralina ni de 'pero todo mejora'. Tampoco crueldad, ni insultos, ni nada dirigido a una persona real.",
+    "- Nada que empuje a rendirse, a hacerse daño ni a dejar de pedir ayuda: esto es un chiste amargo sobre la vida, no un consejo sobre ella.",
+    tono
+      ? `- El remate cierra con una filosofía de vida de tono ${NOMBRES_TONO[tono as Tono]}.`
+      : "- El remate cierra con una filosofía de vida: puede ser feliz, triste, reflexiva o desmotivadora, la que le pegue a la frase.",
+    "- El remate no repite la frase ni la explica: la empuja un paso más.",
+    "- Nada de emojis, de hashtags dentro del texto ni de acotaciones.",
+    ortografia(idioma),
+    "",
+    "Devuelve exactamente este JSON:",
+    "{",
+    '  "titulo": "título corto del vídeo",',
+    '  "palabras": ["una", "otra", "otra mas"],',
+    '  "elegida": "la del sorteo que gana",',
+    '  "frase": "la frase ligeramente desmotivadora",',
+    '  "remate": "la filosofía de vida con la que cierra",',
+    `  "tono": "${tono || "feliz|triste|reflexiva|desmotivadora"}",`,
+    '  "keywords": ["visual keyword in english", "another"],',
+    '  "hashtags": ["sinAlmohadilla", "otro"]',
+    "}",
+    "Las keywords son de 3 a 5, EN INGLÉS, del ambiente del vídeo del medio: un plano cualquiera que acompañe, no una ilustración literal de la frase.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const informe: InformeMotor = {};
+  const crudo = await textoConMotor(
+    p.motor,
+    prompt,
+    p.modelo,
+    idioma,
+    p.region ?? "bolivia",
+    p.modismos ?? true,
+    informe,
+  );
+  if (!crudo) throw new Error(`El motor ${informe.motor ?? p.motor} no devolvió contenido`);
+  const datos = repararSadButTrue(extraerJSON(crudo)) as Record<string, unknown>;
+  return SadButTrueSchema.parse({
+    ...datos,
+    ...(tono ? { tono } : {}),
+    motorUsado: informe.motor,
+    avisoMotor: informe.aviso,
+  });
+}
+
+/** Los tiempos del formato, en segundos. Los de fábrica son los del guion. */
+export type TiemposSadButTrue = {
+  /** Toda la pantalla negra del principio: sorteo + la elegida sola. */
+  sorteoSeg?: number;
+  /** De esa negra, cuánto se queda la elegida quieta antes del corte. */
+  retencionSeg?: number;
+  /** El vídeo del medio, con la frase. */
+  clipSeg?: number;
+  /** La negra final con el remate, que se desvanece. */
+  cierreSeg?: number;
+};
+
+export const TIEMPOS: Required<TiemposSadButTrue> = {
+  sorteoSeg: 2,
+  retencionSeg: 1,
+  clipSeg: 5,
+  cierreSeg: 3,
+};
+
+/** Lo rápido y lo lento del sorteo, y cuánto frena en cada paso. */
+const RAPIDO = 0.1;
+const LENTO = 0.34;
+const FRENO = 1.22;
+
+/**
+ * Cuánto dura cada palabra del sorteo.
+ *
+ * Todas iguales parece un GIF; frenando parece una ruleta que se para, que es
+ * lo que hace creer que hay azar de verdad. Se llena la ventana con una
+ * cadencia que crece y luego se escala para que cuadre al milisegundo con el
+ * corte: la elegida tiene que entrar exactamente cuando toca.
+ */
+export function cadenciaSorteo(ventana: number): number[] {
+  if (ventana <= RAPIDO) return [ventana];
+  const pasos: number[] = [];
+  let paso = RAPIDO;
+  let suma = 0;
+  while (suma + paso <= ventana + 1e-6) {
+    pasos.push(paso);
+    suma += paso;
+    paso = Math.min(LENTO, paso * FRENO);
+  }
+  if (!pasos.length) return [ventana];
+  const ajuste = ventana / suma;
+  return pasos.map((p) => p * ajuste);
+}
+
+/** Baraja sin tocar el original (Fisher-Yates). */
+function barajar<T>(xs: T[]): T[] {
+  const a = [...xs];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+const ESTILO_SORTEO = { ...ESTILO_POR_DEFECTO, tamano: 72, color: "#9AA3AE", posicion: "centro" as const };
+const ESTILO_ELEGIDA = { ...ESTILO_POR_DEFECTO, tamano: 96, color: "#FFE500", posicion: "centro" as const, negrita: true };
+const ESTILO_FRASE = { ...ESTILO_POR_DEFECTO, tamano: 68, color: "#FFFFFF", posicion: "centro" as const, negrita: true };
+const ESTILO_REMATE = { ...ESTILO_POR_DEFECTO, tamano: 60, color: "#E8E2D4", posicion: "centro" as const };
+
+/** El negro de las dos pantallas. Negro de verdad, no el gris del editor. */
+const NEGRO = "#000000";
+
+export type OpcionesPistas = TiemposSadButTrue & {
+  /** La frase se escribe palabra a palabra en vez de aparecer entera. */
+  revelarFrase?: boolean;
+};
+
+/**
+ * Monta las dos pistas del formato: tres planos (negro, vídeo, negro) y los
+ * rótulos con sus tiempos ya calculados.
+ *
+ * El vídeo del medio entra por un punto al azar de su propio metraje cuando da
+ * de sí: dos vídeos hechos con el mismo clip no empiezan por el mismo
+ * fotograma, que es lo que hace que la serie no se vea siempre igual.
+ */
+export function pistasDeSadButTrue(
+  s: SadButTrue,
+  clip: ClipInfo | null,
+  o: OpcionesPistas = {},
+): { video: ClipPista[]; textos: RotuloPista[] } {
+  const sorteoSeg = o.sorteoSeg ?? TIEMPOS.sorteoSeg;
+  const clipSeg = o.clipSeg ?? TIEMPOS.clipSeg;
+  const cierreSeg = o.cierreSeg ?? TIEMPOS.cierreSeg;
+  // La retención nunca se come el sorteo entero: siempre queda algo girando.
+  const retencionSeg = Math.min(o.retencionSeg ?? TIEMPOS.retencionSeg, sorteoSeg - RAPIDO);
+
+  const sobra = Math.max((clip?.duracion ?? 0) - clipSeg, 0);
+  const video: ClipPista[] = [
+    ClipPistaSchema.parse({ id: randomUUID(), clip: null, color: NEGRO, duracion: sorteoSeg }),
+    ClipPistaSchema.parse({
+      id: randomUUID(),
+      clip,
+      color: NEGRO,
+      duracion: clipSeg,
+      recorte: sobra > 0.5 ? Number((Math.random() * sobra).toFixed(2)) : 0,
+      efecto: efectoDeClip(clip, 1),
+      // Lo que se desvanece: el vídeo se disuelve dentro de la negra final.
+      transicion: "fundido",
+      transicionSeg: 0.6,
+    }),
+    ClipPistaSchema.parse({ id: randomUUID(), clip: null, color: NEGRO, duracion: cierreSeg }),
+  ];
+
+  const textos: RotuloPista[] = [];
+
+  // 1. El sorteo. Las que pasan son las demás: la elegida no se enseña hasta
+  //    que gana, si no el final se ve venir.
+  const ventana = Math.max(sorteoSeg - retencionSeg, 0);
+  const pasos = cadenciaSorteo(ventana);
+  const resto = s.palabras.filter((p) => p.toLowerCase() !== s.elegida.toLowerCase());
+  const bolillero = barajar(resto.length ? resto : s.palabras);
+  let t = 0;
+  for (const [i, paso] of pasos.entries()) {
+    textos.push(
+      RotuloPistaSchema.parse({
+        id: randomUUID(),
+        inicio: Number(t.toFixed(3)),
+        duracion: Number(paso.toFixed(3)),
+        texto: bolillero[i % bolillero.length],
+        estilo: ESTILO_SORTEO,
+        animacion: "ninguna",
+        lectura: "todo",
+      }),
+    );
+    t += paso;
+  }
+
+  // 2. La elegida, sola y en grande hasta el corte.
+  textos.push(
+    RotuloPistaSchema.parse({
+      id: randomUUID(),
+      inicio: Number(ventana.toFixed(3)),
+      duracion: Number((sorteoSeg - ventana).toFixed(3)),
+      texto: s.elegida,
+      estilo: ESTILO_ELEGIDA,
+      animacion: "zoom",
+      lectura: "todo",
+    }),
+  );
+
+  // 3. La frase, que entra con el corte al vídeo: un segundo justo después de
+  //    la elegida, que es lo que tarda en leerse la palabra.
+  textos.push(
+    RotuloPistaSchema.parse({
+      id: randomUUID(),
+      inicio: sorteoSeg,
+      duracion: clipSeg,
+      texto: s.frase,
+      estilo: ESTILO_FRASE,
+      animacion: o.revelarFrase ? "apareciendo" : "fundido",
+      lectura: "todo",
+    }),
+  );
+
+  // 4. El remate sobre la negra final. Entra y se va fundido: eso es lo que se
+  //    ve desvanecerse, porque sobre negro el que se funde es el texto.
+  textos.push(
+    RotuloPistaSchema.parse({
+      id: randomUUID(),
+      inicio: sorteoSeg + clipSeg,
+      duracion: cierreSeg,
+      texto: s.remate,
+      estilo: ESTILO_REMATE,
+      animacion: "fundido",
+      lectura: "todo",
+    }),
+  );
+
+  return { video, textos };
+}
+
+/** Lo que se publica: la frase, el remate y las etiquetas. */
+export function descripcionSadButTrue(s: SadButTrue): string {
+  return [s.frase, s.remate, s.hashtags.map((h) => `#${h}`).join(" ")].filter(Boolean).join("\n\n");
+}

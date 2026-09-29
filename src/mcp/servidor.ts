@@ -422,6 +422,59 @@ servidor.registerTool(
 );
 
 servidor.registerTool(
+  "sad_but_true",
+  {
+    description:
+      "Escribe un 'Sad but true': el sorteo de palabras, la que gana, la frase ligeramente desmotivadora que le toca y el remate de filosofia de vida. No monta nada.",
+    inputSchema: {
+      tema: z.string().max(300).describe("De que va el sorteo; vacio = lo elige la IA").optional(),
+      tono: z
+        .enum(["feliz", "triste", "reflexiva", "desmotivadora"])
+        .describe("Humor del remate; vacio = el que le pegue a la frase")
+        .optional(),
+      motor: z.enum(["groq", "openai", "gemini", "claude"]).optional(),
+      idioma: z.enum(["es", "en", "spanglish"]).optional(),
+    },
+  },
+  async (args) => texto(await llamar("/api/sadbuttrue", { method: "POST", body: JSON.stringify(args) })),
+);
+
+servidor.registerTool(
+  "montar_sad_but_true",
+  {
+    description:
+      "Monta el video de un 'Sad but true' con el guion (el de sad_but_true, o uno corregido): negro con el sorteo, un video al azar con la frase y el negro final con el remate. Devuelve el proyecto listo para renderizar.",
+    inputSchema: {
+      guion: z
+        .object({
+          titulo: z.string().max(120),
+          palabras: z.array(z.string().max(40)).min(4).max(14),
+          elegida: z.string().max(40).describe("Tiene que ser una de las de palabras"),
+          frase: z.string().max(300),
+          remate: z.string().max(300),
+          tono: z.enum(["feliz", "triste", "reflexiva", "desmotivadora"]).optional(),
+          keywords: z.array(z.string().max(40)).min(1).max(6).describe("EN INGLES: con esto se busca el video"),
+          hashtags: z.array(z.string().max(40)).max(8).optional(),
+        })
+        .describe("El guion entero"),
+      formato: z.string().max(40).optional(),
+      bancos: z.array(z.string().max(20)).max(3).describe("aleatorio, pexels, nasa...").optional(),
+      revelarFrase: z.boolean().describe("La frase se escribe palabra a palabra").optional(),
+      tiempos: z
+        .object({
+          sorteoSeg: z.number().min(0.8).max(8),
+          retencionSeg: z.number().min(0.3).max(4),
+          clipSeg: z.number().min(2).max(15),
+          cierreSeg: z.number().min(1).max(10),
+        })
+        .describe("Los de fabrica son 2 / 1 / 5 / 3")
+        .optional(),
+    },
+  },
+  async (args) => texto(await llamar("/api/sadbuttrue/video", { method: "POST", body: JSON.stringify(args) })),
+);
+
+servidor.registerTool(
   "momentos_cancion",
   {
     description:
