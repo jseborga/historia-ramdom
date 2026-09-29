@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { ESTILO_POR_DEFECTO } from "../render/rotulos.js";
+import { ESTILO_POR_DEFECTO, fragmentar } from "../render/rotulos.js";
 import {
   ClipPistaSchema,
   RotuloPistaSchema,
@@ -370,6 +370,26 @@ export function arranqueDeFrase(frase: string, palabra: string): string {
   return dos.length <= 22 ? dos : ws[0];
 }
 
+/**
+ * A partir de cuántas palabras una frase se enseña **en dos tiempos**.
+ *
+ * Las sentencias en dos tiempos caben de una vez, pero una frase de la base
+ * precargada son diecisiete palabras y sale en cuatro líneas de golpe: un
+ * muro que nadie termina de leer, y menos con la imagen moviéndose detrás.
+ * Partida por sus puntos, el vídeo la cuenta como está escrita —primero lo
+ * que pasa y después el remate de la frase— y no dura ni un segundo más: el
+ * tiempo de lectura es el mismo, solo que repartido.
+ *
+ * Solo se parte si hay por dónde. Una frase larga de una sola oración se
+ * quedaría cortada por la mitad, así que esa se enseña entera.
+ */
+const FRASE_LARGA = 12;
+
+export function enDosTiempos(frase: string): boolean {
+  const cuantas = frase.trim().split(/\s+/).filter(Boolean).length;
+  return cuantas > FRASE_LARGA && fragmentar(frase, "frases").length > 1;
+}
+
 /** El negro del sorteo y del cierre. Negro de verdad, no el gris del editor. */
 const NEGRO = "#000000";
 
@@ -430,6 +450,7 @@ export function pistasDeSadButTrue(
   // 1. El sorteo. Las que pasan son las demás: la elegida no se enseña hasta
   //    que gana, si no el final se ve venir.
   const arranque = arranqueDeFrase(s.frase, s.elegida);
+  const partida = enDosTiempos(s.frase);
   const ventana = Math.max(sorteoSeg - retencionSeg, 0);
   const pasos = cadenciaSorteo(ventana);
   const resto = s.palabras.filter((p) => p.toLowerCase() !== s.elegida.toLowerCase());
@@ -480,13 +501,17 @@ export function pistasDeSadButTrue(
       // frase —pasa cuando la palabra va aparte—, no se resalta nada y la
       // frase va entera en blanco: subrayar a medias es peor que no subrayar.
       resalte: { texto: arranque, color: AMARILLO },
-      animacion: o.revelarFrase ? "apareciendo" : "suave",
-      lectura: "todo",
+      // Partida, el fundido largo se comería un tercio de cada trozo: para dos
+      // tiempos, el corto. Entera, el largo, que es lo que hace que entre y
+      // salga sin borde.
+      animacion: o.revelarFrase ? "apareciendo" : partida ? "fundido" : "suave",
+      lectura: partida ? "frases" : "todo",
     }),
   );
 
-  // 4. El remate, ya del otro lado del negro, sobre el rojo entero. Entra y se
-  //    va con el fundido largo: eso es lo que se ve desvanecerse al final.
+  // 4. El remate, ya del otro lado del negro. Entra y se va con el fundido
+  //    largo: eso es lo que se ve desvanecerse al final.
+  const remateLargo = enDosTiempos(s.remate);
   textos.push(
     RotuloPistaSchema.parse({
       id: randomUUID(),
@@ -494,8 +519,8 @@ export function pistasDeSadButTrue(
       duracion: leerRemate,
       texto: s.remate,
       estilo: ESTILO_REMATE,
-      animacion: "suave",
-      lectura: "todo",
+      animacion: remateLargo ? "fundido" : "suave",
+      lectura: remateLargo ? "frases" : "todo",
     }),
   );
 

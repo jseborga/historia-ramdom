@@ -1075,6 +1075,23 @@ Solo cuando una pareja no trae cierre propio —`frase ; sobre X`, o una lista d
 palabras sueltas— se coge uno del montón. Y el cierre entra además en ese
 montón, porque un buen remate vale para más de una frase.
 
+### Las frases largas van en dos tiempos
+
+Una sentencia en dos tiempos cabe de una vez, pero una frase de la base
+precargada son diecisiete palabras y salía **en cuatro líneas de golpe**: un
+muro que nadie termina de leer, y menos con la imagen moviéndose detrás.
+
+Desde más de doce palabras, si la frase tiene por dónde partirse, el vídeo la
+cuenta **como está escrita**: primero *«Vas por la página 40 desde hace dos
+años.»* y después *«Ya no lo estás leyendo: lo estás decorando.»*. Dos líneas
+cada trozo en vez de cuatro de una vez, y el vídeo no dura ni un segundo más:
+el tiempo de lectura es el mismo, solo que repartido entre los dos.
+
+Se parte por los puntos, nunca por la mitad de una oración: una frase larga
+que sea una sola oración se enseña entera. Y con dos trozos el fundido pasa a
+ser el corto, porque el largo se comería un tercio de cada uno. El remate sigue
+la misma regla.
+
 ### Sin voz, y con tiempo de leer
 
 Este formato no lleva narración, así que no hay nada que marque el ritmo: si un
