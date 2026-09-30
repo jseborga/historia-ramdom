@@ -1,14 +1,15 @@
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { db } from "../db.js";
 import { env, MAX_CLIP_BYTES } from "../env.js";
 import { listarMusica, rutaMedioSeguro, rutaMiniaturas } from "../almacen.js";
 import { ffmpeg } from "../render/ffmpeg.js";
 import { IdiomaCampo, MOTORES } from "../servicios/guion.js";
-import { EXT_IMAGEN, EXT_VIDEO, guardarSubida } from "../servicios/medios.js";
+import { descargarDeEnlace, type Descargado } from "../servicios/enlaces.js";
+import { EXT_IMAGEN, EXT_VIDEO, borrarMedio, guardarSubida } from "../servicios/medios.js";
 import {
   DURACIONES,
   MAX_REFERENCIAS,
@@ -47,6 +48,8 @@ const PeticionSchema = z.object({
   motor: z.enum(MOTORES).default("gemini"),
   modelo: z.string().max(80).nullable().default(null),
 });
+
+const EnlaceSchema = z.object({ enlace: z.string().trim().min(8).max(2000) });
 
 const LineaSchema = z.object({ personajeId: z.string().max(60), texto: z.string().max(300) });
 
@@ -209,16 +212,34 @@ export async function rutasProducciones(app: FastifyInstance) {
   });
 
   /** La imagen de referencia del personaje: a la Galería, y enlazada a él. */
-  app.post("/api/producciones/:id/personajes/:hijo/imagen", async (req, reply) => {
-    const { id, hijo } = hijoParam.parse(req.params);
+  async function ponerImagen(id: string, hijo: string, r: Descargado, reply: FastifyReply) {
     const pr = await db.produccion.findUniqueOrThrow({ where: { id } });
     const pj = await db.personaje.findFirstOrThrow({ where: { id: hijo, produccionId: id } });
-    const r = await recibir(req, EXT_IMAGEN);
-    if ("error" in r) return reply.code(r.codigo).send({ error: r.error });
+    if (!EXT_IMAGEN.test(r.nombre)) return reply.code(415).send({ error: "Eso no es una imagen (jpg, png o webp)" });
     const g = await guardarSubida(r.datos, `${pj.nombre} - ${r.nombre}`, [pr.titulo.toLowerCase(), pj.nombre.toLowerCase(), "personaje"]);
     if (!g.ok) return reply.code(415).send({ error: g.mensaje });
+    if (g.medio.clase !== "IMAGEN") {
+      await borrarMedio(g.medio.id);
+      return reply.code(415).send({ error: "Eso no es una imagen" });
+    }
     await db.personaje.update({ where: { id: hijo }, data: { medioId: g.medio.id } });
     return completa(id);
+  }
+
+  app.post("/api/producciones/:id/personajes/:hijo/imagen", async (req, reply) => {
+    const { id, hijo } = hijoParam.parse(req.params);
+    await db.personaje.findFirstOrThrow({ where: { id: hijo, produccionId: id } });
+    const r = await recibir(req, EXT_IMAGEN);
+    if ("error" in r) return reply.code(r.codigo).send({ error: r.error });
+    return ponerImagen(id, hijo, r, reply);
+  });
+
+  /** La misma imagen, desde un enlace (Drive, la API de Gemini o directo). */
+  app.post("/api/producciones/:id/personajes/:hijo/imagen/enlace", async (req, reply) => {
+    const { id, hijo } = hijoParam.parse(req.params);
+    const { enlace } = EnlaceSchema.parse(req.body);
+    await db.personaje.findFirstOrThrow({ where: { id: hijo, produccionId: id } });
+    return conMotivo(reply, async () => ponerImagen(id, hijo, await descargarDeEnlace(enlace, "imagen"), reply));
   });
 
   // ---- Planos ----
@@ -252,12 +273,10 @@ export async function rutasProducciones(app: FastifyInstance) {
   });
 
   /** El vídeo que salió de Veo: a la Galería y al plano, que pasa a "subido". */
-  app.post("/api/producciones/:id/planos/:hijo/video", async (req, reply) => {
-    const { id, hijo } = hijoParam.parse(req.params);
+  async function ponerVideo(id: string, hijo: string, r: Descargado, reply: FastifyReply) {
     const pr = await db.produccion.findUniqueOrThrow({ where: { id } });
     const plano = await db.plano.findFirstOrThrow({ where: { id: hijo, produccionId: id } });
-    const r = await recibir(req, EXT_VIDEO);
-    if ("error" in r) return reply.code(r.codigo).send({ error: r.error });
+    if (!EXT_VIDEO.test(r.nombre)) return reply.code(415).send({ error: "Eso no es un vídeo (mp4, mov, m4v o webm)" });
     // El nombre con la extensión del original: es lo que dice qué es.
     const ext = /\.[a-z0-9]+$/i.exec(r.nombre)?.[0] ?? ".mp4";
     const g = await guardarSubida(r.datos, `${pr.titulo} - plano ${plano.orden + 1}${ext}`, [
@@ -266,8 +285,32 @@ export async function rutasProducciones(app: FastifyInstance) {
       "veo",
     ]);
     if (!g.ok) return reply.code(415).send({ error: g.mensaje });
+    if (g.medio.clase !== "VIDEO") {
+      await borrarMedio(g.medio.id);
+      return reply.code(415).send({ error: "Eso no es un vídeo" });
+    }
     await db.plano.update({ where: { id: hijo }, data: { medioId: g.medio.id, estado: "SUBIDO" } });
     return completa(id);
+  }
+
+  app.post("/api/producciones/:id/planos/:hijo/video", async (req, reply) => {
+    const { id, hijo } = hijoParam.parse(req.params);
+    await db.plano.findFirstOrThrow({ where: { id: hijo, produccionId: id } });
+    const r = await recibir(req, EXT_VIDEO);
+    if ("error" in r) return reply.code(r.codigo).send({ error: r.error });
+    return ponerVideo(id, hijo, r, reply);
+  });
+
+  /**
+   * El vídeo desde un enlace: Drive compartido, el archivo que deja la API de
+   * Gemini o un enlace directo. Se baja aquí y se guarda como si se hubiera
+   * subido; el plano no se queda con el enlace, que caduca.
+   */
+  app.post("/api/producciones/:id/planos/:hijo/video/enlace", async (req, reply) => {
+    const { id, hijo } = hijoParam.parse(req.params);
+    const { enlace } = EnlaceSchema.parse(req.body);
+    await db.plano.findFirstOrThrow({ where: { id: hijo, produccionId: id } });
+    return conMotivo(reply, async () => ponerVideo(id, hijo, await descargarDeEnlace(enlace, "video"), reply));
   });
 
   /**

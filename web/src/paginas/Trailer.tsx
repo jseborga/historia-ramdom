@@ -14,7 +14,7 @@ import {
   type ProduccionResumen,
 } from "../api";
 import { mensajeDe } from "../App";
-import { Muestra, SelectorMotor, SelectorMusica, motorInicial, nombreIdioma } from "./comunes";
+import { DesdeEnlace, Muestra, SelectorMotor, SelectorMusica, motorInicial, nombreIdioma } from "./comunes";
 import { EditorMontaje } from "./EditorMontaje";
 
 /**
@@ -602,6 +602,12 @@ function TarjetaPersonaje({
             }}
           />
         </label>
+        <DesdeEnlace<Produccion>
+          ruta={`${ruta}/imagen/enlace`}
+          que="la imagen"
+          deshabilitado={ocupado}
+          alTraer={(p) => hacer("imagen", async () => p, `Imagen de ${personaje.nombre} guardada.`)}
+        />
         {personaje.medioId && (
           <a className="boton" href={`/api/medios/${personaje.medioId}/ver`} download>
             Descargar referencia
@@ -948,6 +954,12 @@ function TarjetaPlano({
                     }}
                   />
                 </label>
+                <DesdeEnlace<Produccion>
+                  ruta={`${ruta}/video/enlace`}
+                  que="el vídeo"
+                  deshabilitado={ocupado}
+                  alTraer={(p) => hacer("video", async () => p, `Vídeo del plano ${plano.numero} guardado.`)}
+                />
                 {plano.medioId && plano.estado !== "APROBADO" && (
                   <button className="primario" disabled={ocupado} onClick={() => estado("APROBADO", `Plano ${plano.numero} aprobado.`)}>
                     Aprobar

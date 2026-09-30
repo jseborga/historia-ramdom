@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type Catalogo, type ClipCandidato, type Medio, type Preset, type Proyecto } from "../api";
 import { mensajeDe } from "../App";
 import { BuscadorClips } from "./BuscadorClips";
-import { Muestra } from "./comunes";
+import { DesdeEnlace, Muestra } from "./comunes";
 import { EditorMontaje } from "./EditorMontaje";
 
 /**
@@ -177,6 +177,15 @@ export function Galeria({ catalogo }: { catalogo: Catalogo }) {
           <button onClick={() => setBuscando(!buscando)}>
             {buscando ? "Cerrar la busqueda" : "Buscar en los bancos (Pexels, Pixabay, NASA, Openverse, Commons, Archive)"}
           </button>
+          <DesdeEnlace<Medio>
+            ruta="/api/medios/enlace"
+            que="el vídeo o la foto"
+            deshabilitado={ocupado === "subir"}
+            alTraer={(m) => {
+              setOk(`"${m.nombre}" guardado en la galeria.`);
+              cargar();
+            }}
+          />
           <span className="suave">{ocupado === "subir" ? "Subiendo..." : `${medios.length} en la galeria`}</span>
         </div>
         {buscando && (

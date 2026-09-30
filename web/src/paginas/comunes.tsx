@@ -803,3 +803,78 @@ export function Muestra({
     />
   );
 }
+
+/**
+ * Traer un archivo desde un enlace en vez de subirlo: Google Drive compartido,
+ * el archivo que deja la API de Gemini (Veo) o un enlace directo. El servidor
+ * lo baja y lo guarda como si se hubiera subido.
+ */
+export function DesdeEnlace<T>({
+  ruta,
+  cuerpo,
+  que,
+  deshabilitado,
+  alTraer,
+}: {
+  ruta: string;
+  cuerpo?: Record<string, unknown>;
+  /** "el vídeo", "la imagen"...: para los textos. */
+  que: string;
+  deshabilitado?: boolean;
+  alTraer: (r: T) => void;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const [enlace, setEnlace] = useState("");
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState("");
+
+  async function traer() {
+    setOcupado(true);
+    setError("");
+    try {
+      alTraer(await api.post<T>(ruta, { ...cuerpo, enlace }));
+      setEnlace("");
+      setAbierto(false);
+    } catch (err) {
+      setError(mensajeDe(err));
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  if (!abierto) {
+    return (
+      <button type="button" disabled={deshabilitado} onClick={() => setAbierto(true)}>
+        Desde un enlace
+      </button>
+    );
+  }
+  return (
+    <div style={{ flexBasis: "100%" }}>
+      <div className="fila">
+        <input
+          aria-label={`Enlace de ${que}`}
+          value={enlace}
+          placeholder="https://drive.google.com/file/d/… o el enlace directo"
+          style={{ flex: 1, width: "auto", minWidth: 220 }}
+          onChange={(e) => setEnlace(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && enlace.trim()) traer();
+          }}
+        />
+        <button className="primario" type="button" disabled={ocupado || deshabilitado || !enlace.trim()} onClick={traer}>
+          {ocupado ? "Trayendo..." : "Traer"}
+        </button>
+        <button type="button" disabled={ocupado} onClick={() => setAbierto(false)}>
+          Cancelar
+        </button>
+      </div>
+      <p className="suave">
+        Sirve un enlace de Google Drive compartido como «Cualquier persona con el enlace», el archivo que deja la
+        API de Gemini al generar con Veo, o un enlace directo a {que}. El de la conversación de Gemini o de Flow no
+        sirve: es una página; descarga {que} o guárdalo en Drive.
+      </p>
+      {error && <p className="aviso error">{error}</p>}
+    </div>
+  );
+}

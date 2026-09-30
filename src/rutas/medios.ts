@@ -23,6 +23,7 @@ import {
   hostPermitido,
   type TipoMedio,
 } from "../servicios/clips.js";
+import { descargarDeEnlace } from "../servicios/enlaces.js";
 import { ClipPistaSchema, ProyectoSchema, efectoDeClip, type ClipPista } from "../servicios/proyecto.js";
 import { buscarPreset } from "../render/presets.js";
 
@@ -199,6 +200,26 @@ export async function rutasMedios(app: FastifyInstance) {
     const r = await guardarSubida(datos, nombre);
     if (!r.ok) return reply.code(415).send({ error: r.mensaje });
     return reply.code(201).send({ ...r.medio, clip: clipDeMedio(r.medio) });
+  });
+
+  /**
+   * Trae a la Galería un vídeo o una foto desde un enlace: Google Drive
+   * compartido, el archivo que deja la API de Gemini (Veo) o un enlace
+   * directo. Se descarga con las mismas precauciones que los bancos abiertos
+   * y pasa por ffprobe igual que una subida.
+   */
+  app.post("/api/medios/enlace", async (req, reply) => {
+    const { enlace, clase } = z
+      .object({ enlace: z.string().trim().min(8).max(2000), clase: z.enum(["video", "imagen"]).default("video") })
+      .parse(req.body);
+    try {
+      const r = await descargarDeEnlace(enlace, clase);
+      const g = await guardarSubida(r.datos, r.nombre, ["enlace"]);
+      if (!g.ok) return reply.code(415).send({ error: g.mensaje });
+      return reply.code(201).send({ ...g.medio, clip: clipDeMedio(g.medio) });
+    } catch (err) {
+      return reply.code(422).send({ error: (err instanceof Error ? err.message : "No se pudo traer").slice(0, 400) });
+    }
   });
 
   /**
