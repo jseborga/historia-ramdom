@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type Catalogo, type Idioma, type Preset, type Proyecto, type Sugerencia } from "../api";
 import { mensajeDe } from "../App";
-import { nombreIdioma } from "./comunes";
+import { SelectorBancos, nombreIdioma } from "./comunes";
 import { EditorMontaje } from "./EditorMontaje";
 import { Remix } from "./Remix";
 import { Instrumental } from "./Instrumental";
@@ -36,6 +36,9 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
   const [idioma, setIdioma] = useState<Idioma>("es");
   const [lineamientos, setLineamientos] = useState("");
   const [mostrarLetra, setMostrarLetra] = useState(true);
+  /** De donde salen los clips del videoclip; se guarda con el proyecto. */
+  const [bancos, setBancos] = useState<string[]>([]);
+  const [tiposMedio, setTiposMedio] = useState<string[]>([]);
   const [sugerencia, setSugerencia] = useState<Sugerencia | null>(null);
 
   const [ocupado, setOcupado] = useState("");
@@ -168,6 +171,8 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
         instrumental,
         mostrarLetra,
         idioma,
+        bancos,
+        medios: tiposMedio,
       });
 
       if (unaSola && primera.tipo === "archivo" && primera.archivo) {
@@ -330,6 +335,18 @@ export function Musica({ catalogo }: { catalogo: Catalogo }) {
               )}
             </div>
           )}
+        </div>
+
+        <div className="campos" style={{ marginTop: 12 }}>
+          <SelectorBancos
+            catalogo={catalogo}
+            bancos={bancos}
+            medios={tiposMedio}
+            alCambiar={(b, m) => {
+              setBancos(b);
+              setTiposMedio(m);
+            }}
+          />
         </div>
 
         <div className="pie">

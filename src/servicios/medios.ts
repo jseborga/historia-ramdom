@@ -6,7 +6,7 @@ import type { ClaseMedio } from "@prisma/client";
 import { db } from "../db.js";
 import { rutaMedios, rutaMedioSeguro, rutaMiniaturas } from "../almacen.js";
 import { ffmpeg } from "../render/ffmpeg.js";
-import { descargarDeClip, type ClipInfo } from "./clips.js";
+import { descargarDeClip, type ClipInfo, type TipoMedio } from "./clips.js";
 
 /**
  * La biblioteca: vídeo y foto propios o guardados de los bancos, para
@@ -203,6 +203,52 @@ export function clipDeMedio(m: MedioFila): ClipInfo & { archivo: string } {
     imagen: `/api/medios/${m.id}/miniatura`,
     duracion: m.duracion ?? undefined,
   };
+}
+
+/** Sin tildes y en minúscula: para comparar, no para enseñar. */
+const pelar = (v: string) =>
+  v
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+/**
+ * Busca en la biblioteca propia como si fuera un banco más.
+ *
+ * Las búsquedas de clips van en inglés ("rain window night") y lo subido se
+ * llama como se llame —"IMG_2034.mp4", "boda de Ana"—, así que casar por
+ * palabras solo acierta a veces. Por eso vuelve dos listas: lo que casa con la
+ * búsqueda (por nombre, etiquetas o autor), que va por delante de todo, y el
+ * resto de la biblioteca barajado, que quien llama usa o no según se haya
+ * pedido la biblioteca sola o junto a los bancos.
+ */
+export async function buscarEnBiblioteca(
+  keyword: string,
+  tipos: TipoMedio[],
+): Promise<{ afines: ClipInfo[]; resto: ClipInfo[] }> {
+  const clases = tipos.map((t) => (t === "imagen" ? "IMAGEN" : "VIDEO")) as ClaseMedio[];
+  const filas = await db.medio.findMany({
+    where: { clase: { in: clases } },
+    orderBy: { creadoEn: "desc" },
+    take: 500,
+  });
+  const palabras = pelar(keyword)
+    .split(/[^a-z0-9ñ]+/)
+    .filter((w) => w.length > 2);
+  const puntos = (m: (typeof filas)[number]) => {
+    const texto = pelar([m.nombre, m.autor ?? "", ...m.etiquetas].join(" "));
+    return palabras.filter((w) => texto.includes(w)).length;
+  };
+  const conPuntos = filas.map((m) => ({ m, p: puntos(m) }));
+  const afines = conPuntos
+    .filter((x) => x.p > 0)
+    .sort((a, b) => b.p - a.p)
+    .map((x) => clipDeMedio(x.m));
+  const resto = conPuntos
+    .filter((x) => x.p === 0)
+    .map((x) => clipDeMedio(x.m))
+    .sort(() => Math.random() - 0.5);
+  return { afines, resto };
 }
 
 /** Ruta de la miniatura; se genera la primera vez que se pide. */

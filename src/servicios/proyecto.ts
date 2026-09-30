@@ -222,6 +222,16 @@ export const MusicaCapaSchema = z.object({
   volumen: z.number().min(0).max(1).default(0.25),
   /** Las canciones que forman `archivo`, en orden. Vacio = una sola pista. */
   partes: z.array(ParteMusicaSchema).max(8).default([]),
+  /**
+   * De dónde salen los clips del videoclip: bancos (o "biblioteca", o
+   * "aleatorio") y si entran fotos. Va guardado con el proyecto porque el
+   * videoclip se vuelve a montar por varios caminos —al subir la canción, al
+   * unir varias, al cambiar la letra— y todos tienen que buscar donde se
+   * eligió, no en los bancos de siempre.
+   */
+  imagenes: z
+    .object({ bancos: z.array(z.string().max(20)).max(8).default([]), medios: z.array(z.string().max(20)).max(2).default([]) })
+    .optional(),
 });
 
 export const ProyectoSchema = z.object({

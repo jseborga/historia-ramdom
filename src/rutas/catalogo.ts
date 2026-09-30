@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { IDIOMAS, MOTORES, MODELOS } from "../servicios/guion.js";
-import { BANCO_ALEATORIO } from "../servicios/clips.js";
+import { BANCO_ALEATORIO, BANCO_BIBLIOTECA } from "../servicios/clips.js";
 import {
   VOCES,
   VOZ_POR_DEFECTO,
@@ -100,6 +100,12 @@ export async function rutasCatalogo(app: FastifyInstance) {
 
   app.get("/api/catalogo", async () => {
     const cuentas = await db.tikTokCuenta.count();
+    // Cuánto hay en la biblioteca propia: con cero, la opción existe pero no
+    // sirve de nada, y el selector lo dice en vez de dejar un vídeo en negro.
+    const [videosPropios, fotosPropias] = await Promise.all([
+      db.medio.count({ where: { clase: "VIDEO" } }),
+      db.medio.count({ where: { clase: "IMAGEN" } }),
+    ]);
     const claves: Record<string, string | undefined> = {
       groq: env.GROQ_API_KEY,
       openai: env.OPENAI_API_KEY,
@@ -138,6 +144,14 @@ export async function rutasCatalogo(app: FastifyInstance) {
           nombre: "Al azar",
           nota: "Que la app elija: cada búsqueda mira en dos o tres bibliotecas distintas de las disponibles. Evita que todos los vídeos se parezcan.",
           listo: true,
+        },
+        {
+          id: BANCO_BIBLIOTECA,
+          nombre: `Mi biblioteca (${videosPropios + fotosPropias})`,
+          nota:
+            `Lo que has subido o guardado en la Galería: ${videosPropios} vídeo(s) y ${fotosPropias} foto(s). ` +
+            "Sola, el vídeo se hace entero con tu material; con otros bancos, lo tuyo va primero.",
+          listo: videosPropios + fotosPropias > 0,
         },
         { id: "pexels", nombre: "Pexels", nota: "Vídeos y fotos libres, con autor.", listo: Boolean(env.PEXELS_API_KEY) },
         { id: "pixabay", nombre: "Pixabay", nota: "Vídeos y fotos libres, con autor.", listo: Boolean(env.PIXABAY_API_KEY) },

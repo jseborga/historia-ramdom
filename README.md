@@ -607,6 +607,34 @@ nube—, CGNAT y las equivalentes en IPv6), se revisa cada redirección igual, y
 que llega tiene que ser del tipo que se pidió: una página de error HTML no puede
 acabar guardada como si fuera una foto.
 
+### Mi biblioteca: vídeos hechos con tu propio material
+
+Junto a los bancos está **Mi biblioteca**: lo que has subido o guardado en la
+Galería, como una fuente más. Sale en todos los sitios donde se elige de dónde
+sacar la imagen —Editor, Series, Diálogo, Producto, Sad but true, el videoclip
+de Música, el panel Clip del montaje y el buscador de clips— y se usa de dos
+maneras:
+
+- **Sola** (botón *Solo mi biblioteca*): el vídeo se hace **entero con tu
+  material**. Primero lo que casa con la búsqueda por nombre, etiquetas o
+  autor, y si nada casa, cualquier cosa tuya, barajada: un vídeo hecho solo
+  con lo tuyo no se queda nunca en negro por no acertar con el nombre de un
+  archivo. Sin tipo elegido entra todo, vídeo y foto, porque las fotos se
+  animan solas.
+- **Con otros bancos**: lo tuyo que casa con la búsqueda va **delante de
+  todo** —es tu material y lo has pedido—; los bancos rellenan, y lo tuyo que
+  no casa queda al final como reserva. *Al azar* no la apaga: se puede sortear
+  entre los de fuera y además usar lo tuyo.
+
+Las búsquedas de clips van en inglés («rain window night») y lo subido se
+llama como se llame («IMG_2034.mp4»), así que para que lo tuyo case conviene
+ponerle **etiquetas** al guardarlo. La biblioteca no se cachea como los bancos:
+lo que subas sale en la búsqueda siguiente, no mañana. Y como su material ya
+está en disco, el render no descarga nada.
+
+El selector dice cuántos archivos hay (*Mi biblioteca (11)*) y, vacía, aparece
+apagada en vez de dejar que un vídeo se monte en negro.
+
 ### Al azar: que no salgan siempre las mismas imágenes
 
 La primera casilla de todas las listas es **Al azar**, y es exclusiva: al
@@ -638,7 +666,8 @@ Se elige en cuatro sitios, y siempre gana lo que se marque a mano:
   por otro al azar. Antes ese panel buscaba siempre donde dijera la categoría y
   no había forma de decirle otra cosa sin salir del editor.
 - **API**: `bancos` y `medios` en `POST /api/historias` y en las series;
-  `GET /api/clips?bancos=aleatorio&medios=video,imagen` para buscar;
+  `GET /api/clips?bancos=aleatorio&medios=video,imagen` para buscar
+  (`bancos=biblioteca` para la propia, sola o con otros);
   `POST /api/proyectos/:id/clips-automaticos` acepta los mismos dos campos.
 
 ### Las fotos se mueven

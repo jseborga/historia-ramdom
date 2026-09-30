@@ -11,7 +11,15 @@ import {
   type Voz,
 } from "../api";
 import { mensajeDe } from "../App";
-import { SelectorCategoria, SelectorMotor, SelectorRegion, SelectorVoz, motorInicial, nombreIdioma } from "./comunes";
+import {
+  SelectorBancos,
+  SelectorCategoria,
+  SelectorMotor,
+  SelectorRegion,
+  SelectorVoz,
+  motorInicial,
+  nombreIdioma,
+} from "./comunes";
 import { EditorMontaje } from "./EditorMontaje";
 
 /**
@@ -52,6 +60,9 @@ export function Dialogo({ catalogo }: { catalogo: Catalogo }) {
   const [categoria, setCategoria] = useState<string | null>(null);
   const [subcategoria, setSubcategoria] = useState<string | null>(null);
   const [formato, setFormato] = useState("tiktok");
+  // Donde buscar las imagenes: la ruta ya lo aceptaba y la pantalla no lo daba.
+  const [bancos, setBancos] = useState<string[]>([]);
+  const [tiposMedio, setTiposMedio] = useState<string[]>([]);
   /** Pedir la conversación entera a Gemini: suena a charla, no a dos monólogos. */
   const [vozNatural, setVozNatural] = useState(true);
   const [presets, setPresets] = useState<Preset[]>([]);
@@ -170,6 +181,8 @@ export function Dialogo({ catalogo }: { catalogo: Catalogo }) {
         formato,
         idioma,
         vozNatural,
+        bancos,
+        medios: tiposMedio,
       });
       if (p.aviso) setError(p.aviso);
       setAbierto(p.id);
@@ -281,6 +294,15 @@ export function Dialogo({ catalogo }: { catalogo: Catalogo }) {
               <option value="turnos">Turno a turno (cualquier voz)</option>
             </select>
           </div>
+          <SelectorBancos
+            catalogo={catalogo}
+            bancos={bancos}
+            medios={tiposMedio}
+            alCambiar={(b, m) => {
+              setBancos(b);
+              setTiposMedio(m);
+            }}
+          />
         </div>
         {vozNatural && (
           <p className="suave">

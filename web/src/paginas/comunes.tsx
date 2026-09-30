@@ -666,6 +666,23 @@ export function SelectorBancos({
   const alternar = (xs: string[], v: string) => (xs.includes(v) ? xs.filter((x) => x !== v) : [...xs, v]);
   /** Con "al azar" marcado, elige la app: marcar bibliotecas concretas sobra. */
   const alAzar = bancos.includes("aleatorio");
+  /**
+   * La biblioteca propia va aparte de los bancos de fuera: "al azar" no la
+   * apaga —se puede sortear entre los de fuera y además usar lo tuyo— y se
+   * puede dejar sola, que es hacer el video entero con tu material.
+   */
+  const PROPIA = "biblioteca";
+  const conPropia = bancos.includes(PROPIA);
+  const soloPropia = conPropia && bancos.length === 1;
+  const propia = lista.find((b) => b.id === PROPIA);
+  const cambiarBanco = (id: string) => {
+    if (id === "aleatorio") {
+      // "Al azar" es excluyente con los de fuera, pero respeta la biblioteca.
+      alCambiar(alAzar ? bancos.filter((b) => b !== "aleatorio") : conPropia ? ["aleatorio", PROPIA] : ["aleatorio"], medios);
+      return;
+    }
+    alCambiar(alternar(bancos, id), medios);
+  };
 
   return (
     <>
@@ -674,34 +691,42 @@ export function SelectorBancos({
         <div className="fila" style={{ flexWrap: "wrap", gap: 10 }}>
           {lista.map((b) => {
             const esAzar = b.id === "aleatorio";
+            const esPropia = b.id === PROPIA;
+            const apagado = !b.listo || (alAzar && !esAzar && !esPropia);
             return (
               <label
                 key={b.id}
                 className="casilla suave"
                 title={b.nota}
-                style={{ opacity: b.listo && (esAzar || !alAzar) ? 1 : 0.5 }}
+                style={{ opacity: apagado ? 0.5 : 1, ...(esPropia ? { fontWeight: 600 } : {}) }}
               >
                 <input
                   type="checkbox"
-                  disabled={!b.listo || (alAzar && !esAzar)}
+                  disabled={apagado}
                   checked={bancos.includes(b.id)}
-                  onChange={() =>
-                    // "Al azar" es excluyente: si se marca, se queda solo.
-                    alCambiar(esAzar ? (alAzar ? [] : ["aleatorio"]) : alternar(bancos, b.id), medios)
-                  }
+                  onChange={() => cambiarBanco(b.id)}
                 />{" "}
                 {b.nombre}
-                {b.listo ? "" : " (sin clave)"}
+                {b.listo ? "" : esPropia ? " (vacía)" : " (sin clave)"}
               </label>
             );
           })}
+          {propia?.listo && !soloPropia && (
+            <button type="button" onClick={() => alCambiar([PROPIA], medios)} title={propia.nota}>
+              Solo mi biblioteca
+            </button>
+          )}
         </div>
         <p className="suave">
-          {alAzar
-            ? "La app elige: cada búsqueda mira en dos o tres bibliotecas distintas, así que el montaje no sale todo con la misma cara."
-            : bancos.length
-              ? ""
-              : "Vacío = lo que use la categoría; la ciencia busca también en la NASA."}
+          {soloPropia
+            ? "Solo tu material: el video se hace entero con lo que hay en la Galeria. Primero lo que casa con la busqueda por nombre o etiquetas, y si nada casa, cualquier cosa tuya; asi nunca se queda en negro."
+            : alAzar
+              ? `La app elige: cada búsqueda mira en dos o tres bibliotecas distintas, así que el montaje no sale todo con la misma cara.${conPropia ? " Y lo tuyo que case con la búsqueda va primero." : ""}`
+              : conPropia
+                ? "Lo tuyo que case con la búsqueda va primero; los bancos rellenan el resto."
+                : bancos.length
+                  ? ""
+                  : "Vacío = lo que use la categoría; la ciencia busca también en la NASA."}
         </p>
       </div>
       <div>
@@ -721,7 +746,11 @@ export function SelectorBancos({
         <p className="suave">
           {medios.includes("imagen")
             ? "Las fotos se animan solas (zoom y paneo), así que se ven como vídeo."
-            : "Vacío = solo vídeo."}
+            : medios.length
+              ? ""
+              : soloPropia
+                ? "Vacío = de tu biblioteca entra todo, vídeo y foto."
+                : "Vacío = solo vídeo."}
         </p>
       </div>
     </>

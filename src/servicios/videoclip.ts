@@ -7,7 +7,7 @@ import { MAX_DURACION_SEG, movimientoPorIndice } from "../render/presets.js";
 import { env } from "../env.js";
 import { ESTILO_POR_DEFECTO } from "../render/rotulos.js";
 import { rutaSubidaSegura, rutaMusicaSegura } from "../almacen.js";
-import { buscarClips, CLIP_LARGO, type ClipInfo, type OpcionesMedios } from "./clips.js";
+import { buscarClips, CLIP_LARGO, type ClipInfo, type OpcionesMedios, type TipoMedio } from "./clips.js";
 import { extraerJSON, textoConMotor, esMotor, motorDisponible, IdiomaCampo, ORTOGRAFIA, type Idioma, type Motor } from "./guion.js";
 import {
   ClipPistaSchema,
@@ -628,7 +628,12 @@ export async function montarVideoclip(proyectoId: string, opciones: OpcionesVide
 
   // Un solo viaje a las APIs de clips por criterio, sin repetir busquedas.
   const generales = letra.keywords.slice(0, 3);
-  const medios: OpcionesMedios = opciones.medios ?? {};
+  // Lo que venga en la llamada, y si no, lo que se eligió al crear el
+  // videoclip: se monta por varios caminos y todos tienen que respetarlo.
+  const medios: OpcionesMedios = opciones.medios ?? {
+    bancos: musica.imagenes?.bancos ?? [],
+    medios: (musica.imagenes?.medios ?? []).filter((m): m is TipoMedio => m === "video" || m === "imagen"),
+  };
   const busquedas = new Map<string, Promise<ClipInfo[]>>();
   const pedir = (k: string) => {
     const clave = k.toLowerCase().trim();

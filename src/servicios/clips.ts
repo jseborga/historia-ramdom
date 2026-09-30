@@ -98,8 +98,17 @@ export type ClipInfo = {
  */
 export const BANCO_ALEATORIO = "aleatorio";
 
-/** Un id de banco válido en una petición: uno real, o "aleatorio". */
-export const esBancoElegible = (v: string): boolean => v === BANCO_ALEATORIO || esBanco(v);
+/**
+ * La biblioteca propia —lo subido y lo guardado en la Galería— como un banco
+ * más. No está en `BANCOS` porque no es un servicio de fuera: no tiene clave,
+ * no se cachea (lo que se sube tiene que salir en la siguiente búsqueda, no
+ * mañana) y su material ya está en disco, así que el render no descarga nada.
+ */
+export const BANCO_BIBLIOTECA = "biblioteca";
+
+/** Un id de banco válido en una petición: uno real, "aleatorio" o "biblioteca". */
+export const esBancoElegible = (v: string): boolean =>
+  v === BANCO_ALEATORIO || v === BANCO_BIBLIOTECA || esBanco(v);
 
 /** Cuántas bibliotecas se miran cuando toca elegir al azar. */
 const BANCOS_AL_AZAR = 3;
@@ -580,7 +589,7 @@ export async function buscarClips(keyword: string, o: OpcionesMedios = {}): Prom
 }
 
 /** Cómo le fue a cada banco: cuántos trajo y, si falló, por qué. */
-export type EstadoBanco = { banco: Banco; encontrados: number; error?: string };
+export type EstadoBanco = { banco: Banco | typeof BANCO_BIBLIOTECA; encontrados: number; error?: string };
 
 export type Busqueda = { clips: ClipInfo[]; bancos: EstadoBanco[] };
 
@@ -591,9 +600,49 @@ export type Busqueda = { clips: ClipInfo[]; bancos: EstadoBanco[] };
  * clave está mal o si el banco devolvió un 429.
  */
 export async function buscarConEstado(keyword: string, o: OpcionesMedios = {}): Promise<Busqueda> {
+  const conBiblioteca = o.bancos?.includes(BANCO_BIBLIOTECA) ?? false;
+  const externos = await buscarEnBancos(keyword, o);
+  if (!conBiblioteca) return externos;
+
+  // Sin tipo elegido, de la biblioteca entra todo: es material propio, y una
+  // foto se anima sola. Con tipo elegido, se respeta como en los bancos.
+  const tipos = o.medios?.length ? o.medios : (["video", "imagen"] as TipoMedio[]);
+  let propia: { afines: ClipInfo[]; resto: ClipInfo[] } = { afines: [], resto: [] };
+  let error: string | undefined;
+  try {
+    // Import en diferido: medios.ts importa de este archivo, y al revés sería
+    // un ciclo que se rompe según el orden en que arranque el proceso.
+    const { buscarEnBiblioteca } = await import("./medios.js");
+    propia = await buscarEnBiblioteca(keyword, tipos);
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+  }
+
+  // Sola: la biblioteca entera, lo que casa primero y el resto barajado, para
+  // que un vídeo hecho "solo con lo mío" no se quede nunca en negro por no
+  // acertar con el nombre de un archivo. Junto a los bancos: lo que casa va
+  // delante de todo —es tu material y lo has pedido— y lo que no casa, detrás
+  // de lo de fuera, como relleno.
+  const soloBiblioteca = externos.bancos.length === 0;
+  const clips = soloBiblioteca
+    ? [...propia.afines, ...propia.resto]
+    : [...propia.afines, ...externos.clips, ...propia.resto];
+  return {
+    clips,
+    bancos: [
+      { banco: BANCO_BIBLIOTECA, encontrados: propia.afines.length + propia.resto.length, ...(error ? { error } : {}) },
+      ...externos.bancos,
+    ],
+  };
+}
+
+/** La búsqueda en los bancos de fuera, cacheada. */
+async function buscarEnBancos(keyword: string, o: OpcionesMedios): Promise<Busqueda> {
   const largos = o.largos ?? false;
   const disponibles = bancosDisponibles();
   const bancos = resolverBancos(o.bancos, disponibles);
+  // Pedida solo la biblioteca: ni un banco de fuera, y nada que cachear.
+  if (!bancos.length) return { clips: [], bancos: [] };
   const medios = o.medios?.length ? o.medios : (["video"] as TipoMedio[]);
   const clave = `clips:v3:${bancos.join("+")}:${medios.join("+")}:${largos ? "largos:" : ""}${keyword
     .toLowerCase()

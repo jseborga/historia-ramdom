@@ -473,10 +473,17 @@ export async function rutasProyectos(app: FastifyInstance) {
         idioma: IdiomaCampo.default("es"),
         motor: z.string().max(40).nullable().default(null),
         modelo: z.string().max(80).nullable().default(null),
+        /** De dónde salen los clips: bancos, "biblioteca" (la propia) o "aleatorio". */
+        bancos: z.array(z.string().max(20)).max(8).default([]),
+        medios: z.array(z.string().max(20)).max(2).default([]),
       })
       .parse(req.body ?? {});
 
     const lista = d.canciones ?? [];
+    const imagenes = {
+      bancos: d.bancos.filter(esBancoElegible),
+      medios: d.medios.filter(esMedio),
+    };
     const conLetraPropia = lista.some((c) => c.letra?.trim());
     if (!d.instrumental && !d.letra?.trim() && !d.lineamientos?.trim() && !conLetraPropia) {
       return reply.code(400).send({ error: "Pega la letra, o marca instrumental y escribe los lineamientos" });
@@ -492,7 +499,7 @@ export async function rutasProyectos(app: FastifyInstance) {
       textos: [],
       // Un videoclip no lleva narracion: la pista de voz nace apagada.
       voz: { modo: "ninguna", texto: "", config: null },
-      musica: { archivo: d.musica ?? null, subida: false, volumen: 1 },
+      musica: { archivo: d.musica ?? null, subida: false, volumen: 1, imagenes },
     });
     const proyecto = await db.proyecto.create({
       data: {
@@ -522,7 +529,9 @@ export async function rutasProyectos(app: FastifyInstance) {
         const r = await importarSunoAProyecto(proyecto.id, d.enlaceSuno);
         await db.proyecto.update({
           where: { id: proyecto.id },
-          data: { musica: { archivo: r.archivo, subida: true, volumen: 1 } },
+          // Con lo ya guardado dentro: pisar la capa entera borraba de dónde
+          // tenían que salir los clips.
+          data: { musica: { ...datos.musica, archivo: r.archivo, subida: true, volumen: 1 } },
         });
       } catch (err) {
         await db.proyecto.delete({ where: { id: proyecto.id } }).catch(() => {});
@@ -559,10 +568,28 @@ export async function rutasProyectos(app: FastifyInstance) {
         motor: z.string().max(40).nullable().default(null),
         modelo: z.string().max(80).nullable().default(null),
         reanalizar: z.boolean().default(false),
+        /** De dónde salen los clips; sin esto, lo que se eligió al crearlo. */
+        bancos: z.array(z.string().max(20)).max(8).optional(),
+        medios: z.array(z.string().max(20)).max(2).optional(),
       })
       .parse(req.body ?? {});
     const p = await db.proyecto.findUniqueOrThrow({ where: { id } });
     const musica = (p.musica ?? {}) as { archivo?: string | null };
+    if (o.bancos || o.medios) {
+      const capa = MusicaCapaSchema.parse(p.musica ?? {});
+      await db.proyecto.update({
+        where: { id },
+        data: {
+          musica: {
+            ...capa,
+            imagenes: {
+              bancos: (o.bancos ?? capa.imagenes?.bancos ?? []).filter(esBancoElegible),
+              medios: (o.medios ?? capa.imagenes?.medios ?? []).filter(esMedio),
+            },
+          },
+        },
+      });
+    }
     if (!musica.archivo) {
       return reply.code(409).send({ error: "El proyecto no tiene musica todavia: añade un enlace de Suno o sube el archivo" });
     }

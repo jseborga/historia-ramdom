@@ -58,9 +58,11 @@ export function BuscadorClips({
     }
   }
 
+  // La biblioteca propia va aparte: "al azar" no la apaga y se puede dejar sola.
+  const conPropia = bancos.includes("biblioteca");
   const alternar = (v: string) =>
     v === "aleatorio"
-      ? setBancos(alAzar ? [] : ["aleatorio"])
+      ? setBancos(alAzar ? bancos.filter((b) => b !== "aleatorio") : conPropia ? ["aleatorio", "biblioteca"] : ["aleatorio"])
       : setBancos(bancos.includes(v) ? bancos.filter((b) => b !== v) : [...bancos, v]);
 
   return (
@@ -83,18 +85,36 @@ export function BuscadorClips({
         <span className="suave">Buscar en:</span>
         {disponibles.map((b) => {
           const esAzar = b.id === "aleatorio";
+          const esPropia = b.id === "biblioteca";
+          // Sin nada marcado se busca en todos los de fuera, así que salen
+          // marcados; la biblioteca no entra sola, solo si se pide.
+          const marcado = esAzar
+            ? alAzar
+            : esPropia
+              ? conPropia
+              : !alAzar && (bancos.length === 0 || bancos.includes(b.id));
           return (
-            <label key={b.id} className="casilla suave" title={b.nota} style={{ opacity: esAzar || !alAzar ? 1 : 0.5 }}>
+            <label
+              key={b.id}
+              className="casilla suave"
+              title={b.nota}
+              style={{ opacity: esAzar || esPropia || !alAzar ? 1 : 0.5, ...(esPropia ? { fontWeight: 600 } : {}) }}
+            >
               <input
                 type="checkbox"
-                disabled={alAzar && !esAzar}
-                checked={esAzar ? alAzar : !alAzar && (bancos.length === 0 || bancos.includes(b.id))}
+                disabled={alAzar && !esAzar && !esPropia}
+                checked={marcado}
                 onChange={() => alternar(b.id)}
               />{" "}
               {b.nombre}
             </label>
           );
         })}
+        {disponibles.some((b) => b.id === "biblioteca") && !(conPropia && bancos.length === 1) && (
+          <button type="button" onClick={() => setBancos(["biblioteca"])}>
+            Solo mi biblioteca
+          </button>
+        )}
         <label className="casilla suave" title="Las fotos se animan solas en el render">
           <input type="checkbox" checked={conFotos} onChange={(e) => setConFotos(e.target.checked)} /> incluir
           fotos

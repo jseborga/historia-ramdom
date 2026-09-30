@@ -43,7 +43,7 @@ import {
   type ClipPista,
 } from "../servicios/proyecto.js";
 import { clipDeMedio, guardarDeBanco } from "../servicios/medios.js";
-import { esBanco, esMedio, type Banco, type TipoMedio } from "../servicios/clips.js";
+import { esBancoElegible, esMedio, type TipoMedio } from "../servicios/clips.js";
 import { CategoriaCampo, SubcategoriaCampo, BancosCampo, MediosCampo } from "./historias.js";
 import { conMotivo } from "./errores.js";
 
@@ -299,7 +299,9 @@ export async function rutasProductos(app: FastifyInstance) {
         criterios: guion.keywords,
         fijos,
         medios: {
-          bancos: bancos.filter(esBanco) as Banco[],
+          // Elegibles, no solo bancos de fuera: "aleatorio" y "biblioteca" se
+          // perdían aquí y el producto buscaba siempre en los de siempre.
+          bancos: bancos.filter(esBancoElegible),
           medios: tiposMedio.filter(esMedio) as TipoMedio[],
         },
       });
