@@ -23,6 +23,10 @@ Implementa la guía de `docs/guia-original.md`.
 - **Dos áreas de contenido.** Historias de ficción por género, y **ideas**:
   literatura clásica, premios Nobel, filosofía, política y poder, economía,
   negocios y estafas contadas para reconocerlas.
+- **Tráiler de concepto.** La promo de una película, serie o anime que no
+  existe: la IA escribe biblia, personajes y planos, la app arma los prompts
+  de Veo 3.1 con consistencia de personajes, y monta tráiler, avances y
+  teasers con los vídeos que vas subiendo.
 - **Miniseries.** Una historia larga planeada de golpe en capítulos, cada uno
   con su corte final, y dos formatos largos (hasta 15 min) para publicarlos.
 - **Bancos de imagen a elegir.** Pexels, Pixabay y la **NASA** (dominio público,
@@ -1189,6 +1193,83 @@ hay que cuadrar el vídeo con una música.
   `DELETE /api/frases/:id`.
 - **MCP**: `sad_but_true`, `sortear_sad_but_true`, `montar_sad_but_true`,
   `banco_frases` y `guardar_frases`.
+
+## Tráiler de concepto: la promo de una obra que no existe
+
+La pestaña **Tráiler** prepara el tráiler de una película, serie, anime,
+documental o videojuego inventado, para vender la idea. Los planos se generan
+con **Veo 3.1** fuera de la app (en Gemini o en Flow, con tu cuenta) y la app
+hace lo demás: escribe, arma los prompts, lleva la cuenta de lo que falta a lo
+largo de los días que tarde, y monta.
+
+**El flujo.**
+
+1. **La idea** → la IA escribe la **biblia** (título, logline, género, un
+   bloque de estilo visual en inglés y el *pitch*: sinopsis, público, formato,
+   obras de referencia y por qué ahora), **hasta 3 personajes** y los
+   **planos** siguiendo la estructura de un tráiler: gancho en frío, el mundo,
+   presentación de personajes, conflicto, escalada, silencio, título y
+   próximamente. 30 s son 4-5 planos; 60 s, 7-8; 90 s, 10-11.
+2. **Personajes.** Cada uno tiene una **ficha visual fija** (en inglés) que va
+   *literal* en todos los prompts —si se reescribe con otras palabras, Veo le
+   cambia la cara— y un **prompt para su imagen de referencia** (hoja de
+   personaje: de frente, tres cuartos y perfil, fondo gris). Genera la imagen,
+   súbela, y queda en la Galería enlazada al personaje.
+3. **Planos.** Cada uno lleva su **prompt de Veo** armado siempre igual:
+   estilo, fichas de quien sale, cámara, acción, diálogo entre comillas,
+   sonido y la coletilla *sin música, sin subtítulos*. Copias el prompt (el
+   plano pasa a «prompt copiado»), lo pegas en Veo con las imágenes de
+   referencia de quien sale y, si el plano **continúa del anterior**, con el
+   **último fotograma** del anterior como primer fotograma (botón de descarga
+   en el plano). Subes el vídeo, lo revisas y lo **apruebas** o lo marcas para
+   **repetir**, con una nota de qué falló.
+4. **Montar**, cuando quieras y cuantas veces quieras:
+   - **Tráiler**: los planos con vídeo marcados para el tráiler, con el nombre
+     de cada personaje al presentarse y los cartones de título y próximamente.
+   - **Avance**: todos en orden, con un cartón gris «en producción» donde aún
+     no hay vídeo. Sirve para ver cómo va, o como adelanto.
+   - **Teaser de un personaje**: sus planos, con su nombre delante.
+
+   Se abre en el editor de montaje para retocar y renderizar. El **sonido de
+   cada plano** (diálogo y ambiente de Veo) se conserva, y la música que
+   elijas baja sola cuando alguien habla.
+
+**Los límites de Veo 3.1 que la app ya tiene en cuenta** (y avisa en cada
+plano si no se cumplen):
+
+- Un plano dura **4, 6 u 8 s**; con imágenes de referencia, **solo 8 s**.
+- **Hasta 3 imágenes de referencia** por generación: como mucho 3 personajes
+  por plano.
+- Unas **15 palabras** de diálogo caben dichas con calma en 8 s; la app cuenta
+  las palabras y avisa si te pasas.
+- Veo genera la voz: el diálogo va entre comillas en el idioma de la obra, y
+  la ficha de voz de cada personaje (cómo habla) va en el prompt.
+- Los vídeos que genera Veo se guardan solo **2 días** en su servicio: súbelos
+  aquí cuanto antes.
+
+Fuentes: [documentación de Veo en la API de Gemini](https://ai.google.dev/gemini-api/docs/veo)
+y [el anuncio de Veo 3.1](https://developers.googleblog.com/introducing-veo-3-1-and-new-creative-capabilities-in-the-gemini-api/).
+
+**Consejos para la consistencia.**
+
+- No toques la ficha de un personaje a mitad de producción: los planos ya
+  generados llevan la vieja.
+- El bloque de estilo va igual al principio de todos los prompts; cambiarlo
+  cambia todos los que queden por generar.
+- Para empalmar dos planos seguidos, «continúa del anterior» y el último
+  fotograma: es lo que hace que la escena no salte.
+
+**Usar el sonido del clip en cualquier montaje.** En el editor, cada clip de
+vídeo tiene la casilla **Usar el sonido del clip**: suena en su sitio (con el
+recorte que tenga), también en la vista previa, y la música se aparta cuando
+suena, igual que con la narración.
+
+- **API**: `GET/POST /api/producciones`, `GET/PUT/DELETE /api/producciones/:id`,
+  personajes (`POST …/personajes`, `PUT/DELETE …/personajes/:pid`,
+  `POST …/personajes/:pid/imagen`), planos (`POST …/planos`,
+  `PUT/DELETE …/planos/:pid`, `POST …/planos/orden`,
+  `POST …/planos/:pid/video`, `GET …/planos/:pid/ultimo-fotograma`) y
+  `POST …/montar` (`que`: `trailer`, `avance` o `personaje`).
 
 ## Editor de montaje
 

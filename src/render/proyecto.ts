@@ -165,8 +165,13 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
       : 0,
   );
   const conTransiciones = cruce.some((d) => d > 0);
+  /** El sonido de los clips que lo conservan, cada uno con su instante. */
+  const sonidos: { archivo: string; inicio: number }[] = [];
+  let enLinea = 0;
 
   for (const [i, c] of e.video.entries()) {
+    const inicioEnLinea = enLinea;
+    enLinea += c.duracion;
     const v = `v${i}.mp4`;
     const esFoto = c.clip?.tipo === "imagen";
     // Material extra para el cruce de entrada y el de salida.
@@ -204,6 +209,24 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
              ...filtro, "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", v],
         dir,
       );
+      // El sonido va aparte del vídeo, como la voz: la imagen se pega o se
+      // funde entre planos y el sonido se coloca en su segundo exacto. Se
+      // corta a lo que dura el plano en la línea de tiempo, con un fundido
+      // cortito en cada punta para que el corte no haga clic.
+      if (c.audio && !esFoto) {
+        const a = `a${i}.wav`;
+        const fin = Math.max(c.duracion - 0.12, 0);
+        const ok = await ffmpeg(
+          ["-ss", c.recorte.toFixed(3), "-i", origen, "-t", c.duracion.toFixed(3), "-vn", "-ac", "2", "-ar", "48000",
+           "-af", `afade=t=in:d=0.06,afade=t=out:st=${fin.toFixed(3)}:d=0.12`, a],
+          dir,
+        ).then(
+          () => true,
+          // Un clip sin pista de sonido no es un error: se queda mudo.
+          () => false,
+        );
+        if (ok) sonidos.push({ archivo: a, inicio: inicioEnLinea });
+      }
     } else {
       await ffmpeg(
         ["-f", "lavfi",
@@ -223,6 +246,24 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
     await unirConTransiciones(dir, partes, e.video, cruce, lienzo);
   }
 
+  // El sonido de los clips, todo en una pista: cada uno en su instante.
+  let rutaSonidos: string | null = null;
+  if (sonidos.length) {
+    const entradas = sonidos.flatMap((x) => ["-i", x.archivo]);
+    const colocados = sonidos
+      .map((x, k) => {
+        const ms = Math.round(x.inicio * 1000);
+        return `[${k}:a]adelay=${ms}|${ms}[s${k}]`;
+      })
+      .join(";");
+    const juntos =
+      sonidos.length === 1
+        ? `${colocados};[s0]anull[out]`
+        : `${colocados};${sonidos.map((_, k) => `[s${k}]`).join("")}amix=inputs=${sonidos.length}:duration=longest:normalize=0[out]`;
+    await ffmpeg([...entradas, "-filter_complex", juntos, "-map", "[out]", "-ac", "2", "-ar", "48000", "sonidos.wav"], dir);
+    rutaSonidos = "sonidos.wav";
+  }
+
   // 2. Pista de textos: rotulos con sus tiempos absolutos
   const rotulos: Rotulo[] = e.textos
     .filter((t) => t.texto.trim())
@@ -239,22 +280,40 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
 
   // 3. Mezcla: imagen congelada si hace falta, voz colocada en su instante,
   //    musica con ducking cuando hay voz
-  const args = ["-i", "video.mp4"];
-  const relleno = total - tVideo;
-  let filtro =
-    (relleno > 0.01 ? `[0:v]tpad=stop_mode=clone:stop_duration=${relleno.toFixed(3)}[vp];[vp]` : "[0:v]") +
-    `subtitles=subs.ass:fontsdir=${escapar(FONTS_DIR)}[v];`;
-  let idx = 1;
-  let vozIdx: number | null = null;
+  //    El sonido se mezcla en un paso aparte, a un WAV de la duración exacta:
+  //    en el mismo grafo que la imagen, ffmpeg perdía segundos de audio por el
+  //    camino (con música en bucle y loudnorm, un tráiler de 29 s se quedaba
+  //    en 25 s de sonido y los diálogos se adelantaban a su plano).
+  const args: string[] = [];
+  let filtro = "";
+  let idx = 0;
+  /**
+   * Lo que se habla: la narración, el sonido de los clips (el diálogo de un
+   * plano de Veo) o las dos cosas. Es lo que manda sobre la música: cuando
+   * suena, la música se aparta.
+   */
+  const habla: string[] = [];
 
   if (conVoz) {
     // -ss antes de -i abre el archivo mas adelante: es lo que hace que un
     // corte del montaje siga oyendo la parte que le toca, no el principio.
     if (e.vozDesde && e.vozDesde > 0.01) args.push("-ss", e.vozDesde.toFixed(3));
     args.push("-i", e.rutaVoz!);
-    vozIdx = idx++;
+    const vozIdx = idx++;
     const ms = Math.round(e.voz.inicio * 1000);
     filtro += `[${vozIdx}:a]aformat=channel_layouts=stereo,adelay=${ms}|${ms}[voz];`;
+    habla.push("[voz]");
+  }
+  if (rutaSonidos) {
+    args.push("-i", rutaSonidos);
+    filtro += `[${idx++}:a]aformat=channel_layouts=stereo[clips];`;
+    habla.push("[clips]");
+  }
+  let hablado: string | null = null;
+  if (habla.length === 1) hablado = habla[0];
+  else if (habla.length === 2) {
+    filtro += `${habla.join("")}amix=inputs=2:duration=longest:normalize=0[hablado];`;
+    hablado = "[hablado]";
   }
 
   if (e.rutaMusica) {
@@ -262,29 +321,43 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
     if (e.musicaDesde && e.musicaDesde > 0.01) args.push("-ss", e.musicaDesde.toFixed(3));
     args.push("-i", e.rutaMusica);
     const m = idx++;
-    if (vozIdx !== null) {
+    if (hablado) {
+      // apad antes de repartir: sidechaincompress deja de sacar música en
+      // cuanto se le acaba la entrada que la aparta, así que sin esto la
+      // música se cortaba en seco con la última frase (los cartones del final
+      // de un tráiler salían mudos). Rellenando lo hablado con silencio, la
+      // música vuelve a su volumen al callar y el -t final corta el total.
       filtro +=
-        `[${m}:a]volume=${e.musica.volumen}[m];[voz]asplit=2[vz][sc];` +
+        `[${m}:a]volume=${e.musica.volumen}[m];${hablado}apad,asplit=2[vz][sc];` +
         "[m][sc]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=500[duck];" +
         "[vz][duck]amix=inputs=2:duration=first:normalize=0[mix];";
     } else {
       filtro += `[${m}:a]volume=${Math.max(e.musica.volumen, 0.6)}[mix];`;
     }
-  } else if (vozIdx !== null) {
-    filtro += "[voz]anull[mix];";
+  } else if (hablado) {
+    filtro += `${hablado}anull[mix];`;
   } else {
     args.push("-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000");
     filtro += `[${idx++}:a]anull[mix];`;
   }
-  filtro += "[mix]loudnorm=I=-14:TP=-1.5:LRA=11[a]";
+  // apad: si lo hablado acaba antes que la imagen, el resto va en silencio en
+  // vez de dejar una pista de sonido más corta que el vídeo.
+  filtro += `[mix]apad,loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000,atrim=0:${total.toFixed(3)}[a]`;
+  await ffmpeg([...args, "-filter_complex", filtro, "-map", "[a]", "-ac", "2", "-c:a", "pcm_s16le", "mezcla.wav"], dir, 30 * 60_000);
+
+  const relleno = total - tVideo;
+  const filtroVideo =
+    (relleno > 0.01 ? `[0:v]tpad=stop_mode=clone:stop_duration=${relleno.toFixed(3)}[vp];[vp]` : "[0:v]") +
+    `subtitles=subs.ass:fontsdir=${escapar(FONTS_DIR)}[v]`;
 
   // Si por la cuenta no cabe en el limite, se pone techo de bitrate (VBV) en
   // vez de codificar diez minutos para acabar fallando por tamaño.
   const estimado = estimar(total, preset, perfil.id, e.bppReal).bytes;
   const techo = e.limiteBytes ? techoBitrate(total, e.limiteBytes, perfil.id, estimado) : null;
 
-  args.push(
-    "-filter_complex", filtro, "-map", "[v]", "-map", "[a]",
+  const final = [
+    "-i", "video.mp4", "-i", "mezcla.wav",
+    "-filter_complex", filtroVideo, "-map", "[v]", "-map", "1:a",
     "-c:v", "libx264", "-preset", perfil.preset, "-crf", String(perfil.crf),
     ...(techo ? ["-maxrate", String(techo), "-bufsize", String(techo * 2)] : []),
     "-pix_fmt", "yuv420p", "-r", String(lienzo.fps),
@@ -294,8 +367,8 @@ export async function renderizarProyecto(dir: string, e: EntradaRender) {
     ...(e.titulo ? ["-metadata", `title=${e.titulo.slice(0, 200)}`] : []),
     ...(e.creditos ? ["-metadata", `comment=${e.creditos.slice(0, 2000)}`] : []),
     "-t", total.toFixed(3), "final.mp4",
-  );
-  await ffmpeg(args, dir, 30 * 60_000);
+  ];
+  await ffmpeg(final, dir, 30 * 60_000);
 
   const archivo = join(dir, "final.mp4");
   const { size } = await stat(archivo);

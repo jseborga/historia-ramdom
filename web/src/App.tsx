@@ -12,6 +12,7 @@ import { Galeria } from "./paginas/Galeria";
 import { Dialogo } from "./paginas/Dialogo";
 import { Producto } from "./paginas/Producto";
 import { SadButTrue } from "./paginas/SadButTrue";
+import { Trailer } from "./paginas/Trailer";
 
 const PESTANAS = [
   { ruta: "/", nombre: "Editor" },
@@ -22,6 +23,7 @@ const PESTANAS = [
   { ruta: "/dialogo", nombre: "Dialogo" },
   { ruta: "/producto", nombre: "Producto" },
   { ruta: "/sadbuttrue", nombre: "Sad but true" },
+  { ruta: "/trailer", nombre: "Tráiler" },
   { ruta: "/musica", nombre: "Musica" },
   { ruta: "/banco", nombre: "Banco" },
   { ruta: "/ajustes", nombre: "Ajustes" },
@@ -100,6 +102,8 @@ export function App() {
           <Producto catalogo={catalogo} />
         ) : pestana.ruta === "/sadbuttrue" ? (
           <SadButTrue catalogo={catalogo} />
+        ) : pestana.ruta === "/trailer" ? (
+          <Trailer catalogo={catalogo} />
         ) : pestana.ruta === "/musica" ? (
           <Musica catalogo={catalogo} />
         ) : pestana.ruta === "/banco" ? (

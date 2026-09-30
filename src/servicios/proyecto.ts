@@ -113,6 +113,12 @@ export const ClipPistaSchema = z.object({
   transicion: z.enum(TRANSICIONES_ID).default("ninguna"),
   /** Cuánto dura esa transición, en segundos. */
   transicionSeg: z.number().min(0.2).max(2).default(0.5),
+  /**
+   * Usar el sonido del propio clip. Por defecto no: el material de los bancos
+   * trae ruido de ambiente o música ajena. Sí para lo que trae el sonido que
+   * se quiere, como un plano de Veo con el diálogo ya hablado y sincronizado.
+   */
+  audio: z.boolean().default(false),
 });
 
 /** Un rotulo de la pista de textos, con su propio sitio en el tiempo. */

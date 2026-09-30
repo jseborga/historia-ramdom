@@ -186,6 +186,8 @@ export type ClipPista = {
   /** Cómo se pasa al clip siguiente. */
   transicion?: Transicion;
   transicionSeg?: number;
+  /** Suena el audio del propio clip (el diálogo de un plano de Veo). */
+  audio?: boolean;
 };
 
 /** Un rotulo de la pista de textos, con su propio sitio en el tiempo. */
@@ -754,4 +756,93 @@ export type CuentaTikTok = {
   nombre: string | null;
   scopes: string;
   expiraEn: string;
+};
+
+// ---- Producciones: el tráiler de una obra que no existe ----
+
+export type ObraProduccion = "pelicula" | "serie" | "anime" | "documental" | "videojuego";
+export type ParteTrailer =
+  | "gancho"
+  | "mundo"
+  | "personaje"
+  | "conflicto"
+  | "escalada"
+  | "silencio"
+  | "titulo"
+  | "proximamente";
+export type EstadoPlano = "PENDIENTE" | "PROMPT_COPIADO" | "SUBIDO" | "APROBADO" | "REGENERAR";
+
+export type Personaje = {
+  id: string;
+  orden: number;
+  nombre: string;
+  papel: string;
+  /** La descripción visual fija: va literal en cada prompt de Veo. */
+  ficha: string;
+  voz: string;
+  /** La imagen de referencia, en la Galería. */
+  medioId: string | null;
+  promptImagen: string;
+};
+
+export type LineaDialogo = { personajeId: string; texto: string };
+
+export type Plano = {
+  id: string;
+  orden: number;
+  numero: number;
+  tipo: "veo" | "carton";
+  parte: ParteTrailer;
+  nombreParte: string;
+  duracion: number;
+  accion: string;
+  camara: string;
+  sonido: string;
+  dialogo: LineaDialogo[];
+  personajes: string[];
+  continua: boolean;
+  rotulo: string;
+  momentoTrailer: boolean;
+  estado: EstadoPlano;
+  medioId: string | null;
+  nota: string;
+  promptVeo: string;
+  palabras: number;
+  avisos: string[];
+  /** El último fotograma del plano anterior, si este continúa de él. */
+  primerFotograma: string | null;
+};
+
+export type Pitch = {
+  sinopsis: string;
+  publico: string;
+  formato: string;
+  referencias: string[];
+  porQueAhora: string;
+};
+
+export type Produccion = {
+  id: string;
+  tipo: "TRAILER" | "MINISERIE";
+  obra: ObraProduccion;
+  idea: string;
+  titulo: string;
+  logline: string;
+  genero: string;
+  formato: string;
+  estilo: string;
+  idioma: Idioma;
+  pitch: Pitch | null;
+  hashtags: string[];
+  personajes: Personaje[];
+  planos: Plano[];
+  creadaEn: string;
+  editadaEn: string;
+  motorUsado?: string;
+  avisoMotor?: string;
+};
+
+export type ProduccionResumen = Omit<Produccion, "personajes" | "planos"> & {
+  _count: { planos: number; personajes: number };
+  planos: { estado: EstadoPlano; tipo: "veo" | "carton" }[];
 };

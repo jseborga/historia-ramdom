@@ -578,6 +578,22 @@ export function EditorMontaje({
                         detras va ella misma desenfocada.
                       </p>
                     </div>
+                    {clipSel.clip && clipSel.clip.tipo !== "imagen" && (
+                      <div>
+                        <label className="casilla">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(clipSel.audio)}
+                            onChange={(e) => actClip({ audio: e.target.checked })}
+                          />
+                          Usar el sonido del clip
+                        </label>
+                        <p className="suave">
+                          Para los planos con diálogo o ambiente propio (los de Veo). Suena en su sitio y la
+                          música baja cuando hay sonido.
+                        </p>
+                      </div>
+                    )}
                     <div>
                       <label htmlFor="tr">Transicion al siguiente</label>
                       <select

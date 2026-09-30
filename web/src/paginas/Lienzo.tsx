@@ -226,8 +226,9 @@ export function Lienzo({
             className={`capa${ajustar ? " ajustar" : ""}`}
             style={estiloEfecto}
             src={clip.clip.url}
-            muted
-            loop
+            // Con "usar el sonido del clip" se oye en la vista previa como en el render.
+            muted={!clip.audio}
+            loop={!clip.audio}
             playsInline
             preload="auto"
           />

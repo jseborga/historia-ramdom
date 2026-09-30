@@ -372,3 +372,102 @@ model Medio {
   @@index([clase, creadoEn])
   @@index([externoId])
 }
+
+/// Qué se produce: un tráiler de una obra que no existe, o una miniserie.
+enum TipoProduccion {
+  TRAILER
+  MINISERIE
+}
+
+/// Por dónde va cada plano. Se genera fuera (Veo) a lo largo de varios días,
+/// así que lo único que sabe la app es lo que se le va contando.
+enum EstadoPlano {
+  PENDIENTE // aún nadie ha copiado su prompt
+  PROMPT_COPIADO // generándose en Veo
+  SUBIDO // hay vídeo, falta mirarlo
+  APROBADO // entra en los montajes
+  REGENERAR // hay vídeo, pero no vale
+}
+
+/// Una producción con IA de vídeo: la biblia de la obra, sus personajes y sus
+/// planos de 8 segundos. Los vídeos se generan en Veo con los prompts que da
+/// la app y se suben aquí; la app los monta cuando se quiera.
+model Produccion {
+  id         String         @id @default(uuid())
+  tipo       TipoProduccion @default(TRAILER)
+  /// Película, serie, anime, documental...: qué se está vendiendo.
+  obra       String         @default("pelicula")
+  /// Lo que se pidió, tal cual, para poder volver a generar.
+  idea       String         @default("")
+  titulo     String
+  logline    String         @default("")
+  genero     String         @default("")
+  /// Preset de formato del estudio (tiktok, youtube...).
+  formato    String         @default("tiktok")
+  /// El bloque de estilo visual que va, igual, en todos los prompts.
+  estilo     String         @default("")
+  idioma     String         @default("es")
+  /// El pitch para vender la idea: público, formato, comparables...
+  pitch      Json?
+  hashtags   String[]       @default([])
+  personajes Personaje[]
+  planos     Plano[]
+  creadaEn   DateTime       @default(now())
+  editadaEn  DateTime       @updatedAt
+
+  @@index([creadaEn])
+}
+
+/// Un personaje con su ficha visual fija: se pega literal en cada prompt, que
+/// es lo que mantiene su cara de un plano a otro.
+model Personaje {
+  id           String     @id @default(uuid())
+  produccion   Produccion @relation(fields: [produccionId], references: [id], onDelete: Cascade)
+  produccionId String
+  orden        Int        @default(0)
+  nombre       String
+  papel        String     @default("")
+  /// Solo lo que se ve: cara, pelo, ropa que no cambia. En inglés.
+  ficha        String     @default("")
+  /// Cómo suena, para que Veo le ponga siempre la misma voz. En inglés.
+  voz          String     @default("")
+  /// La imagen de referencia, en la Galería.
+  medioId      String?
+
+  @@index([produccionId, orden])
+}
+
+/// Un plano: lo que se genera de una vez en Veo (4, 6 u 8 s), o un cartón de
+/// texto que pone la app (el título, "Próximamente").
+model Plano {
+  id             String      @id @default(uuid())
+  produccion     Produccion  @relation(fields: [produccionId], references: [id], onDelete: Cascade)
+  produccionId   String
+  orden          Int         @default(0)
+  /// Capítulo; en un tráiler, todo es el 1.
+  episodio       Int         @default(1)
+  /// "veo" = se genera; "carton" = texto sobre negro que pone la app.
+  tipo           String      @default("veo")
+  /// La parte del tráiler: gancho, mundo, personaje, conflicto, escalada...
+  parte          String      @default("")
+  duracion       Int         @default(8)
+  accion         String      @default("")
+  camara         String      @default("")
+  sonido         String      @default("")
+  /// [{ personajeId, texto }]: lo que se dice, en el idioma de la obra.
+  dialogo        Json        @default("[]")
+  /// Quién sale: ids de personaje, como mucho tres (lo que admite Veo).
+  personajes     String[]    @default([])
+  /// Sigue del plano anterior: se genera desde su último fotograma.
+  continua       Boolean     @default(false)
+  /// Texto encima: el nombre de un personaje, o el del cartón.
+  rotulo         String      @default("")
+  /// Entra en el tráiler (los demás, solo en el avance).
+  momentoTrailer Boolean     @default(true)
+  estado         EstadoPlano @default(PENDIENTE)
+  /// El vídeo que salió de Veo, en la Galería.
+  medioId        String?
+  nota           String      @default("")
+
+  @@index([produccionId, orden])
+}
