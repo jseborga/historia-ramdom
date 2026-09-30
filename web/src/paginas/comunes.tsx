@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   api,
+  ErrorAPI,
   urlMuestra,
   type Catalogo,
   type Genero,
@@ -804,10 +805,14 @@ export function Muestra({
   );
 }
 
+/** Una de las cosas que trae un enlace con varias (una conversación de Gemini). */
+type OpcionEnlace = { indice: number; tipo: "video" | "imagen"; texto: string; fecha: string | null };
+
 /**
- * Traer un archivo desde un enlace en vez de subirlo: Google Drive compartido,
- * el archivo que deja la API de Gemini (Veo) o un enlace directo. El servidor
- * lo baja y lo guarda como si se hubiera subido.
+ * Traer un archivo desde un enlace en vez de subirlo: una conversación de
+ * Gemini compartida, Google Drive, el archivo que deja la API de Gemini (Veo)
+ * o un enlace directo. El servidor lo baja y lo guarda como si se hubiera
+ * subido. Si el enlace trae varios resultados, se elige aquí cuál.
  */
 export function DesdeEnlace<T>({
   ruta,
@@ -825,21 +830,34 @@ export function DesdeEnlace<T>({
 }) {
   const [abierto, setAbierto] = useState(false);
   const [enlace, setEnlace] = useState("");
+  const [opciones, setOpciones] = useState<OpcionEnlace[]>([]);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState("");
 
-  async function traer() {
+  async function traer(indice?: number) {
     setOcupado(true);
     setError("");
     try {
-      alTraer(await api.post<T>(ruta, { ...cuerpo, enlace }));
+      alTraer(await api.post<T>(ruta, { ...cuerpo, enlace: enlace.trim(), indice }));
       setEnlace("");
+      setOpciones([]);
       setAbierto(false);
     } catch (err) {
-      setError(mensajeDe(err));
+      const datos = err instanceof ErrorAPI ? (err.datos as { opciones?: OpcionEnlace[] } | undefined) : undefined;
+      if (err instanceof ErrorAPI && err.estado === 409 && datos?.opciones?.length) {
+        setOpciones(datos.opciones);
+      } else {
+        setError(mensajeDe(err));
+      }
     } finally {
       setOcupado(false);
     }
+  }
+
+  function cerrar() {
+    setAbierto(false);
+    setOpciones([]);
+    setError("");
   }
 
   if (!abierto) {
@@ -855,24 +873,45 @@ export function DesdeEnlace<T>({
         <input
           aria-label={`Enlace de ${que}`}
           value={enlace}
-          placeholder="https://drive.google.com/file/d/… o el enlace directo"
+          placeholder="https://share.gemini.google/…, un enlace de Drive o el enlace directo"
           style={{ flex: 1, width: "auto", minWidth: 220 }}
-          onChange={(e) => setEnlace(e.target.value)}
+          onChange={(e) => {
+            setEnlace(e.target.value);
+            setOpciones([]);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && enlace.trim()) traer();
           }}
         />
-        <button className="primario" type="button" disabled={ocupado || deshabilitado || !enlace.trim()} onClick={traer}>
+        <button className="primario" type="button" disabled={ocupado || deshabilitado || !enlace.trim()} onClick={() => traer()}>
           {ocupado ? "Trayendo..." : "Traer"}
         </button>
-        <button type="button" disabled={ocupado} onClick={() => setAbierto(false)}>
+        <button type="button" disabled={ocupado} onClick={cerrar}>
           Cancelar
         </button>
       </div>
+      {opciones.length > 0 && (
+        <div className="lista" style={{ marginTop: 8 }}>
+          <p className="suave">Esa conversación tiene {opciones.length} resultados. ¿Cuál traigo?</p>
+          {opciones.map((o, i) => (
+            <div className="item fila" key={o.indice}>
+              <button className="primario" type="button" disabled={ocupado || deshabilitado} onClick={() => traer(o.indice)}>
+                {o.tipo === "video" ? "Vídeo" : "Imagen"} {i + 1}
+                {i === opciones.length - 1 ? " (el último)" : ""}
+              </button>
+              <span className="suave" style={{ flex: 1 }}>
+                {o.fecha ? `${new Date(o.fecha).toLocaleString([], { dateStyle: "short", timeStyle: "short" })} · ` : ""}
+                {o.texto || "sin texto"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
       <p className="suave">
-        Sirve un enlace de Google Drive compartido como «Cualquier persona con el enlace», el archivo que deja la
-        API de Gemini al generar con Veo, o un enlace directo a {que}. El de la conversación de Gemini o de Flow no
-        sirve: es una página; descarga {que} o guárdalo en Drive.
+        Sirve una conversación de Gemini compartida (en Gemini: «Compartir» → «Crear enlace público», y pega el
+        enlace), un archivo de Google Drive compartido como «Cualquier persona con el enlace», el archivo que deja la
+        API de Gemini al generar con Veo, o un enlace directo a {que}. Los enlaces de Flow no: descarga {que} o
+        guárdalo en Drive.
       </p>
       {error && <p className="aviso error">{error}</p>}
     </div>

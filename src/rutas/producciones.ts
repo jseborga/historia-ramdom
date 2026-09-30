@@ -24,7 +24,7 @@ import {
   promptImagen,
   promptVeo,
 } from "../servicios/produccion.js";
-import { conMotivo } from "./errores.js";
+import { conEnlace, conMotivo } from "./errores.js";
 
 /**
  * Producciones: el tráiler de una obra que no existe, generado con Veo fuera
@@ -49,7 +49,11 @@ const PeticionSchema = z.object({
   modelo: z.string().max(80).nullable().default(null),
 });
 
-const EnlaceSchema = z.object({ enlace: z.string().trim().min(8).max(2000) });
+const EnlaceSchema = z.object({
+  enlace: z.string().trim().min(8).max(2000),
+  /** Cuál, si el enlace tiene varios resultados (una conversación de Gemini). */
+  indice: z.number().int().min(0).max(200).optional(),
+});
 
 const LineaSchema = z.object({ personajeId: z.string().max(60), texto: z.string().max(300) });
 
@@ -237,9 +241,9 @@ export async function rutasProducciones(app: FastifyInstance) {
   /** La misma imagen, desde un enlace (Drive, la API de Gemini o directo). */
   app.post("/api/producciones/:id/personajes/:hijo/imagen/enlace", async (req, reply) => {
     const { id, hijo } = hijoParam.parse(req.params);
-    const { enlace } = EnlaceSchema.parse(req.body);
+    const { enlace, indice } = EnlaceSchema.parse(req.body);
     await db.personaje.findFirstOrThrow({ where: { id: hijo, produccionId: id } });
-    return conMotivo(reply, async () => ponerImagen(id, hijo, await descargarDeEnlace(enlace, "imagen"), reply));
+    return conEnlace(reply, async () => ponerImagen(id, hijo, await descargarDeEnlace(enlace, "imagen", indice), reply));
   });
 
   // ---- Planos ----
@@ -302,15 +306,15 @@ export async function rutasProducciones(app: FastifyInstance) {
   });
 
   /**
-   * El vídeo desde un enlace: Drive compartido, el archivo que deja la API de
-   * Gemini o un enlace directo. Se baja aquí y se guarda como si se hubiera
+   * El vídeo desde un enlace: una conversación de Gemini compartida, Drive, el
+   * archivo que deja la API de Gemini o un enlace directo. Se baja aquí y se guarda como si se hubiera
    * subido; el plano no se queda con el enlace, que caduca.
    */
   app.post("/api/producciones/:id/planos/:hijo/video/enlace", async (req, reply) => {
     const { id, hijo } = hijoParam.parse(req.params);
-    const { enlace } = EnlaceSchema.parse(req.body);
+    const { enlace, indice } = EnlaceSchema.parse(req.body);
     await db.plano.findFirstOrThrow({ where: { id: hijo, produccionId: id } });
-    return conMotivo(reply, async () => ponerVideo(id, hijo, await descargarDeEnlace(enlace, "video"), reply));
+    return conEnlace(reply, async () => ponerVideo(id, hijo, await descargarDeEnlace(enlace, "video", indice), reply));
   });
 
   /**

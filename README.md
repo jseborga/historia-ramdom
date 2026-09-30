@@ -1251,20 +1251,29 @@ plano si no se cumplen):
 se puede subir desde el ordenador o traer con **«Desde un enlace»**, útil
 cuando el vídeo se generó en el móvil:
 
+- **Una conversación de Gemini compartida**: en Gemini, «Compartir» → «Crear
+  enlace público», y se pega el enlace (`share.gemini.google/…`,
+  `g.co/gemini/share/…` o `gemini.google.com/share/…`). La app lee la
+  conversación con la misma llamada que hace esa página y baja los vídeos
+  generados, que Google sirve sin iniciar sesión. Si hay varios (por ejemplo,
+  porque se regeneró), pregunta cuál, con la hora y la acción de cada prompt.
+  Es un formato interno de Google, no una API publicada: si un día cambia, el
+  aviso lo dice y Drive o la subida siguen sirviendo.
 - **Google Drive**: el enlace de «Compartir → Copiar enlace» del *archivo*,
-  compartido como «Cualquier persona con el enlace». Guarda ahí el vídeo desde
-  Gemini o Flow y pega el enlace.
+  compartido como «Cualquier persona con el enlace».
 - **La API de Gemini**: el enlace del archivo que deja una generación de Veo
   (`generativelanguage.googleapis.com/…/files/…`). Se baja con la
   `GEMINI_API_KEY` del servidor, que solo se envía a ese dominio.
 - **Un enlace directo** a un `.mp4`, `.mov`, `.webm`, `.jpg`, `.png` o `.webp`.
 
-El enlace de la conversación de Gemini (`g.co/gemini/share/…`) y los de Flow
-son páginas, no archivos: la app lo dice y explica qué hacer. Lo que se trae
-se descarga con las precauciones de los bancos abiertos (solo https, nada que
-apunte a la red interna, comprobado en cada redirección, con el tope de
-`MAX_CLIP_MB`), pasa por ffprobe como una subida y se guarda en la Galería: el
-plano no depende del enlace, que puede caducar. La **Galería** tiene el mismo
+Los de Flow son páginas que piden sesión: la app lo dice y explica qué hacer.
+Lo que se trae se descarga con las precauciones de los bancos abiertos (solo
+https, nada que apunte a la red interna, comprobado en cada redirección, con el
+tope de `MAX_CLIP_MB`), pasa por ffprobe como una subida y se guarda en la
+Galería: el plano no depende del enlace, que puede caducar o dejar de
+compartirse. Ojo: la app de Gemini entrega los vídeos de Veo en horizontal
+(1280×720) aunque el prompt pida vertical; en un montaje vertical se recortan,
+o se ven enteros con el encuadre «Ajustar». La **Galería** tiene el mismo
 botón para traer cualquier vídeo o foto.
 
 Fuentes: [documentación de Veo en la API de Gemini](https://ai.google.dev/gemini-api/docs/veo)
@@ -1288,7 +1297,8 @@ suena, igual que con la narración.
   personajes (`POST …/personajes`, `PUT/DELETE …/personajes/:pid`,
   `POST …/personajes/:pid/imagen` y `…/imagen/enlace`), planos
   (`POST …/planos`, `PUT/DELETE …/planos/:pid`, `POST …/planos/orden`,
-  `POST …/planos/:pid/video` y `…/video/enlace` con `{ enlace }`,
+  `POST …/planos/:pid/video` y `…/video/enlace` con `{ enlace, indice? }`
+  —409 con `opciones` si hay varios—,
   `GET …/planos/:pid/ultimo-fotograma`) y `POST …/montar` (`que`: `trailer`,
   `avance` o `personaje`). En la Galería, `POST /api/medios/enlace`.
 

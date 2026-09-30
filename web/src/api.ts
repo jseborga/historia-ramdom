@@ -2,6 +2,8 @@ export class ErrorAPI extends Error {
   constructor(
     mensaje: string,
     readonly estado: number,
+    /** El cuerpo entero de la respuesta, para errores que traen más que el mensaje. */
+    readonly datos?: unknown,
   ) {
     super(mensaje);
   }
@@ -16,7 +18,7 @@ async function peticion<T>(ruta: string, init?: RequestInit): Promise<T> {
   const datos = await res.json().catch(() => null);
   if (!res.ok) {
     const detalle = Array.isArray(datos?.detalle) ? ` (${datos.detalle.join("; ")})` : "";
-    throw new ErrorAPI((datos?.error ?? `Error ${res.status}`) + detalle, res.status);
+    throw new ErrorAPI((datos?.error ?? `Error ${res.status}`) + detalle, res.status, datos);
   }
   return datos as T;
 }
