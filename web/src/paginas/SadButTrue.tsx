@@ -35,10 +35,17 @@ const TONOS: [TonoSadButTrue | "", string][] = [
   ["desmotivadora", "desmotivadora (la verdad que nadie pide)"],
 ];
 
+/** En el Antiguo Testamento el cierre no es filosofia de vida: da aliento o pone contexto. */
+const TONOS_BIBLIA: [TonoSadButTrue | "", string][] = [
+  ["", "aliento o historico, el que le vaya a la frase"],
+  ["aliento", "de aliento (esperanza, a veces con un versiculo)"],
+  ["historico", "historico (el contexto de la epoca)"],
+];
+
 const TIEMPOS = { sorteoSeg: 3, retencionSeg: 0.9, clipSeg: 3.5, cierreSeg: 2 };
 
 /**
- * Las tres secciones: el mismo formato, distinto tono. Se elige arriba del
+ * Las secciones: el mismo formato, distinto tono. Se elige arriba del
  * todo porque cambia las dos vistas a la vez —de que parte del banco se
  * sortea y que se le pide a la IA—, y un sorteo nunca mezcla secciones.
  */
@@ -60,6 +67,15 @@ const SECCIONES: { id: SeccionSbt; nombre: string; nota: string; ejemplo: string
     nombre: "Sarcasmo",
     nota: "Lo que sabes que esta mal y no quieres escuchar. El blanco son tus excusas, nunca un grupo ni una persona.",
     ejemplo: "mentiras que te cuentas a las dos de la manana",
+  },
+  {
+    id: "biblia",
+    nombre: "Antiguo Testamento",
+    nota:
+      "Datos reales del Antiguo Testamento que hoy no pasarian por buena practica cristiana, cada uno con su cita, " +
+      "y un cierre de aliento o historico. Con respeto: es historia, no burla. Revisa las citas que escriba la IA " +
+      "antes de publicar; las del banco inicial estan comprobadas.",
+    ejemplo: "leyes de pureza, castigos de la ley, lo que hicieron los patriarcas",
   },
 ];
 
@@ -111,9 +127,11 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
       .catch(() => {});
   }, [vista, seccion]);
 
-  // Al cambiar de seccion, lo que habia en pantalla es de otra: fuera.
+  // Al cambiar de seccion, lo que habia en pantalla es de otra: fuera. El
+  // tono tambien: los del Antiguo Testamento no son los de las demas.
   useEffect(() => {
     setGuion(null);
+    setTono("");
     setTemaBanco("");
     setOk("");
     setError("");
@@ -299,7 +317,7 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
           <div>
             <label htmlFor="tonoSbt">Tono del remate</label>
             <select id="tonoSbt" value={tono} onChange={(e) => setTono(e.target.value as TonoSadButTrue | "")}>
-              {TONOS.map(([v, n]) => (
+              {(seccion === "biblia" ? TONOS_BIBLIA : TONOS).map(([v, n]) => (
                 <option key={v} value={v}>
                   {n}
                 </option>

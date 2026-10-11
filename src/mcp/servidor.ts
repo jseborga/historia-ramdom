@@ -425,16 +425,16 @@ servidor.registerTool(
   "sad_but_true",
   {
     description:
-      "Escribe un 'Sad but true' (o de motivacion, o de sarcasmo): la familia entera de palabras, cada una con su frase y su cierre, y cual gana. Se guarda sola en el banco, asi que ese tema ya se puede volver a sortear sin IA. No monta nada.",
+      "Escribe un 'Sad but true' (o de motivacion, de sarcasmo o del Antiguo Testamento): la familia entera de palabras, cada una con su frase y su cierre, y cual gana. Se guarda sola en el banco, asi que ese tema ya se puede volver a sortear sin IA. No monta nada.",
     inputSchema: {
       seccion: z
-        .enum(["triste", "motivacion", "sarcasmo"])
-        .describe("triste = sad but true (lo de siempre), motivacion o sarcasmo")
+        .enum(["triste", "motivacion", "sarcasmo", "biblia"])
+        .describe("triste = sad but true (lo de siempre), motivacion, sarcasmo o biblia (datos del Antiguo Testamento con su cita)")
         .optional(),
       tema: z.string().max(300).describe("De que va el sorteo; vacio = lo elige la IA").optional(),
       tono: z
-        .enum(["feliz", "triste", "reflexiva", "desmotivadora"])
-        .describe("Humor del remate; vacio = el que le pegue a la frase")
+        .enum(["feliz", "triste", "reflexiva", "desmotivadora", "aliento", "historico"])
+        .describe("Humor del remate; vacio = el que le pegue a la frase. En biblia: aliento o historico")
         .optional(),
       motor: z.enum(["groq", "openai", "gemini", "claude"]).optional(),
       idioma: z.enum(["es", "en", "spanglish"]).optional(),
@@ -456,7 +456,7 @@ servidor.registerTool(
           elegida: z.string().max(40).describe("Tiene que ser una de las de palabras"),
           frase: z.string().max(300),
           remate: z.string().max(300),
-          tono: z.enum(["feliz", "triste", "reflexiva", "desmotivadora"]).optional(),
+          tono: z.enum(["feliz", "triste", "reflexiva", "desmotivadora", "aliento", "historico"]).optional(),
           keywords: z.array(z.string().max(40)).min(1).max(6).describe("EN INGLES: con esto se busca el video"),
           hashtags: z.array(z.string().max(40)).max(8).optional(),
         })
@@ -485,11 +485,11 @@ servidor.registerTool(
       "Saca un 'Sad but true' del banco de frases, sin gastar IA: una pareja de las menos usadas, su bombo del mismo tema y un remate, todo de la misma seccion. Devuelve el guion listo para montar_sad_but_true.",
     inputSchema: {
       seccion: z
-        .enum(["triste", "motivacion", "sarcasmo"])
-        .describe("triste = sad but true (lo de siempre), motivacion o sarcasmo")
+        .enum(["triste", "motivacion", "sarcasmo", "biblia"])
+        .describe("triste = sad but true (lo de siempre), motivacion, sarcasmo o biblia (datos del Antiguo Testamento con su cita)")
         .optional(),
       tema: z.string().max(80).describe("Familia de palabras; vacio = cualquiera").optional(),
-      tono: z.enum(["feliz", "triste", "reflexiva", "desmotivadora"]).optional(),
+      tono: z.enum(["feliz", "triste", "reflexiva", "desmotivadora", "aliento", "historico"]).optional(),
       idioma: z.enum(["es", "en", "spanglish"]).optional(),
     },
   },
@@ -503,8 +503,8 @@ servidor.registerTool(
       "Lo que hay en el banco de 'Sad but true': parejas palabra/frase, remates y de que temas, por seccion. De aqui salen los sorteos sin IA.",
     inputSchema: {
       seccion: z
-        .enum(["triste", "motivacion", "sarcasmo"])
-        .describe("triste = sad but true (lo de siempre), motivacion o sarcasmo")
+        .enum(["triste", "motivacion", "sarcasmo", "biblia"])
+        .describe("triste = sad but true (lo de siempre), motivacion, sarcasmo o biblia (datos del Antiguo Testamento con su cita)")
         .optional(),
       tipo: z.enum(["SORTEO", "REMATE"]).optional(),
       tema: z.string().max(80).optional(),
@@ -525,8 +525,8 @@ servidor.registerTool(
       "Mete frases en el banco de 'Sad but true'. Una por linea, con ; entre campos. Con formato 'palabra': 'palabra ; frase ; remate'. Con formato 'frase': 'frase ; remate ; sobre X', que es como salen las sentencias en dos tiempos. En los dos, una linea sin ningun ; es un remate suelto. Con guardar=false solo dice que ha entendido de cada linea.",
     inputSchema: {
       seccion: z
-        .enum(["triste", "motivacion", "sarcasmo"])
-        .describe("triste = sad but true (lo de siempre), motivacion o sarcasmo")
+        .enum(["triste", "motivacion", "sarcasmo", "biblia"])
+        .describe("triste = sad but true (lo de siempre), motivacion, sarcasmo o biblia (datos del Antiguo Testamento con su cita)")
         .optional(),
       texto: z.string().max(40_000).describe("Las lineas, separadas por saltos de linea"),
       formato: z
@@ -535,7 +535,7 @@ servidor.registerTool(
         .optional(),
       tema: z.string().max(80).describe("La familia a la que pertenecen estas palabras").optional(),
       idioma: z.enum(["es", "en", "spanglish"]).optional(),
-      tono: z.enum(["feliz", "triste", "reflexiva", "desmotivadora"]).optional(),
+      tono: z.enum(["feliz", "triste", "reflexiva", "desmotivadora", "aliento", "historico"]).optional(),
       guardar: z.boolean().describe("false = solo vista previa").optional(),
     },
   },

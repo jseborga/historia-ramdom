@@ -36,7 +36,7 @@ import type { Seccion } from "./sadButTrueBase.js";
  */
 
 /** El humor con el que cierra el remate. */
-export const TONOS = ["feliz", "triste", "reflexiva", "desmotivadora"] as const;
+export const TONOS = ["feliz", "triste", "reflexiva", "desmotivadora", "aliento", "historico"] as const;
 export type Tono = (typeof TONOS)[number];
 
 export const NOMBRES_TONO: Record<Tono, string> = {
@@ -44,15 +44,17 @@ export const NOMBRES_TONO: Record<Tono, string> = {
   triste: "triste (sin consuelo, pero sin crueldad)",
   reflexiva: "reflexiva (deja pensando)",
   desmotivadora: "desmotivadora (la verdad que nadie pide)",
+  aliento: "de aliento (esperanza; puede citar un versículo que consuele, con su cita)",
+  historico: "histórico (el contexto de la época, o qué pasó después con esa costumbre)",
 };
 
 /**
- * Las tres secciones del formato. Se hacen igual —sorteo, frase sobre el
+ * Las secciones del formato. Se hacen igual —sorteo, frase sobre el
  * vídeo, remate sobre negro— y solo cambia lo que se dice. Por eso son
  * secciones y no pestañas: lo que distingue una de otra es el encargo a la IA
  * y de qué parte del banco se sortea, no el montaje.
  */
-export const SECCIONES = ["triste", "motivacion", "sarcasmo"] as const;
+export const SECCIONES = ["triste", "motivacion", "sarcasmo", "biblia"] as const;
 export type { Seccion };
 export const esSeccion = (v: string): v is Seccion => (SECCIONES as readonly string[]).includes(v);
 
@@ -60,10 +62,25 @@ export const NOMBRES_SECCION: Record<Seccion, string> = {
   triste: "Sad but true",
   motivacion: "Motivación",
   sarcasmo: "Sarcasmo",
+  biblia: "Antiguo Testamento",
 };
 
 /** Lo que tiene que hacer la frase en cada sección, dicho como se le dice al modelo. */
-const ENCARGO: Record<Seccion, { formato: string; frase: string; limite: string; ejemplo: string }> = {
+const ENCARGO: Record<
+  Seccion,
+  {
+    formato: string;
+    frase: string;
+    limite: string;
+    ejemplo: string;
+    /** El ejemplo de pareja, si el de siempre no sirve para esta sección. */
+    pareja?: string;
+    /** Cómo cierra, si no es con una filosofía de vida. */
+    remate?: string;
+    /** Los tonos de cierre que tienen sentido aquí. */
+    tonos?: Tono[];
+  }
+> = {
   triste: {
     formato: "'Sad but true'",
     frase:
@@ -87,6 +104,28 @@ const ENCARGO: Record<Seccion, { formato: string; frase: string; limite: string;
       "El blanco del sarcasmo es quien mira y sus excusas, NUNCA un grupo de gente, una persona real ni el físico de nadie. Burla del hábito, no de la persona.",
     ejemplo: "mentiras que te cuentas, excusas de siempre, lo que postergas",
   },
+  biblia: {
+    formato:
+      "de datos curiosos del Antiguo Testamento (lo que la Biblia cuenta o manda y que hoy ningún cristiano tendría por buena práctica)",
+    frase:
+      "La frase es un dato REAL del Antiguo Testamento —una ley, un castigo, algo que hizo un personaje— que hoy no se aceptaría como buena práctica cristiana, con su cita al final entre paréntesis: libro capítulo:versículo, como '(Levítico 11:10)'. Contado tal cual lo dice el texto, sin exagerarlo.",
+    limite:
+      "Solo versículos que existan y digan eso: si no estás seguro de la cita exacta, elige otro dato. Nada de burlarse de la fe ni de quien cree, y nada de presentar al pueblo judío o su religión como atrasados o despreciables: es historia de hace tres mil años contada con respeto.",
+    ejemplo: "leyes de pureza, castigos de la ley antigua, lo que hicieron los patriarcas, reyes y jueces",
+    pareja:
+      "palabra 'Los mariscos', frase 'Los mariscos eran «abominación»: nada del agua sin aletas ni escamas (Levítico 11:10).', remate 'Jesús declaró limpios todos los alimentos (Marcos 7:19).'",
+    remate:
+      "Cada remate es de aliento (esperanza; muchas veces lo que dijo después el Nuevo Testamento, también con su cita) o histórico (el contexto de la época, o qué pasó después con esa costumbre), el que mejor le vaya a su frase. Nunca una burla.",
+    tonos: ["aliento", "historico"],
+  },
+};
+
+/** Los tonos de cierre que se ofrecen en cada sección. */
+export const TONOS_SECCION: Record<Seccion, Tono[]> = {
+  triste: ["feliz", "triste", "reflexiva", "desmotivadora"],
+  motivacion: ["feliz", "triste", "reflexiva", "desmotivadora"],
+  sarcasmo: ["feliz", "triste", "reflexiva", "desmotivadora"],
+  biblia: ENCARGO.biblia.tonos!,
 };
 
 /** Una palabra del bombo con su frase y su cierre: una familia sale entera. */
@@ -174,7 +213,7 @@ export function repararSadButTrue(crudo: unknown): unknown {
 export type PeticionSadButTrue = {
   motor: string;
   modelo?: string | null;
-  /** De qué sección: la de siempre, motivación o sarcasmo. */
+  /** De qué sección: la de siempre, motivación, sarcasmo o Antiguo Testamento. */
   seccion?: Seccion;
   /** De qué va el sorteo; vacío = lo elige el modelo. */
   tema?: string;
@@ -213,15 +252,17 @@ export async function generarSadButTrue(p: PeticionSadButTrue): Promise<SadButTr
     "Cómo tiene que ser:",
     `- De 8 a 10 parejas, TODAS de la misma familia (${e.ejemplo}...). Si no son de la misma familia no parece un sorteo, parece una lista.`,
     "- Cada palabra, de una a tres palabras: se leen en una décima de segundo.",
-    "- Cada frase EMPIEZA por su palabra, así el sorteo se para en ella y el vídeo la termina. Ejemplo: palabra 'La constancia', frase 'La constancia le gana a las ganas todos los martes.'",
+    `- Cada frase EMPIEZA por su palabra, así el sorteo se para en ella y el vídeo la termina. Ejemplo: ${e.pareja ?? "palabra 'La constancia', frase 'La constancia le gana a las ganas todos los martes.'"}`,
     `- ${e.frase}`,
-    "- Una o dos líneas por frase, como mucho veinte palabras.",
+    `- Una o dos líneas por frase, como mucho ${seccion === "biblia" ? "veinte palabras sin contar la cita" : "veinte palabras"}.`,
     `- ${e.limite}`,
     "- Nada de crueldad, de insultos ni de nada dirigido a una persona real.",
     "- Nada que empuje a rendirse, a hacerse daño ni a dejar de pedir ayuda.",
     tono
-      ? `- Cada remate cierra con una filosofía de vida de tono ${NOMBRES_TONO[tono as Tono]}.`
-      : "- Cada remate cierra con una filosofía de vida: feliz, triste, reflexiva o desmotivadora, la que le pegue a su frase.",
+      ? `- Cada remate cierra ${e.remate ? "con un mensaje" : "con una filosofía de vida"} de tono ${NOMBRES_TONO[tono as Tono]}.`
+      : e.remate
+        ? `- ${e.remate}`
+        : "- Cada remate cierra con una filosofía de vida: feliz, triste, reflexiva o desmotivadora, la que le pegue a su frase.",
     "- El remate no repite la frase ni la explica: la empuja un paso más. Corto: menos de quince palabras.",
     "- 'elegida' es la palabra de la pareja más fuerte, EXACTAMENTE como está escrita en la lista.",
     "- Nada de emojis, de hashtags dentro del texto ni de acotaciones.",
@@ -235,7 +276,7 @@ export async function generarSadButTrue(p: PeticionSadButTrue): Promise<SadButTr
     '    { "palabra": "La palabra", "frase": "La palabra y lo que le pasa.", "remate": "el cierre de esta frase" }',
     "  ],",
     '  "elegida": "la palabra de la pareja más fuerte",',
-    `  "tono": "${tono || "feliz|triste|reflexiva|desmotivadora"}",`,
+    `  "tono": "${tono || (e.tonos ?? TONOS_SECCION.triste).join("|")}",`,
     '  "keywords": ["visual keyword in english", "another"],',
     '  "hashtags": ["sinAlmohadilla", "otro"]',
     "}",
@@ -274,6 +315,7 @@ export const HASHTAG_SECCION: Record<Seccion, string> = {
   triste: "sadbuttrue",
   motivacion: "motivacion",
   sarcasmo: "sarcasmo",
+  biblia: "antiguotestamento",
 };
 
 /** Los tiempos del formato, en segundos. Los de fábrica son los del guion. */

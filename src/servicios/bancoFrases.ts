@@ -440,6 +440,13 @@ const AMBIENTES: Record<Seccion, string[][]> = {
     ["couch tv remote", "fridge open night", "alarm clock morning"],
     ["office desk boring", "traffic jam city", "queue waiting people"],
   ],
+  // Antiguo Testamento: desierto, piedra, velas y pergamino. Ambiente de
+  // época sin estampas religiosas literales, que competirían con la cita.
+  biblia: [
+    ["desert dunes wind", "ancient stone ruins", "sunset desert sky"],
+    ["candle flame dark", "old book pages", "ancient scroll"],
+    ["olive trees wind", "sheep herd hills", "desert night stars"],
+  ],
 };
 
 export function palabrasDeBusqueda(tema: string, seccion: Seccion = "triste"): string[] {

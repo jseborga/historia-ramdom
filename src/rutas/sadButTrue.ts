@@ -38,7 +38,7 @@ import { conMotivo } from "./errores.js";
  * entera aquí y el proyecto nace listo para renderizar.
  */
 
-/** De qué sección: la de siempre, motivación o sarcasmo. */
+/** De qué sección: la de siempre, motivación, sarcasmo o Antiguo Testamento. */
 const SeccionCampo = z.enum(SECCIONES).default("triste");
 
 const PeticionSchema = z.object({

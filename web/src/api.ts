@@ -362,14 +362,14 @@ export type GuionDialogo = {
 };
 
 /** El humor con el que cierra el remate de un "Sad but true". */
-export type TonoSadButTrue = "feliz" | "triste" | "reflexiva" | "desmotivadora";
+export type TonoSadButTrue = "feliz" | "triste" | "reflexiva" | "desmotivadora" | "aliento" | "historico";
 
 /**
  * El guion de un "Sad but true": el sorteo, la que gana, la frase que le toca
  * y el remate. Es todo lo que hay: el resto del formato son los tiempos.
  */
-/** Las tres secciones de "Sad but true": mismo formato, distinto tono. */
-export type SeccionSbt = "triste" | "motivacion" | "sarcasmo";
+/** Las secciones de "Sad but true": mismo formato, distinto tono. */
+export type SeccionSbt = "triste" | "motivacion" | "sarcasmo" | "biblia";
 
 export type GuionSadButTrue = {
   titulo: string;

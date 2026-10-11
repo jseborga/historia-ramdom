@@ -44,10 +44,10 @@ Implementa la guía de `docs/guia-original.md`.
   instrucciones en vez de cantarlos.
 - **Tres idiomas.** Español, inglés y **spanglish**: base en español con el
   inglés en el gancho, que es como se canta la cumbia y el reggaetón.
-- **Sad but true, motivación y sarcasmo.** Once segundos, sin voz: un sorteo
+- **Sad but true, motivación, sarcasmo y Antiguo Testamento.** Once segundos, sin voz: un sorteo
   de palabras en gris sobre negro que se para en el arranque de la frase
   ganadora, el vídeo terminándola con esas palabras todavía en amarillo, y el
-  remate en blanco sobre el negro del cierre. Tres secciones con el mismo
+  remate en blanco sobre el negro del cierre. Cuatro secciones con el mismo
   formato, y lo que escribe la IA se guarda como familia entera para volver a
   sortearlo sin gastar. Con **banco de
   frases** precargado que crece solo, así que se puede sacar uno sin gastar IA,
@@ -921,13 +921,14 @@ y un vídeo dura meses.
 ## Sad but true: el sorteo, la frase y el remate
 
 La pestaña **Sad but true** hace un formato y solo uno, de unos once segundos y
-sin voz, en **tres secciones** que se montan igual y solo cambian lo que dicen:
+sin voz, en **cuatro secciones** que se montan igual y solo cambian lo que dicen:
 
 | Sección | Qué dice | Lo que no puede hacer |
 |---|---|---|
 | **Sad but true** | La verdad que da una media sonrisa de lado: ligeramente desmotivadora | Hundir a nadie, ni moralina |
 | **Motivación** | Algo concreto que levanta el ánimo y se puede comprobar el martes siguiente | Frases de taza: ni «tú puedes» ni «nunca te rindas» |
 | **Sarcasmo** | Lo que sabes que está mal y no quieres escuchar: la excusa, el hábito, la mentira que te cuentas | Apuntar a un grupo o a una persona: el blanco son las excusas de quien mira |
+| **Antiguo Testamento** | Un dato real del Antiguo Testamento que hoy no pasaría por buena práctica cristiana, con su cita (libro capítulo:versículo); cierra con **aliento** o con el **contexto histórico** | Inventar o redondear versículos, burlarse de la fe o presentar al pueblo judío o su religión como algo despreciable |
 
 Se elige arriba del todo y cambia las dos vistas a la vez: qué se le pide a la
 IA y de qué parte del banco se sortea. **Un sorteo nunca mezcla secciones** —ni
@@ -937,6 +938,28 @@ precargada (dos familias de ocho parejas con su cierre y seis remates sueltos),
 sus ambientes para buscar el vídeo del medio —amanecer y gente en marcha en
 motivación; pantallas, sofá y nevera a las tantas en sarcasmo— y su etiqueta
 al publicar.
+
+**Antiguo Testamento.** El sorteo pasa por palabras de la misma familia —«Los
+mariscos», «El cerdo», «La barba»… o «Abraham», «Jacob», «Salomón»…— y la frase
+termina el dato con su cita: *Los mariscos eran «abominación»: nada del agua
+sin aletas ni escamas (Levítico 11:10)*. El remate, sobre negro, no se burla:
+o da **aliento** —muchas veces con lo que dijo después el Nuevo Testamento:
+*Jesús declaró limpios todos los alimentos (Marcos 7:19)*— o pone el
+**contexto histórico**: *Los rabinos del Talmud dijeron que nunca llegó a
+aplicarse (Sanedrín 71a)*. El tono del remate se elige entre esos dos.
+
+- La base trae **tres familias** de ocho —«Lo que no se podía comer ni
+  vestir», «Castigos de la ley antigua» y «Lo que hicieron los patriarcas»—,
+  cada pareja con su cierre, y seis remates sueltos. Las citas están
+  comprobadas contra el texto (Reina-Valera).
+- A la IA se le pide lo mismo con dos reglas más: solo versículos que existan
+  y digan eso (si no está segura, que elija otro dato), y respeto. **Aun así,
+  revisa las citas de lo que escriba la IA antes de publicar**: un versículo
+  equivocado aquí no es un desliz.
+- El vídeo del medio busca ambiente de época (desierto, piedra, velas,
+  pergamino, olivos) y la etiqueta al publicar es `#antiguotestamento`.
+- Las frases con cita suelen pasar de doce palabras: si traen dos oraciones,
+  salen en dos tiempos, como cualquier frase larga.
 
 En una instalación que ya tenía banco, la base de las secciones nuevas entra
 sola la primera vez que se usan: se mira sección por sección si está vacía, no
@@ -1183,8 +1206,9 @@ hay que cuadrar el vídeo con una música.
 
 - **Los tiempos** (3 de sorteo, 3,5 de frase y 2 de remate) se pueden mover en
   el paso 3, pero moverlos mucho deja de ser este formato.
-- **Sección**: todas las llamadas llevan `seccion` (`triste`, `motivacion` o
-  `sarcasmo`; sin ella, la de siempre).
+- **Sección**: todas las llamadas llevan `seccion` (`triste`, `motivacion`,
+  `sarcasmo` o `biblia`; sin ella, la de siempre). En `biblia`, el `tono` del
+  remate es `aliento` o `historico`.
 - **API**: `POST /api/sadbuttrue` (escribe la familia con IA y la guarda en el
   banco; devuelve cuántas entradas guardó), `POST /api/sadbuttrue/azar` (lo saca del banco, sin IA),
   `POST /api/sadbuttrue/video` (lo monta y crea el proyecto), `GET /api/frases`,
