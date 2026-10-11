@@ -11,7 +11,8 @@ const palabras = (t: string) => t.trim().split(/\s+/).filter(Boolean);
 export function fragmentar(texto: string, lectura: Lectura): string[] {
   const limpio = texto.replace(/\s+/g, " ").trim();
   if (!limpio) return [];
-  if (lectura === "todo") return [limpio];
+  // Entero, el salto de linea escrito a proposito se respeta (como en el render).
+  if (lectura === "todo") return [texto.replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, "\n").trim()];
 
   if (lectura === "frases") {
     const frases = limpio.split(/(?<=[.!?…])\s+/).filter(Boolean);

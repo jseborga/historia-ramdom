@@ -63,17 +63,11 @@ const TONOS: [TonoSadButTrue, string][] = [
   ["desmotivadora", "desmotivadora"],
 ];
 
-/** Los cierres del Antiguo Testamento: de aliento o con el contexto de la epoca. */
-const TONOS_BIBLIA: [TonoSadButTrue, string][] = [
-  ["aliento", "de aliento"],
-  ["historico", "historico"],
-];
-
 const NOMBRE_SECCION: Record<SeccionSbt, string> = {
   triste: "Sad but true",
   motivacion: "Motivacion",
   sarcasmo: "Sarcasmo",
-  biblia: "Antiguo Testamento",
+  biblia: "Aprendiendo con la Biblia",
 };
 
 /**
@@ -86,12 +80,7 @@ export function BancoFrases({ catalogo, seccion }: { catalogo: Catalogo; seccion
   const [formato, setFormato] = useState<Formato>("palabra");
   const [tema, setTema] = useState("");
   const [idioma, setIdioma] = useState<Idioma>("es");
-  const tonos = seccion === "biblia" ? TONOS_BIBLIA : TONOS;
-  const [tono, setTono] = useState<TonoSadButTrue>(tonos[0][0]);
-  // Cada seccion tiene sus tonos de cierre: al cambiar, el primero de los suyos.
-  useEffect(() => {
-    setTono((seccion === "biblia" ? TONOS_BIBLIA : TONOS)[0][0]);
-  }, [seccion]);
+  const [tono, setTono] = useState<TonoSadButTrue>("reflexiva");
   const [lineas, setLineas] = useState<LineaPegada[] | null>(null);
   const [listas, setListas] = useState(0);
   const [frases, setFrases] = useState<Frase[]>([]);
@@ -266,7 +255,7 @@ export function BancoFrases({ catalogo, seccion }: { catalogo: Catalogo; seccion
           <div>
             <label htmlFor="tonoBanco">Tono de los remates que vengan</label>
             <select id="tonoBanco" value={tono} onChange={(e) => setTono(e.target.value as TonoSadButTrue)}>
-              {tonos.map(([v, n]) => (
+              {TONOS.map(([v, n]) => (
                 <option key={v} value={v}>
                   {n}
                 </option>

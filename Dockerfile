@@ -52,6 +52,7 @@ COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/web/dist ./web/dist
 COPY --from=build --chown=node:node /app/prisma ./prisma
 COPY --from=build --chown=node:node /app/fonts ./fonts
+COPY --from=build --chown=node:node /app/biblia ./biblia
 RUN mkdir -p /data/videos /data/trabajo /data/musica && chown -R node:node /data
 USER node
 EXPOSE 3000

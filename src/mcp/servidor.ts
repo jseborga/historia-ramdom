@@ -425,16 +425,16 @@ servidor.registerTool(
   "sad_but_true",
   {
     description:
-      "Escribe un 'Sad but true' (o de motivacion, de sarcasmo o del Antiguo Testamento): la familia entera de palabras, cada una con su frase y su cierre, y cual gana. Se guarda sola en el banco, asi que ese tema ya se puede volver a sortear sin IA. No monta nada.",
+      "Escribe un 'Sad but true' (o de motivacion, o de sarcasmo): la familia entera de palabras, cada una con su frase y su cierre, y cual gana. Se guarda sola en el banco, asi que ese tema ya se puede volver a sortear sin IA. No monta nada.",
     inputSchema: {
       seccion: z
-        .enum(["triste", "motivacion", "sarcasmo", "biblia"])
-        .describe("triste = sad but true (lo de siempre), motivacion, sarcasmo o biblia (datos del Antiguo Testamento con su cita)")
+        .enum(["triste", "motivacion", "sarcasmo"])
+        .describe("triste = sad but true (lo de siempre), motivacion o sarcasmo. La Biblia va por biblia_siguiente")
         .optional(),
       tema: z.string().max(300).describe("De que va el sorteo; vacio = lo elige la IA").optional(),
       tono: z
-        .enum(["feliz", "triste", "reflexiva", "desmotivadora", "aliento", "historico"])
-        .describe("Humor del remate; vacio = el que le pegue a la frase. En biblia: aliento o historico")
+        .enum(["feliz", "triste", "reflexiva", "desmotivadora"])
+        .describe("Humor del remate; vacio = el que le pegue a la frase")
         .optional(),
       motor: z.enum(["groq", "openai", "gemini", "claude"]).optional(),
       idioma: z.enum(["es", "en", "spanglish"]).optional(),
@@ -459,6 +459,16 @@ servidor.registerTool(
           tono: z.enum(["feliz", "triste", "reflexiva", "desmotivadora", "aliento", "historico"]).optional(),
           keywords: z.array(z.string().max(40)).min(1).max(6).describe("EN INGLES: con esto se busca el video"),
           hashtags: z.array(z.string().max(40)).max(8).optional(),
+          seccion: z.enum(["triste", "motivacion", "sarcasmo", "biblia"]).optional(),
+          referenciaId: z
+            .string()
+            .uuid()
+            .describe("Aprendiendo con la Biblia: la referencia de la que sale (la da biblia_siguiente). La cita la pone el servidor")
+            .optional(),
+          intro: z
+            .object({ titulo: z.string().max(80), subtitulo: z.string().max(80).optional() })
+            .describe("Titulo del principio, sobre negro (en la Biblia: 'Aprendiendo con la Biblia' y el libro)")
+            .optional(),
         })
         .describe("El guion entero"),
       formato: z.string().max(40).optional(),
@@ -482,11 +492,11 @@ servidor.registerTool(
   "sortear_sad_but_true",
   {
     description:
-      "Saca un 'Sad but true' del banco de frases, sin gastar IA: una pareja de las menos usadas, su bombo del mismo tema y un remate, todo de la misma seccion. Devuelve el guion listo para montar_sad_but_true.",
+      "Saca un 'Sad but true' del banco de frases, sin gastar IA: una pareja de las menos usadas, su bombo del mismo tema y un remate, todo de la misma seccion. Devuelve el guion listo para montar_sad_but_true. Para la Biblia, biblia_siguiente.",
     inputSchema: {
       seccion: z
-        .enum(["triste", "motivacion", "sarcasmo", "biblia"])
-        .describe("triste = sad but true (lo de siempre), motivacion, sarcasmo o biblia (datos del Antiguo Testamento con su cita)")
+        .enum(["triste", "motivacion", "sarcasmo"])
+        .describe("triste = sad but true (lo de siempre), motivacion o sarcasmo. La Biblia va por biblia_siguiente")
         .optional(),
       tema: z.string().max(80).describe("Familia de palabras; vacio = cualquiera").optional(),
       tono: z.enum(["feliz", "triste", "reflexiva", "desmotivadora", "aliento", "historico"]).optional(),
@@ -497,14 +507,113 @@ servidor.registerTool(
 );
 
 servidor.registerTool(
+  "biblia_referencias",
+  {
+    description:
+      "Aprendiendo con la Biblia: las referencias guardadas, de Genesis a Apocalipsis, con su cita comprobada contra la Reina-Valera 1909, el texto literal, lo curioso (dato), lo escrito (palabra, frase, cierre) y su estado: pendiente (falta completar), revisar (algo no cuadra) o lista. Dice tambien cual es la siguiente de la serie.",
+    inputSchema: {
+      rango: z.enum(["todo", "AT", "NT"]).describe("Toda la Biblia, Antiguo o Nuevo Testamento").optional(),
+      libro: z.number().int().min(1).max(66).describe("1 = Genesis ... 66 = Apocalipsis").optional(),
+      estado: z.enum(["pendiente", "revisar", "lista"]).optional(),
+      q: z.string().max(80).describe("Buscar en cita, tema, dato o texto").optional(),
+    },
+  },
+  async (args) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(args)) if (v) q.set(k, String(v));
+    return texto(await llamar(`/api/biblia/referencias?${q}`));
+  },
+);
+
+servidor.registerTool(
+  "biblia_cita",
+  {
+    description: "El texto literal de una cita en la Reina-Valera 1909 (p. ej. 'Levitico 11:10', 'Jueces 11:30-34'), o el aviso de que no existe.",
+    inputSchema: { cita: z.string().min(2).max(80) },
+  },
+  async ({ cita }) => texto(await llamar(`/api/biblia/cita?q=${encodeURIComponent(cita)}`)),
+);
+
+servidor.registerTool(
+  "biblia_guardar_referencia",
+  {
+    description:
+      "Guarda una referencia nueva de Aprendiendo con la Biblia, o corrige una (con id). La cita se comprueba contra la Reina-Valera 1909: si no existe, no se guarda. La frase va SIN cita (la pone la app) y tiene que empezar por la palabra; el cierre es de aliento o historico y sus citas tambien se comprueban.",
+    inputSchema: {
+      id: z.string().uuid().describe("Para corregir una que ya existe").optional(),
+      cita: z.string().max(60).describe("Libro capitulo:versiculo, p. ej. 'Levitico 19:27'").optional(),
+      tema: z.string().max(80).optional(),
+      dato: z.string().max(400).describe("Lo curioso, en una linea").optional(),
+      palabra: z.string().max(40).describe("De 1 a 3 palabras: lo que se sortea; la frase empieza por aqui").optional(),
+      frase: z.string().max(300).optional(),
+      remate: z.string().max(300).optional(),
+      tono: z.enum(["aliento", "historico"]).optional(),
+    },
+  },
+  async ({ id, ...cambios }) =>
+    texto(
+      await llamar(id ? `/api/biblia/referencias/${id}` : "/api/biblia/referencias", {
+        method: id ? "PUT" : "POST",
+        body: JSON.stringify(cambios),
+      }),
+    ),
+);
+
+servidor.registerTool(
+  "biblia_completar",
+  {
+    description:
+      "Completa con IA las referencias pendientes de Aprendiendo con la Biblia, en orden (o las que se pasen por id): palabra del sorteo, frase y cierre. La IA lee el versiculo literal de cada una; lo que no cuadre queda 'para revisar' y no sale en la serie.",
+    inputSchema: {
+      ids: z.array(z.string().uuid()).max(10).optional(),
+      cuantas: z.number().int().min(1).max(10).optional(),
+      rango: z.enum(["todo", "AT", "NT"]).optional(),
+      tono: z.enum(["aliento", "historico"]).optional(),
+      motor: z.enum(["groq", "openai", "gemini", "claude"]).optional(),
+      rehacer: z.boolean().describe("Reescribir tambien las que ya estan completas").optional(),
+    },
+  },
+  async (args) => texto(await llamar("/api/biblia/referencias/completar", { method: "POST", body: JSON.stringify(args) })),
+);
+
+servidor.registerTool(
+  "biblia_proponer",
+  {
+    description:
+      "Busca con IA mas datos curiosos en un libro de la Biblia. Solo se guardan los que pasan la comprobacion: la cita existe en la Reina-Valera 1909 y su texto contiene las palabras clave que propuso la IA. Devuelve las guardadas y las descartadas con el motivo.",
+    inputSchema: {
+      libro: z.number().int().min(1).max(66).describe("1 = Genesis ... 66 = Apocalipsis"),
+      cuantas: z.number().int().min(1).max(15).optional(),
+      motor: z.enum(["groq", "openai", "gemini", "claude"]).optional(),
+    },
+  },
+  async (args) => texto(await llamar("/api/biblia/proponer", { method: "POST", body: JSON.stringify(args) })),
+);
+
+servidor.registerTool(
+  "biblia_siguiente",
+  {
+    description:
+      "El guion del siguiente video de Aprendiendo con la Biblia: la primera referencia lista que aun no salio, en orden de Genesis a Apocalipsis (o una concreta con referenciaId, o una al azar). Abre con el titulo de la serie y el libro; la frase lleva su cita exacta. Se pasa tal cual a montar_sad_but_true.",
+    inputSchema: {
+      referenciaId: z.string().uuid().optional(),
+      modo: z.enum(["siguiente", "azar"]).optional(),
+      rango: z.enum(["todo", "AT", "NT"]).optional(),
+      titulo: z.string().max(80).describe("Titulo de la serie; por defecto 'Aprendiendo con la Biblia'").optional(),
+    },
+  },
+  async (args) => texto(await llamar("/api/biblia/guion", { method: "POST", body: JSON.stringify(args) })),
+);
+
+servidor.registerTool(
   "banco_frases",
   {
     description:
       "Lo que hay en el banco de 'Sad but true': parejas palabra/frase, remates y de que temas, por seccion. De aqui salen los sorteos sin IA.",
     inputSchema: {
       seccion: z
-        .enum(["triste", "motivacion", "sarcasmo", "biblia"])
-        .describe("triste = sad but true (lo de siempre), motivacion, sarcasmo o biblia (datos del Antiguo Testamento con su cita)")
+        .enum(["triste", "motivacion", "sarcasmo"])
+        .describe("triste = sad but true (lo de siempre), motivacion o sarcasmo. La Biblia va por biblia_siguiente")
         .optional(),
       tipo: z.enum(["SORTEO", "REMATE"]).optional(),
       tema: z.string().max(80).optional(),
@@ -525,8 +634,8 @@ servidor.registerTool(
       "Mete frases en el banco de 'Sad but true'. Una por linea, con ; entre campos. Con formato 'palabra': 'palabra ; frase ; remate'. Con formato 'frase': 'frase ; remate ; sobre X', que es como salen las sentencias en dos tiempos. En los dos, una linea sin ningun ; es un remate suelto. Con guardar=false solo dice que ha entendido de cada linea.",
     inputSchema: {
       seccion: z
-        .enum(["triste", "motivacion", "sarcasmo", "biblia"])
-        .describe("triste = sad but true (lo de siempre), motivacion, sarcasmo o biblia (datos del Antiguo Testamento con su cita)")
+        .enum(["triste", "motivacion", "sarcasmo"])
+        .describe("triste = sad but true (lo de siempre), motivacion o sarcasmo. La Biblia va por biblia_siguiente")
         .optional(),
       texto: z.string().max(40_000).describe("Las lineas, separadas por saltos de linea"),
       formato: z

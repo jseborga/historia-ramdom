@@ -44,7 +44,7 @@ Implementa la guía de `docs/guia-original.md`.
   instrucciones en vez de cantarlos.
 - **Tres idiomas.** Español, inglés y **spanglish**: base en español con el
   inglés en el gancho, que es como se canta la cumbia y el reggaetón.
-- **Sad but true, motivación, sarcasmo y Antiguo Testamento.** Once segundos, sin voz: un sorteo
+- **Sad but true, motivación, sarcasmo y «Aprendiendo con la Biblia».** Once segundos, sin voz: un sorteo
   de palabras en gris sobre negro que se para en el arranque de la frase
   ganadora, el vídeo terminándola con esas palabras todavía en amarillo, y el
   remate en blanco sobre el negro del cierre. Cuatro secciones con el mismo
@@ -928,7 +928,7 @@ sin voz, en **cuatro secciones** que se montan igual y solo cambian lo que dicen
 | **Sad but true** | La verdad que da una media sonrisa de lado: ligeramente desmotivadora | Hundir a nadie, ni moralina |
 | **Motivación** | Algo concreto que levanta el ánimo y se puede comprobar el martes siguiente | Frases de taza: ni «tú puedes» ni «nunca te rindas» |
 | **Sarcasmo** | Lo que sabes que está mal y no quieres escuchar: la excusa, el hábito, la mentira que te cuentas | Apuntar a un grupo o a una persona: el blanco son las excusas de quien mira |
-| **Antiguo Testamento** | Un dato real del Antiguo Testamento que hoy no pasaría por buena práctica cristiana, con su cita (libro capítulo:versículo); cierra con **aliento** o con el **contexto histórico** | Inventar o redondear versículos, burlarse de la fe o presentar al pueblo judío o su religión como algo despreciable |
+| **Aprendiendo con la Biblia** | Un dato curioso de la Biblia que hoy no pasaría por buena práctica cristiana, en orden de Génesis a Apocalipsis, con su **cita exacta** comprobada contra el texto; cierra con **aliento** o con el **contexto histórico** | Citar de memoria, burlarse de la fe o presentar al pueblo judío o su religión como algo despreciable |
 
 Se elige arriba del todo y cambia las dos vistas a la vez: qué se le pide a la
 IA y de qué parte del banco se sortea. **Un sorteo nunca mezcla secciones** —ni
@@ -939,27 +939,8 @@ sus ambientes para buscar el vídeo del medio —amanecer y gente en marcha en
 motivación; pantallas, sofá y nevera a las tantas en sarcasmo— y su etiqueta
 al publicar.
 
-**Antiguo Testamento.** El sorteo pasa por palabras de la misma familia —«Los
-mariscos», «El cerdo», «La barba»… o «Abraham», «Jacob», «Salomón»…— y la frase
-termina el dato con su cita: *Los mariscos eran «abominación»: nada del agua
-sin aletas ni escamas (Levítico 11:10)*. El remate, sobre negro, no se burla:
-o da **aliento** —muchas veces con lo que dijo después el Nuevo Testamento:
-*Jesús declaró limpios todos los alimentos (Marcos 7:19)*— o pone el
-**contexto histórico**: *Los rabinos del Talmud dijeron que nunca llegó a
-aplicarse (Sanedrín 71a)*. El tono del remate se elige entre esos dos.
-
-- La base trae **tres familias** de ocho —«Lo que no se podía comer ni
-  vestir», «Castigos de la ley antigua» y «Lo que hicieron los patriarcas»—,
-  cada pareja con su cierre, y seis remates sueltos. Las citas están
-  comprobadas contra el texto (Reina-Valera).
-- A la IA se le pide lo mismo con dos reglas más: solo versículos que existan
-  y digan eso (si no está segura, que elija otro dato), y respeto. **Aun así,
-  revisa las citas de lo que escriba la IA antes de publicar**: un versículo
-  equivocado aquí no es un desliz.
-- El vídeo del medio busca ambiente de época (desierto, piedra, velas,
-  pergamino, olivos) y la etiqueta al publicar es `#antiguotestamento`.
-- Las frases con cita suelen pasar de doce palabras: si traen dos oraciones,
-  salen en dos tiempos, como cualquier frase larga.
+Las tres primeras sacan sus frases del banco de frases; la de la Biblia, de sus
+**referencias**, que tienen su propio apartado más abajo.
 
 En una instalación que ya tenía banco, la base de las secciones nuevas entra
 sola la primera vez que se usan: se mira sección por sección si está vacía, no
@@ -1207,8 +1188,9 @@ hay que cuadrar el vídeo con una música.
 - **Los tiempos** (3 de sorteo, 3,5 de frase y 2 de remate) se pueden mover en
   el paso 3, pero moverlos mucho deja de ser este formato.
 - **Sección**: todas las llamadas llevan `seccion` (`triste`, `motivacion`,
-  `sarcasmo` o `biblia`; sin ella, la de siempre). En `biblia`, el `tono` del
-  remate es `aliento` o `historico`.
+  `sarcasmo` o `biblia`; sin ella, la de siempre). En `biblia` no se escribe
+  un guion libre con IA (`POST /api/sadbuttrue` lo rechaza): sale de las
+  referencias, ver «Aprendiendo con la Biblia».
 - **API**: `POST /api/sadbuttrue` (escribe la familia con IA y la guarda en el
   banco; devuelve cuántas entradas guardó), `POST /api/sadbuttrue/azar` (lo saca del banco, sin IA),
   `POST /api/sadbuttrue/video` (lo monta y crea el proyecto), `GET /api/frases`,
@@ -1325,6 +1307,75 @@ suena, igual que con la narración.
   —409 con `opciones` si hay varios—,
   `GET …/planos/:pid/ultimo-fotograma`) y `POST …/montar` (`que`: `trailer`,
   `avance` o `personaje`). En la Galería, `POST /api/medios/enlace`.
+
+## Aprendiendo con la Biblia: citas exactas, de Génesis a Apocalipsis
+
+Una serie dentro de Sad but true: un dato curioso de la Biblia por vídeo —leyes,
+castigos y costumbres que hoy no pasarían por buena práctica cristiana, y alguna
+rareza—, **en orden**, de Génesis a Apocalipsis. Cada vídeo:
+
+1. abre con el título **«Aprendiendo con la Biblia»** y el libro, sobre negro
+   (2,4 s; el título se cambia en «1. La serie»);
+2. el sorteo de palabras, que se para en la que toca;
+3. la frase sobre el vídeo con su **cita exacta**: *Los mariscos eran
+   «abominación»: nada del agua sin aletas ni escamas (Levítico 11:10).*;
+4. el cierre sobre negro, de **aliento** o **histórico**: *Jesús declaró
+   limpios todos los alimentos (Marcos 7:19).*
+
+En la descripción va además el **versículo literal**, para que quien lo vea
+pueda comprobarlo.
+
+**Por qué las citas son exactas.** La app lleva dentro la Biblia entera, la
+**Reina-Valera 1909** (dominio público, ver `biblia/README.md`), y nada se cita
+de memoria:
+
+- Cada referencia se guarda como libro, capítulo y versículos, y **solo si
+  existe** en ese texto. Se escribe como se quiera («Lev 11:10», «Jue
+  11:30-34», «1 Re 11:3», «Salmo 51») y la app la normaliza.
+- La cita de la frase **la pone el servidor** desde la referencia al montar:
+  si alguien la cambia a mano en el guion, vuelve la exacta.
+- Las citas del cierre se comprueban también: si una no existe, la referencia
+  queda «para revisar» y no sale en la serie, y el montaje se niega.
+- La numeración es la de la 1909, que a veces no es la de otras versiones:
+  el pez de Jonás está en **Jonás 2:1** (no 1:17) y los treinta hombres de
+  Sansón en **Jueces 14:20** (no 14:19). La comprobación lo cazó al preparar la
+  base.
+
+**La base.** 133 referencias de Génesis a Apocalipsis, en ocho temas (leyes de
+pureza, castigos de la ley, las mujeres en la ley antigua, esclavitud y
+guerra, personajes, profetas, rarezas, lo que pidieron los apóstoles). Cada una
+trae unas **palabras clave que tienen que estar en el versículo** —la prueba
+de que dice lo que se cuenta, no solo de que existe— y `npm run biblia:verificar`
+las comprueba todas (con `--ver`, enseña el texto de cada una). 24 vienen ya
+completas; las demás traen el dato y se completan después.
+
+**Completar: con IA o a mano.** En **Referencias**:
+
+- **Completar con IA las siguientes N pendientes**, en orden. La IA recibe el
+  **versículo literal** de cada una y escribe la palabra del sorteo, la frase
+  (sin cita) y el cierre. Lo que no cuadre —frase que no empieza por su
+  palabra, cita del cierre que no existe— queda para revisar.
+- **Buscar con IA (y comprobar)** más datos en un libro: la IA propone cita y
+  palabras que aparecen en el versículo; la app las busca en el texto y **solo
+  guarda las que pasan**. Las demás se descartan diciendo por qué.
+- **Añadir una a mano**: al escribir la cita se ve su texto al momento, o el
+  aviso de que no existe.
+- Cada referencia se abre para corregirla, reescribirla con IA, usarla en un
+  vídeo o quitarla.
+
+**La serie.** «Preparar la siguiente» toma la primera referencia lista que aún
+no salió, en orden; se puede recorrer toda la Biblia, solo el Antiguo o solo el
+Nuevo Testamento. Cuando salen todas, vuelve a empezar por la menos usada.
+
+- **API**: `GET /api/biblia/referencias` (`rango`, `libro`, `estado`, `q`;
+  devuelve también las cuentas y la siguiente), `POST /api/biblia/referencias`,
+  `PUT/DELETE /api/biblia/referencias/:id`, `POST /api/biblia/referencias/completar`,
+  `POST /api/biblia/proponer`, `GET /api/biblia/cita?q=…` (el texto de una
+  cita), `GET /api/biblia/libros` y `POST /api/biblia/guion` (`siguiente`,
+  `azar` o una `referenciaId`), que se monta con `POST /api/sadbuttrue/video`.
+- **MCP**: `biblia_referencias`, `biblia_cita`, `biblia_guardar_referencia`,
+  `biblia_completar`, `biblia_proponer` y `biblia_siguiente` (su guion va tal
+  cual a `montar_sad_but_true`).
 
 ## Editor de montaje
 

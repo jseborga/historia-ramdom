@@ -90,7 +90,10 @@ const palabras = (t: string) => t.trim().split(/\s+/).filter(Boolean);
 export function fragmentar(texto: string, lectura: Lectura): string[] {
   const limpio = texto.replace(/\s+/g, " ").trim();
   if (!limpio) return [];
-  if (lectura === "todo") return [limpio];
+  // Entero, el salto de línea que se escribió a propósito se respeta: es lo
+  // que separa un título de su subtítulo («Aprendiendo con la Biblia» /
+  // «Levítico»). Por trozos no, que ahí manda la puntuación.
+  if (lectura === "todo") return [texto.replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, "\n").trim()];
 
   if (lectura === "frases") {
     const frases = limpio.split(/(?<=[.!?…])\s+/).filter(Boolean);

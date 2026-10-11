@@ -19,7 +19,11 @@
 export type ParejaBase = { palabra: string; texto: string; remate?: string };
 export type FamiliaBase = { tema: string; seccion?: Seccion; parejas: ParejaBase[] };
 
-/** Las secciones del formato. La de siempre es "triste". */
+/**
+ * Las secciones del formato. La de siempre es "triste". "biblia" no sale de
+ * este banco sino de las referencias bíblicas (src/servicios/referencias.ts),
+ * que llevan su cita comprobada contra el texto.
+ */
 export type Seccion = "triste" | "motivacion" | "sarcasmo" | "biblia";
 
 export const FAMILIAS: FamiliaBase[] = [
@@ -176,157 +180,6 @@ export const FAMILIAS_NUEVAS: FamiliaBase[] = [
   },
 ];
 
-/**
- * Antiguo Testamento: lo que la Biblia cuenta o manda y que hoy ningún
- * cristiano tendría por buena práctica. Cada frase lleva su cita, y cada una
- * está comprobada contra el texto (Reina-Valera): en esta sección un versículo
- * equivocado no es un desliz, es desinformar.
- *
- * El cierre no se burla: o da aliento —muchas veces con lo que dijo después
- * el Nuevo Testamento— o pone el contexto histórico. Es historia de un pueblo
- * de hace tres mil años, contada con respeto, no un juicio a nadie.
- */
-export const FAMILIAS_BIBLIA: FamiliaBase[] = [
-  {
-    tema: "Lo que no se podía comer ni vestir",
-    seccion: "biblia",
-    parejas: [
-      {
-        palabra: "Los mariscos",
-        texto: "Los mariscos eran «abominación»: nada del agua sin aletas ni escamas (Levítico 11:10).",
-        remate: "Jesús declaró limpios todos los alimentos (Marcos 7:19).",
-      },
-      {
-        palabra: "El cerdo",
-        texto: "El cerdo estaba prohibido: ni comer su carne ni tocar su cadáver (Levítico 11:7-8).",
-        remate: "A Pedro se le dijo: lo que Dios limpió, no lo llames común (Hechos 10:15).",
-      },
-      {
-        palabra: "La ropa mezclada",
-        texto: "La ropa mezclada estaba prohibida: nada de lana y lino en la misma prenda (Deuteronomio 22:11).",
-        remate: "Eran señales de un pueblo apartado, no reglas de moda.",
-      },
-      {
-        palabra: "Los tatuajes",
-        texto: "Los tatuajes estaban prohibidos, igual que hacerse cortes por un muerto (Levítico 19:28).",
-        remate: "Se ligaban a los ritos de duelo de los pueblos vecinos.",
-      },
-      {
-        palabra: "La barba",
-        texto: "La barba no se recortaba por los lados: estaba mandado (Levítico 19:27).",
-        remate: "Por eso muchos judíos ortodoxos aún llevan barba y patillas largas.",
-      },
-      {
-        palabra: "La menstruación",
-        texto: "La menstruación dejaba «impura» a la mujer siete días, y a quien la tocara (Levítico 15:19).",
-        remate: "Jesús se dejó tocar por una mujer enferma de sangre, y la sanó (Marcos 5:34).",
-      },
-      {
-        palabra: "La lepra",
-        texto: "La lepra obligaba a vivir fuera del campamento gritando «¡Inmundo!» (Levítico 13:45-46).",
-        remate: "Jesús tocó a un leproso antes de sanarlo (Marcos 1:41).",
-      },
-      {
-        palabra: "Un defecto físico",
-        texto: "Un defecto físico impedía al sacerdote ofrecer en el altar: ciegos, cojos, jorobados (Levítico 21:18-20).",
-        remate: "Nadie vale menos por su cuerpo: Dios mira el corazón (1 Samuel 16:7).",
-      },
-    ],
-  },
-  {
-    tema: "Castigos de la ley antigua",
-    seccion: "biblia",
-    parejas: [
-      {
-        palabra: "El adulterio",
-        texto: "El adulterio se pagaba con la muerte, de él y de ella (Levítico 20:10).",
-        remate: "Jesús, ante una adúltera: el que esté sin pecado, que tire la primera piedra (Juan 8:7).",
-      },
-      {
-        palabra: "Trabajar en sábado",
-        texto: "Trabajar en sábado se castigaba con la muerte (Éxodo 35:2).",
-        remate: "Jesús: el sábado se hizo para el hombre, no el hombre para el sábado (Marcos 2:27).",
-      },
-      {
-        palabra: "Maldecir a tus padres",
-        texto: "Maldecir a tus padres era delito de muerte (Éxodo 21:17).",
-        remate: "El mandamiento que quedó es el otro: honra a tu padre y a tu madre (Éxodo 20:12).",
-      },
-      {
-        palabra: "El hijo rebelde",
-        texto: "El hijo rebelde y borracho podía morir apedreado por los hombres de su ciudad (Deuteronomio 21:18-21).",
-        remate: "Los rabinos del Talmud dijeron que nunca llegó a aplicarse (Sanedrín 71a).",
-      },
-      {
-        palabra: "La hechicera",
-        texto: "La hechicera no debía quedar con vida (Éxodo 22:18).",
-        remate: "Siglos después, ese versículo se usó para justificar la caza de brujas en Europa.",
-      },
-      {
-        palabra: "La blasfemia",
-        texto: "La blasfemia se castigaba con la muerte: toda la comunidad apedreaba al culpable (Levítico 24:16).",
-        remate: "Hoy la fe se propone; no se impone a pedradas.",
-      },
-      {
-        palabra: "Ojo por ojo",
-        texto: "Ojo por ojo, diente por diente, mano por mano, pie por pie (Éxodo 21:24).",
-        remate: "Era un límite a la venganza. Jesús pidió más: la otra mejilla (Mateo 5:39).",
-      },
-      {
-        palabra: "Los esclavos",
-        texto: "Los esclavos podían ser golpeados: si sobrevivían un día o dos, el amo no era castigado (Éxodo 21:20-21).",
-        remate: "Pablo escribió que en Cristo ya no hay esclavo ni libre (Gálatas 3:28).",
-      },
-    ],
-  },
-  {
-    tema: "Lo que hicieron los patriarcas",
-    seccion: "biblia",
-    parejas: [
-      {
-        palabra: "Abraham",
-        texto: "Abraham hizo pasar dos veces a su esposa por su hermana para salvarse (Génesis 12 y 20).",
-        remate: "Y era verdad a medias: Sara era su media hermana (Génesis 20:12).",
-      },
-      {
-        palabra: "Jacob",
-        texto: "Jacob se casó con dos hermanas, Lea y Raquel, y tuvo hijos con las siervas de ambas (Génesis 29-30).",
-        remate: "La ley de Moisés lo prohibió después (Levítico 18:18).",
-      },
-      {
-        palabra: "Salomón",
-        texto: "Salomón tuvo setecientas esposas y trescientas concubinas (1 Reyes 11:3).",
-        remate: "Y el mismo texto dice que ellas le apartaron el corazón (1 Reyes 11:4).",
-      },
-      {
-        palabra: "David",
-        texto: "David, el rey según el corazón de Dios, mandó a la muerte al marido de Betsabé (2 Samuel 11).",
-        remate: "Su arrepentimiento también quedó escrito: el Salmo 51.",
-      },
-      {
-        palabra: "Noé",
-        texto: "Noé plantó una viña, se emborrachó y quedó desnudo en su tienda (Génesis 9:20-21).",
-        remate: "Hasta los héroes de la historia tuvieron su peor noche.",
-      },
-      {
-        palabra: "Sansón",
-        texto: "Sansón pagó una apuesta matando a treinta hombres para quitarles la ropa (Jueces 14:19).",
-        remate: "Los jueces de Israel no eran santos: eran caudillos de una época violenta.",
-      },
-      {
-        palabra: "Jefté",
-        texto: "Jefté prometió sacrificar lo primero que saliera de su casa. Salió su hija (Jueces 11:30-34).",
-        remate: "Las jóvenes de Israel la lloraban cuatro días cada año (Jueces 11:40).",
-      },
-      {
-        palabra: "Eliseo",
-        texto: "Eliseo maldijo a unos muchachos que se burlaron de su calva, y dos osas despedazaron a cuarenta y dos (2 Reyes 2:23-24).",
-        remate: "En hebreo, «muchachos» también puede ser jóvenes, no niños.",
-      },
-    ],
-  },
-];
-
 export type RemateBase = { texto: string; tono: string; seccion?: Seccion };
 
 export const REMATES: RemateBase[] = [
@@ -370,12 +223,6 @@ export const REMATES_NUEVOS: RemateBase[] = [
   { texto: "Si te dolió leerlo, era para ti.", tono: "reflexiva", seccion: "sarcasmo" },
   { texto: "No es crítica. Es un espejo con subtítulos.", tono: "reflexiva", seccion: "sarcasmo" },
   { texto: "Lo sabías antes de este vídeo. Solo te faltaba leerlo.", tono: "reflexiva", seccion: "sarcasmo" },
-  { texto: "El amor es el cumplimiento de la ley (Romanos 13:10).", tono: "aliento", seccion: "biblia" },
-  { texto: "Conocer la historia no apaga la fe: la hace adulta.", tono: "aliento", seccion: "biblia" },
-  { texto: "La fe que pregunta no es menos fe.", tono: "aliento", seccion: "biblia" },
-  { texto: "Eran leyes de un pueblo de hace tres mil años, escritas para su tiempo.", tono: "historico", seccion: "biblia" },
-  { texto: "Los cristianos leen la ley antigua a la luz de Jesús, no al pie de la letra.", tono: "historico", seccion: "biblia" },
-  { texto: "Leer la Biblia entera también es leer lo que ya no hacemos.", tono: "historico", seccion: "biblia" },
 ];
 
 export type FilaBase = {
@@ -390,7 +237,7 @@ export type FilaBase = {
 
 /** Todo junto, como filas listas para el banco, de la sección que se pida. */
 export function filasDeBase(seccion?: Seccion): FilaBase[] {
-  const familias = [...FAMILIAS, ...FAMILIAS_NUEVAS, ...FAMILIAS_BIBLIA];
+  const familias = [...FAMILIAS, ...FAMILIAS_NUEVAS];
   const remates = [...REMATES, ...REMATES_NUEVOS];
   const filas: FilaBase[] = [
     ...familias.flatMap((f) =>

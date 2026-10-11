@@ -27,6 +27,7 @@ import {
 import { db } from "../db.js";
 import { BancosCampo, MediosCampo } from "./historias.js";
 import { conMotivo } from "./errores.js";
+import { asegurarCitas, guionDeReferencia, listarReferencias, marcarUsada } from "../servicios/referencias.js";
 
 /**
  * Sad but true: sorteo de palabras sobre negro, la frase sobre un vídeo
@@ -85,6 +86,15 @@ export async function rutasSadButTrue(app: FastifyInstance) {
   /** Escribe el guion sin montar nada, para poder corregirlo antes. */
   app.post("/api/sadbuttrue", async (req, reply) => {
     const p = PeticionSchema.parse(req.body);
+    // En la Biblia el guion no se escribe libre: sale de una referencia
+    // guardada, con la cita comprobada contra el texto.
+    if (p.seccion === "biblia") {
+      return reply.code(400).send({
+        error:
+          "«Aprendiendo con la Biblia» no escribe guiones libres: sale de las referencias guardadas, con su cita comprobada. " +
+          "Complétalas con IA en «Referencias» y usa la siguiente de la serie.",
+      });
+    }
     return conMotivo(reply, async () => {
       const g = await generarSadButTrue(p);
       // Lo escrito se queda en el banco, la familia entera: la próxima vez
@@ -104,6 +114,14 @@ export async function rutasSadButTrue(app: FastifyInstance) {
         idioma: IdiomaCampo.default("es"),
       })
       .parse(req.body ?? {});
+    if (p.seccion === "biblia") {
+      // Al azar, pero de las referencias listas: nunca de un texto sin cita comprobada.
+      return conMotivo(reply, async () => {
+        const { referencias } = await listarReferencias({ estado: "lista" });
+        if (!referencias.length) throw new Error("No hay referencias listas: complétalas en «Referencias».");
+        return guionDeReferencia(referencias[Math.floor(Math.random() * referencias.length)].id);
+      });
+    }
     return conMotivo(reply, () =>
       sortearGuion({ seccion: p.seccion, tema: p.tema || undefined, tono: p.tono, idioma: p.idioma }),
     );
@@ -171,7 +189,7 @@ export async function rutasSadButTrue(app: FastifyInstance) {
    * clip para el medio y deja las dos pistas con sus tiempos.
    */
   app.post("/api/sadbuttrue/video", async (req, reply) => {
-    const { guion, formato, nombre, bancos, medios, revelarFrase, idioma, tiempos } = z
+    const { guion: pedido, formato, nombre, bancos, medios, revelarFrase, idioma, tiempos } = z
       .object({
         guion: SadButTrueSchema,
         formato: z.string().max(40).default("tiktok"),
@@ -185,6 +203,16 @@ export async function rutasSadButTrue(app: FastifyInstance) {
         tiempos: TiemposSchema.default({}),
       })
       .parse(req.body);
+
+    // Las citas, comprobadas antes de montar nada: la de la frase sale del
+    // pasaje guardado y las del cierre tienen que existir.
+    let comprobado: Awaited<ReturnType<typeof asegurarCitas>>;
+    try {
+      comprobado = await asegurarCitas(pedido);
+    } catch (err) {
+      return reply.code(422).send({ error: err instanceof Error ? err.message : "Cita no válida" });
+    }
+    const guion = comprobado.guion;
 
     const [clip] = await elegirClips([{ keywords: guion.keywords }], new Set(), {}, {
       bancos: bancos.filter(esBancoElegible),
@@ -224,10 +252,20 @@ export async function rutasSadButTrue(app: FastifyInstance) {
       },
     });
     await crearCarpetaProyecto(proyecto.id);
+    if (guion.referenciaId) await marcarUsada(guion.referenciaId);
+
+    // Con referencia, el versículo literal va en la descripción: quien lo vea
+    // puede comprobar la cita sin buscarla.
+    const literal = comprobado.cita && comprobado.versiculo
+      ? `${comprobado.cita} (Reina-Valera 1909): «${comprobado.versiculo.length > 600 ? `${comprobado.versiculo.slice(0, 600)}…` : comprobado.versiculo}»`
+      : "";
+    const descripcion = literal
+      ? [guion.frase, guion.remate, literal, guion.hashtags.map((h) => `#${h}`).join(" ")].filter(Boolean).join("\n\n")
+      : descripcionSadButTrue(guion);
 
     return reply.code(201).send({
       ...proyecto,
-      descripcion: descripcionSadButTrue(guion),
+      descripcion,
       tiempos: { ...tiempos, ...leido },
       ...(clip ? {} : { aviso: "No se encontró ningún clip: el vídeo del medio quedó en negro." }),
     });

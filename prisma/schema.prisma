@@ -297,6 +297,40 @@ model Frase {
   @@index([usos])
 }
 
+/// «Aprendiendo con la Biblia»: un pasaje con su dato curioso. La cita no es
+/// texto libre: son libro, capítulo y versículos, comprobados contra la
+/// Reina-Valera 1909 que lleva la app (biblia/). La serie avanza por `orden`,
+/// de Génesis a Apocalipsis.
+model ReferenciaBiblica {
+  id           String     @id @default(uuid())
+  /// libro * 1.000.000 + capítulo * 1.000 + versículo: ordena la serie.
+  orden        Int
+  /// 1 (Génesis) a 66 (Apocalipsis).
+  libro        Int
+  capitulo     Int
+  versiculo    Int
+  capituloFin  Int
+  versiculoFin Int
+  tema         String     @default("")
+  /// Lo curioso, en una línea: la guía para completarla.
+  dato         String     @default("")
+  /// Lo que pasa por el sorteo; la frase empieza por aquí.
+  palabra      String     @default("")
+  /// El dato contado para la pantalla, SIN cita: la pone la app.
+  frase        String     @default("")
+  /// El cierre: de aliento o histórico. Sus citas también se comprueban.
+  remate       String     @default("")
+  tono         String     @default("historico")
+  fuente       FuenteIdea @default(MANUAL)
+  usos         Int        @default(0)
+  usadaEn      DateTime?
+  creadaEn     DateTime   @default(now())
+  editadaEn    DateTime   @updatedAt
+
+  @@unique([libro, capitulo, versiculo, capituloFin, versiculoFin])
+  @@index([orden])
+}
+
 /// Ganchos reutilizables: los que mejor retienen se vuelven a usar.
 model Gancho {
   id         String     @id @default(uuid())

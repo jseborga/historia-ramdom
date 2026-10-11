@@ -388,7 +388,47 @@ export type GuionSadButTrue = {
   hashtags: string[];
   motorUsado?: string;
   avisoMotor?: string;
+  /** Aprendiendo con la Biblia: la referencia de la que sale. */
+  referenciaId?: string;
+  /** El titulo del principio, sobre negro, antes del sorteo. */
+  intro?: { titulo: string; subtitulo: string };
+  /** Con referencia: la cita exacta y el versiculo literal (Reina-Valera 1909). */
+  cita?: string;
+  versiculo?: string;
 };
+
+/** Una referencia de "Aprendiendo con la Biblia", con su cita comprobada. */
+export type ReferenciaBiblica = {
+  id: string;
+  orden: number;
+  libro: number;
+  libroNombre: string;
+  testamento: "AT" | "NT";
+  cita: string;
+  /** El texto literal del pasaje (Reina-Valera 1909). */
+  texto: string;
+  tema: string;
+  dato: string;
+  palabra: string;
+  frase: string;
+  remate: string;
+  tono: "aliento" | "historico";
+  fuente: "MANUAL" | "IA" | "REDDIT";
+  usos: number;
+  usadaEn: string | null;
+  estado: "pendiente" | "revisar" | "lista";
+  avisos: string[];
+  citasRemate: { original: string; cita: string | null; texto: string | null }[];
+};
+
+export type ListaReferencias = {
+  referencias: ReferenciaBiblica[];
+  cuentas: { total: number; listas: number; pendientes: number; revisar: number; publicadas: number };
+  siguiente: ReferenciaBiblica | null;
+  libros: { numero: number; nombre: string }[];
+};
+
+export type LibroBiblia = { numero: number; nombre: string; testamento: "AT" | "NT" };
 
 /** Una entrada del banco de "Sad but true". */
 export type Frase = {

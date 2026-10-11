@@ -15,6 +15,7 @@ import { mensajeDe } from "../App";
 import { SelectorBancos, SelectorMotor, SelectorRegion, motorInicial, nombreIdioma } from "./comunes";
 import { EditorMontaje } from "./EditorMontaje";
 import { BancoFrases } from "./BancoFrases";
+import { ReferenciasBiblia, SerieBiblia, VersiculoDelGuion } from "./Biblia";
 
 /**
  * Sad but true: diez segundos, sin voz y con el formato cerrado.
@@ -33,13 +34,6 @@ const TONOS: [TonoSadButTrue | "", string][] = [
   ["triste", "triste (sin consuelo, pero sin crueldad)"],
   ["reflexiva", "reflexiva (deja pensando)"],
   ["desmotivadora", "desmotivadora (la verdad que nadie pide)"],
-];
-
-/** En el Antiguo Testamento el cierre no es filosofia de vida: da aliento o pone contexto. */
-const TONOS_BIBLIA: [TonoSadButTrue | "", string][] = [
-  ["", "aliento o historico, el que le vaya a la frase"],
-  ["aliento", "de aliento (esperanza, a veces con un versiculo)"],
-  ["historico", "historico (el contexto de la epoca)"],
 ];
 
 const TIEMPOS = { sorteoSeg: 3, retencionSeg: 0.9, clipSeg: 3.5, cierreSeg: 2 };
@@ -70,12 +64,12 @@ const SECCIONES: { id: SeccionSbt; nombre: string; nota: string; ejemplo: string
   },
   {
     id: "biblia",
-    nombre: "Antiguo Testamento",
+    nombre: "Aprendiendo con la Biblia",
     nota:
-      "Datos reales del Antiguo Testamento que hoy no pasarian por buena practica cristiana, cada uno con su cita, " +
-      "y un cierre de aliento o historico. Con respeto: es historia, no burla. Revisa las citas que escriba la IA " +
-      "antes de publicar; las del banco inicial estan comprobadas.",
-    ejemplo: "leyes de pureza, castigos de la ley, lo que hicieron los patriarcas",
+      "Datos curiosos de la Biblia, en orden de Genesis a Apocalipsis, que hoy no pasarian por buena practica cristiana: " +
+      "cada video abre con el titulo de la serie y lleva su cita exacta, comprobada contra la Reina-Valera 1909. " +
+      "Cierra con aliento o con el contexto historico. Con respeto: es historia, no burla.",
+    ejemplo: "",
   },
 ];
 
@@ -127,8 +121,7 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
       .catch(() => {});
   }, [vista, seccion]);
 
-  // Al cambiar de seccion, lo que habia en pantalla es de otra: fuera. El
-  // tono tambien: los del Antiguo Testamento no son los de las demas.
+  // Al cambiar de seccion, lo que habia en pantalla es de otra: fuera.
   useEffect(() => {
     setGuion(null);
     setTono("");
@@ -275,7 +268,7 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
         Hacer un video
       </button>
       <button className={vista === "banco" ? "activo" : ""} onClick={() => setVista("banco")}>
-        Banco de frases
+        {seccion === "biblia" ? "Referencias" : "Banco de frases"}
       </button>
     </div>
     </>
@@ -285,7 +278,19 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
     return (
       <>
         {pestanas}
-        <BancoFrases catalogo={catalogo} seccion={seccion} />
+        {seccion === "biblia" ? (
+          <ReferenciasBiblia
+            catalogo={catalogo}
+            alUsar={(g, aviso) => {
+              setGuion(g);
+              setOk(aviso);
+              setError("");
+              setVista("video");
+            }}
+          />
+        ) : (
+          <BancoFrases catalogo={catalogo} seccion={seccion} />
+        )}
       </>
     );
   }
@@ -296,6 +301,16 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
       {error && <p className="aviso error">{error}</p>}
       {ok && <p className="aviso ok">{ok}</p>}
 
+      {seccion === "biblia" ? (
+        <SerieBiblia
+          alGuion={(g, aviso) => {
+            setGuion(g);
+            setOk(aviso);
+            setError("");
+          }}
+          alIrAReferencias={() => setVista("banco")}
+        />
+      ) : (
       <section className="tarjeta">
         <h2>1. El sorteo</h2>
         <p className="suave">
@@ -317,7 +332,7 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
           <div>
             <label htmlFor="tonoSbt">Tono del remate</label>
             <select id="tonoSbt" value={tono} onChange={(e) => setTono(e.target.value as TonoSadButTrue | "")}>
-              {(seccion === "biblia" ? TONOS_BIBLIA : TONOS).map(([v, n]) => (
+              {TONOS.map(([v, n]) => (
                 <option key={v} value={v}>
                   {n}
                 </option>
@@ -388,10 +403,12 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
           </button>
         </div>
       </section>
+      )}
 
       {guion && (
         <section className="tarjeta">
           <h2>2. Lee y corrige</h2>
+          <VersiculoDelGuion guion={guion} />
           <div className="campos">
             <div>
               <label htmlFor="tituloSbt">Titulo</label>
@@ -439,7 +456,11 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
 
           <div className="campos" style={{ marginTop: 12 }}>
             <div style={{ gridColumn: "1 / -1" }}>
-              <label htmlFor="fraseSbt">La frase (va sobre el video, un poco desmotivadora)</label>
+              <label htmlFor="fraseSbt">
+                {seccion === "biblia"
+                  ? "La frase (va sobre el video; la cita exacta la pone la app)"
+                  : "La frase (va sobre el video, un poco desmotivadora)"}
+              </label>
               <textarea id="fraseSbt" rows={3} value={guion.frase} onChange={(e) => editar({ frase: e.target.value })} />
             </div>
             <div style={{ gridColumn: "1 / -1" }}>

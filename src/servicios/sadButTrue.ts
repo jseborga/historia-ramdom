@@ -62,7 +62,7 @@ export const NOMBRES_SECCION: Record<Seccion, string> = {
   triste: "Sad but true",
   motivacion: "Motivación",
   sarcasmo: "Sarcasmo",
-  biblia: "Antiguo Testamento",
+  biblia: "Aprendiendo con la Biblia",
 };
 
 /** Lo que tiene que hacer la frase en cada sección, dicho como se le dice al modelo. */
@@ -161,6 +161,16 @@ export const SadButTrueSchema = z.object({
    * no volvía a salir nunca.
    */
   parejas: z.array(ParejaSchema).max(14).default([]),
+  /**
+   * «Aprendiendo con la Biblia»: de qué referencia guardada sale. Con ella, la
+   * cita de la frase la pone el servidor desde el pasaje, no el texto que
+   * llegue, y el versículo literal va en la descripción.
+   */
+  referenciaId: z.string().uuid().optional(),
+  /** El título con el que abre el vídeo, sobre negro, antes del sorteo. */
+  intro: z
+    .object({ titulo: z.string().min(1).max(80), subtitulo: z.string().max(80).default("") })
+    .optional(),
   motorUsado: z.string().max(20).optional(),
   avisoMotor: z.string().max(300).optional(),
 });
@@ -315,7 +325,7 @@ export const HASHTAG_SECCION: Record<Seccion, string> = {
   triste: "sadbuttrue",
   motivacion: "motivacion",
   sarcasmo: "sarcasmo",
-  biblia: "antiguotestamento",
+  biblia: "aprendiendoconlabiblia",
 };
 
 /** Los tiempos del formato, en segundos. Los de fábrica son los del guion. */
@@ -548,6 +558,39 @@ export type OpcionesPistas = TiemposSadButTrue & {
   revelarFrase?: boolean;
 };
 
+/** Lo que dura el título del principio («Aprendiendo con la Biblia»). */
+export const INTRO_SEG = 2.4;
+const ESTILO_INTRO = unColor(BLANCO, { tamano: 80, sombra: 4 });
+
+/**
+ * El título del principio, sobre negro y antes del sorteo: lo corre todo
+ * `INTRO_SEG` hacia delante. Es lo que hace que cada vídeo se reconozca como
+ * un capítulo de la misma serie.
+ */
+function conIntro(
+  pistas: { video: ClipPista[]; textos: RotuloPista[] },
+  intro: { titulo: string; subtitulo?: string },
+): { video: ClipPista[]; textos: RotuloPista[] } {
+  const texto = intro.subtitulo ? `${intro.titulo}\n${intro.subtitulo}` : intro.titulo;
+  return {
+    video: [ClipPistaSchema.parse({ id: randomUUID(), clip: null, color: NEGRO, duracion: INTRO_SEG }), ...pistas.video],
+    textos: [
+      RotuloPistaSchema.parse({
+        id: randomUUID(),
+        inicio: 0,
+        duracion: INTRO_SEG - 0.2,
+        texto,
+        estilo: ESTILO_INTRO,
+        // El libro, en el amarillo de lo que gana el sorteo.
+        resalte: intro.subtitulo ? { texto: intro.subtitulo, color: AMARILLO } : null,
+        animacion: "suave",
+        lectura: "todo",
+      }),
+      ...pistas.textos.map((t) => ({ ...t, inicio: Number((t.inicio + INTRO_SEG).toFixed(3)) })),
+    ],
+  };
+}
+
 /**
  * Monta las dos pistas del formato: tres planos (negro, vídeo, negro) y los
  * rótulos con sus tiempos ya calculados.
@@ -674,7 +717,7 @@ export function pistasDeSadButTrue(
     }),
   );
 
-  return { video, textos };
+  return s.intro ? conIntro({ video, textos }, s.intro) : { video, textos };
 }
 
 /** Lo que se publica: la frase, el remate y las etiquetas. */
