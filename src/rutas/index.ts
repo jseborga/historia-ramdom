@@ -13,6 +13,7 @@ import { rutasSadButTrue } from "./sadButTrue.js";
 import { rutasProducciones } from "./producciones.js";
 import { rutasBiblia } from "./biblia.js";
 import { rutasPensadores } from "./pensadores.js";
+import { rutasInterno } from "./interno.js";
 import { rutasLegales } from "./legales.js";
 import { rutasVerificacion } from "./verificacion.js";
 
@@ -31,6 +32,7 @@ export async function registrarRutas(app: FastifyInstance) {
   await rutasProducciones(app);
   await rutasBiblia(app);
   await rutasPensadores(app);
+  await rutasInterno(app);
   await rutasLegales(app);
   await rutasVerificacion(app);
 }

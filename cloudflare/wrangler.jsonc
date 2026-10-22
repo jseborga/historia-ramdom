@@ -1,0 +1,49 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // El nombre del Worker: la web queda en https://estudio-historias.<tu-subdominio>.workers.dev
+  "name": "estudio-historias",
+  "main": "src/index.ts",
+  "upload_source_maps": true,
+  "compatibility_date": "2026-10-22",
+  "observability": { "enabled": true },
+
+  // Red de seguridad: una vez por hora se comprueba que haya alarma puesta para
+  // despertar el estudio antes del siguiente trabajo programado.
+  "triggers": { "crons": ["7 * * * *"] },
+
+  "containers": [
+    {
+      "class_name": "Estudio",
+      "scheduling_policy": "durable_object",
+      "images": {
+        // La misma imagen que Easypanel, construida desde la raíz del repositorio,
+        // con FUSE y tigrisfs para montar R2 (CON_R2) y arranque como root solo para
+        // montarlo (USUARIO); la app corre como `node`.
+        "base": {
+          "dockerfile": "../Dockerfile",
+          "build_context": "..",
+          "build_vars": { "CON_R2": "true", "USUARIO": "root" }
+        }
+      }
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "ESTUDIO", "class_name": "Estudio" }]
+  },
+  "exports": {
+    "Estudio": { "type": "durable-object", "storage": "sqlite" }
+  },
+
+  // Lo que no es secreto. Los secretos (claves, contraseñas, la base de datos)
+  // van con `npx wrangler secret put NOMBRE`: ver cloudflare/README.md.
+  "vars": {
+    // Cambia el subdominio por el tuyo (o pon tu dominio propio).
+    "PUBLIC_URL": "https://estudio-historias.TU-SUBDOMINIO.workers.dev",
+    // standard-2 = 1 vCPU, 6 GiB, 12 GB de disco. standard-3 (2 vCPU) renderiza el doble de rápido y cuesta más.
+    "INSTANCIA": "standard-2",
+    "R2_BUCKET": "estudio-historias",
+    // Cloudflare no deja subir más de 100 MB por petición en los planes Free y Pro.
+    "MAX_CLIP_MB": "95",
+    "LEGAL_JURISDICCION": "Bolivia"
+  }
+}

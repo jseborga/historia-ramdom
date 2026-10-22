@@ -9,3 +9,6 @@ data
 *.wav
 *.mp3
 docs
+cloudflare/node_modules
+cloudflare/.wrangler
+cloudflare/.dev.vars

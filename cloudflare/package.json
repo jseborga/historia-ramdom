@@ -1,0 +1,16 @@
+{
+  "name": "estudio-historias-cloudflare",
+  "private": true,
+  "type": "module",
+  "description": "Worker que arranca el estudio en Cloudflare Containers y le pasa el tráfico",
+  "scripts": {
+    "tipos": "wrangler types",
+    "comprobar": "wrangler types && tsc --noEmit",
+    "desplegar": "wrangler deploy",
+    "registros": "wrangler tail"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "wrangler": "^4.136.0"
+  }
+}

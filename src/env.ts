@@ -78,6 +78,12 @@ const Env = z.object({
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
   DATA_DIR: z.string().default("/data"),
+  /**
+   * Carpeta de trabajo de los renders, si no es DATA_DIR/trabajo. En
+   * Cloudflare, DATA_DIR es R2 montado (lento para lo que ffmpeg escribe y
+   * borra sin parar) y el trabajo va al disco local del contenedor.
+   */
+  TRABAJO_DIR: z.string().optional(),
   ENCRYPTION_KEY: z
     .string()
     .refine(

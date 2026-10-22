@@ -1,0 +1,13 @@
+# Copia este archivo como .dev.vars solo para `wrangler dev` (no se sube nunca).
+# En producción, cada uno va con: npx wrangler secret put NOMBRE
+DATABASE_URL=postgresql://usuario:clave@servidor/estudio?sslmode=require
+REDIS_URL=rediss://default:clave@servidor:6379
+ENCRYPTION_KEY=
+API_TOKEN=
+ADMIN_EMAIL=
+ADMIN_PASSWORD=
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+GEMINI_API_KEY=
+GROQ_API_KEY=

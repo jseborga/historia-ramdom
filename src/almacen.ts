@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { env, DIR_VIDEOS, DIR_TRABAJO, DIR_MUSICA, DIR_PROYECTOS, DIR_MEDIOS } from "./env.js";
 
 export const rutaVideos = () => join(env.DATA_DIR, DIR_VIDEOS);
-export const rutaTrabajo = () => join(env.DATA_DIR, DIR_TRABAJO);
+export const rutaTrabajo = () => env.TRABAJO_DIR ?? join(env.DATA_DIR, DIR_TRABAJO);
 export const rutaMusica = () => join(env.DATA_DIR, DIR_MUSICA);
 /** Biblioteca de video y foto. */
 export const rutaMedios = () => join(env.DATA_DIR, DIR_MEDIOS);

@@ -13,3 +13,8 @@ data/
 
 # volcado de redis en pruebas locales
 dump.rdb
+
+# Cloudflare
+.wrangler/
+.dev.vars
+cloudflare/worker-configuration.d.ts

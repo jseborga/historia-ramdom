@@ -44,6 +44,19 @@ RUN mkdir -p /opt/piper/voces \
          curl -sSL -o "/opt/piper/voces/$n.onnx.json" "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/$v.onnx.json"; \
        done
 ENV PIPER_BIN=/opt/piper/piper PIPER_VOCES=/opt/piper/voces
+
+# Cloudflare Containers: el disco del contenedor se borra cada vez que duerme,
+# así que /data es un bucket de R2 montado con FUSE (tigrisfs). Solo se
+# instala en esa imagen: --build-arg CON_R2=true (lo pone cloudflare/wrangler.jsonc).
+ARG CON_R2=false
+ARG TIGRISFS_VERSION=1.2.1
+RUN if [ "$CON_R2" = "true" ]; then \
+      apt-get update && apt-get install -y --no-install-recommends fuse3 \
+      && rm -rf /var/lib/apt/lists/* \
+      && curl -fsSL "https://github.com/tigrisdata/tigrisfs/releases/download/v${TIGRISFS_VERSION}/tigrisfs_${TIGRISFS_VERSION}_linux_amd64.tar.gz" \
+         | tar -xz -C /usr/local/bin tigrisfs \
+      && chmod +x /usr/local/bin/tigrisfs; \
+    fi
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build --chown=node:node /app/package.json ./
@@ -53,8 +66,12 @@ COPY --from=build --chown=node:node /app/web/dist ./web/dist
 COPY --from=build --chown=node:node /app/prisma ./prisma
 COPY --from=build --chown=node:node /app/fonts ./fonts
 COPY --from=build --chown=node:node /app/biblia ./biblia
+COPY --chown=node:node cloudflare/arranque.sh ./cloudflare/arranque.sh
 RUN mkdir -p /data/videos /data/trabajo /data/musica && chown -R node:node /data
-USER node
+# En Cloudflare arranca como root solo para montar R2; el script baja a `node`
+# antes de lanzar la app. En Easypanel, `node` desde el principio.
+ARG USUARIO=node
+USER ${USUARIO}
 EXPOSE 3000
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
