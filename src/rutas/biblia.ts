@@ -14,6 +14,7 @@ import {
   guionDeReferencia,
   listarReferencias,
   proponerConIA,
+  temasBiblia,
 } from "../servicios/referencias.js";
 import { conMotivo } from "./errores.js";
 
@@ -32,6 +33,9 @@ export async function rutasBiblia(app: FastifyInstance) {
     LIBROS.map((l) => ({ numero: l.numero, nombre: l.nombre, testamento: l.testamento })),
   );
 
+  /** Los temas de la serie, con lo que abarca cada uno. */
+  app.get("/api/biblia/temas", async () => temasBiblia());
+
   /** Una cita suelta, con su texto: para ver qué dice mientras se escribe. */
   app.get("/api/biblia/cita", async (req, reply) => {
     const { q } = z.object({ q: z.string().min(2).max(80) }).parse(req.query);
@@ -45,6 +49,7 @@ export async function rutasBiblia(app: FastifyInstance) {
         libro: z.coerce.number().int().min(1).max(66).optional(),
         estado: z.enum(["pendiente", "revisar", "lista", ""]).default(""),
         q: z.string().max(80).default(""),
+        tema: z.string().max(80).default(""),
       })
       .parse(req.query);
     return listarReferencias(f);
@@ -83,11 +88,12 @@ export async function rutasBiblia(app: FastifyInstance) {
     return conMotivo(reply, () => completarConIA(o));
   });
 
-  /** Busca más referencias en un libro con IA; solo entran las que se comprueban. */
+  /** Busca más referencias con IA (en un libro, en un tema o los dos); solo entran las que se comprueban. */
   app.post("/api/biblia/proponer", async (req, reply) => {
     const o = z
       .object({
-        libro: z.number().int().min(1).max(66),
+        libro: z.number().int().min(1).max(66).nullable().default(null),
+        tema: z.string().max(80).default(""),
         cuantas: z.number().int().min(1).max(15).default(8),
         motor: MotorCampo,
         modelo: z.string().max(80).nullable().default(null),
@@ -106,13 +112,14 @@ export async function rutasBiblia(app: FastifyInstance) {
         referenciaId: z.string().uuid().optional(),
         modo: z.enum(["siguiente", "azar"]).default("siguiente"),
         rango: RangoCampo,
+        tema: z.string().max(80).default(""),
         titulo: z.string().min(1).max(80).default(TITULO_SERIE),
       })
       .parse(req.body ?? {});
     return conMotivo(reply, async () => {
       let id = o.referenciaId;
       if (!id) {
-        const { referencias, siguiente } = await listarReferencias({ rango: o.rango, estado: "lista" });
+        const { referencias, siguiente } = await listarReferencias({ rango: o.rango, tema: o.tema, estado: "lista" });
         const elegida = o.modo === "azar" ? referencias[Math.floor(Math.random() * referencias.length)] : siguiente;
         if (!elegida) throw new Error("No hay referencias listas: complétalas en «Referencias» (con IA o a mano).");
         id = elegida.id;

@@ -44,7 +44,7 @@ Implementa la guía de `docs/guia-original.md`.
   instrucciones en vez de cantarlos.
 - **Tres idiomas.** Español, inglés y **spanglish**: base en español con el
   inglés en el gancho, que es como se canta la cumbia y el reggaetón.
-- **Sad but true, motivación, sarcasmo y «Aprendiendo con la Biblia».** Once segundos, sin voz: un sorteo
+- **Sad but true, motivación, sarcasmo, «Aprendiendo con la Biblia» y «Grandes pensadores».** Once segundos, sin voz: un sorteo
   de palabras en gris sobre negro que se para en el arranque de la frase
   ganadora, el vídeo terminándola con esas palabras todavía en amarillo, y el
   remate en blanco sobre el negro del cierre. Cuatro secciones con el mismo
@@ -929,6 +929,7 @@ sin voz, en **cuatro secciones** que se montan igual y solo cambian lo que dicen
 | **Motivación** | Algo concreto que levanta el ánimo y se puede comprobar el martes siguiente | Frases de taza: ni «tú puedes» ni «nunca te rindas» |
 | **Sarcasmo** | Lo que sabes que está mal y no quieres escuchar: la excusa, el hábito, la mentira que te cuentas | Apuntar a un grupo o a una persona: el blanco son las excusas de quien mira |
 | **Aprendiendo con la Biblia** | Un dato curioso de la Biblia que hoy no pasaría por buena práctica cristiana, en orden de Génesis a Apocalipsis, con su **cita exacta** comprobada contra el texto; cierra con **aliento** o con el **contexto histórico** | Citar de memoria, burlarse de la fe o presentar al pueblo judío o su religión como algo despreciable |
+| **Grandes pensadores** | Una semilla (lo que urge decir) y el sorteo de nombres de pensadores se para en uno: su **cita con la obra**, y un cierre para hoy | Citas apócrifas o sin obra: cada cita va con su fuente y la IA las deja «por comprobar» |
 
 Se elige arriba del todo y cambia las dos vistas a la vez: qué se le pide a la
 IA y de qué parte del banco se sortea. **Un sorteo nunca mezcla secciones** —ni
@@ -939,8 +940,17 @@ sus ambientes para buscar el vídeo del medio —amanecer y gente en marcha en
 motivación; pantallas, sofá y nevera a las tantas en sarcasmo— y su etiqueta
 al publicar.
 
-Las tres primeras sacan sus frases del banco de frases; la de la Biblia, de sus
-**referencias**, que tienen su propio apartado más abajo.
+Las tres primeras sacan sus frases del banco de frases; la Biblia y los
+pensadores, de sus **referencias** y sus **citas con fuente**, que tienen su
+propio apartado más abajo.
+
+**El vídeo del medio no se repite.** Antes cada vídeo cogía el primer resultado
+de la búsqueda, y como las búsquedas se guardan un día y vienen siempre en el
+mismo orden, dos vídeos con las mismas palabras salían con el mismo clip (en la
+Biblia, casi siempre). Ahora se sortea entre los mejores de todas las
+búsquedas, y se evitan los últimos 60 clips usados en esa sección. La Biblia y
+los pensadores, además, buscan con palabras propias de cada dato
+(«fishing nets» para los mariscos) más unas del tema sorteadas cada vez.
 
 En una instalación que ya tenía banco, la base de las secciones nuevas entra
 sola la primera vez que se usan: se mira sección por sección si está vacía, no
@@ -1365,7 +1375,21 @@ completas; las demás traen el dato y se completan después.
 
 **La serie.** «Preparar la siguiente» toma la primera referencia lista que aún
 no salió, en orden; se puede recorrer toda la Biblia, solo el Antiguo o solo el
-Nuevo Testamento. Cuando salen todas, vuelve a empezar por la menos usada.
+Nuevo Testamento, y todo o **un solo tema**. Cuando salen todas, vuelve a
+empezar por la menos usada.
+
+**Los temas.** Diez, cada uno con su explicación —leyes de pureza, castigos de
+la ley, las mujeres en la ley antigua, esclavitud y guerra, personajes,
+profetas, rarezas y milagros, lo que pidieron los apóstoles, matrimonio y
+familia, dinero y trabajo—, y con sus búsquedas de vídeo. Se filtra por tema en
+la serie y en Referencias, y se le puede pedir a la IA que busque más de un
+tema en toda la Biblia o en un libro.
+
+**El contexto para la IA.** Cada encargo lleva la idea de la serie entera
+(para quién es, qué funciona y qué no, el tono de los cierres), la explicación
+del tema, y dos o tres referencias ya escritas de ese tema como muestra. La IA
+devuelve también qué buscar de vídeo para cada referencia, que se puede
+corregir a mano en Referencias.
 
 - **API**: `GET /api/biblia/referencias` (`rango`, `libro`, `estado`, `q`;
   devuelve también las cuentas y la siguiente), `POST /api/biblia/referencias`,
@@ -1376,6 +1400,48 @@ Nuevo Testamento. Cuando salen todas, vuelve a empezar por la menos usada.
 - **MCP**: `biblia_referencias`, `biblia_cita`, `biblia_guardar_referencia`,
   `biblia_completar`, `biblia_proponer` y `biblia_siguiente` (su guion va tal
   cual a `montar_sad_but_true`).
+
+## Grandes pensadores: de una semilla a una cita con su fuente
+
+El mismo formato que «Aprendiendo con la Biblia», con filosofía clásica y
+universal —Grecia y Roma, Oriente, la Edad Media, la modernidad y el siglo XX—.
+
+1. **La semilla**: lo que urge decir, un tema («la prisa») o una frase
+   («siempre lo dejo para el lunes»).
+2. El vídeo abre con **«Grandes pensadores»** y la semilla («sobre la prisa», o
+   la frase entre comillas).
+3. El **sorteo pasa por nombres de pensadores** y se para en uno.
+4. Sobre el vídeo, **su cita y, debajo, la obra**: *Séneca: «Mientras se
+   aplaza, la vida pasa.» — Cartas a Lucilio*.
+5. El cierre sobre negro: **lo que esa cita le dice hoy a la semilla**, o, si
+   se elige, **otra cita del mismo pensador** (la que más tenga que ver).
+
+En la descripción va la fuente entera: *Fuente: Séneca, Cartas a Lucilio,
+carta 1, 2*.
+
+**De dónde salen las citas.** De un banco con autor, obra y lugar exacto:
+
+- **La base** trae 55 citas de 30 pensadores, comprobadas: cada una está en la
+  obra que se nombra. Las famosas sin fuente («solo sé que no sé nada», casi
+  todo lo que circula de Platón) se quedaron fuera a propósito.
+- **Buscar en el banco (sin IA)** encuentra por la semilla: por los temas de
+  cada cita y por equivalentes de la calle («lo dejo para el lunes» busca
+  postergar, «me comparo» busca envidia, «perdí a alguien» busca muerte).
+- **Buscar con IA** le pide un pensador por época con su cita, su obra, su
+  lugar, el cierre para esa semilla y qué buscar de vídeo. Todo se guarda en
+  el banco **«por comprobar»**: el vídeo se puede hacer, pero la descripción lo
+  dice y la pantalla avisa. Cuando alguien mira la fuente, la marca en
+  **Citas**. La próxima vez, esa semilla ya sale del banco sin IA.
+- De lo encontrado se puede cambiar de pensador con «Usar este».
+- La cita, el autor y la obra **los pone el servidor** desde el banco al
+  montar: si alguien los cambia en el guion, vuelven los guardados.
+
+- **API**: `POST /api/pensadores/buscar` (`semilla`, `modo` `banco` o `ia`,
+  `cierre` `aplicacion` u `otra_cita`, `soloComprobadas`), `POST
+  /api/pensadores/guion` (una cita concreta), `GET/POST /api/pensadores/citas`,
+  `PUT/DELETE /api/pensadores/citas/:id`. Se monta con `POST
+  /api/sadbuttrue/video`.
+- **MCP**: `pensadores_buscar`, `pensadores_citas` y `pensadores_guardar_cita`.
 
 ## Editor de montaje
 

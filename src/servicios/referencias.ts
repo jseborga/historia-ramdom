@@ -17,7 +17,7 @@ import {
   type Pasaje,
   type Testamento,
 } from "./biblia.js";
-import { REFERENCIAS_BASE } from "./bibliaReferencias.js";
+import { REFERENCIAS_BASE, TEMAS_BIBLIA } from "./bibliaReferencias.js";
 import { palabrasDeBusqueda } from "./bancoFrases.js";
 import { esMotor, extraerJSON, textoConMotor, type InformeMotor } from "./guion.js";
 import { SadButTrueSchema, type SadButTrue } from "./sadButTrue.js";
@@ -36,6 +36,45 @@ import { SadButTrueSchema, type SadButTrue } from "./sadButTrue.js";
  */
 
 export const TITULO_SERIE = "Aprendiendo con la Biblia";
+
+/**
+ * La idea de la serie, contada a la IA en cada encargo. Sin esto la IA
+ * completa cada referencia sin saber para quién ni para qué, y salen frases
+ * de catecismo o de burla, que son justo los dos extremos que no sirven.
+ */
+export const CONTEXTO_BIBLIA = [
+  "La serie «Aprendiendo con la Biblia» son vídeos de diez segundos, sin voz, para TikTok y Reels en español (sobre todo Latinoamérica).",
+  "Objetivo: que la gente aprenda qué dice DE VERDAD la Biblia, con curiosidad: datos concretos que sorprenden porque hoy ningún cristiano",
+  "los practicaría, o porque casi nadie los conoce. El público mezcla creyentes y no creyentes, y cualquiera de los dos tiene que poder",
+  "compartir el vídeo sin sentirse atacado.",
+  "Formato: un sorteo de palabras sobre negro que se para en una, la frase con el dato sobre un vídeo, y un cierre sobre negro.",
+  "Lo que funciona: un detalle concreto del texto (un número, un castigo, una costumbre, quién hizo qué) contado en lenguaje de hoy;",
+  "y un cierre de aliento (lo que vino después, muchas veces en el Nuevo Testamento) o de contexto histórico (por qué existía esa norma,",
+  "qué significaba en su época, qué pasó con ella).",
+  "Lo que no: exagerar o sacar el versículo de contexto para escandalizar, la moralina, la burla de la fe o de quien cree,",
+  "y nada que presente al pueblo judío o su religión como atrasados o despreciables.",
+].join("\n");
+
+/** El tema, con su explicación, para el encargo. */
+const temaParaIA = (nombre: string) => {
+  const t = TEMAS_BIBLIA.find((x) => normalizar(x.nombre) === normalizar(nombre));
+  return t ? `${t.nombre}: ${t.descripcion}` : nombre;
+};
+
+/** Los temas de la serie, para los filtros y los encargos. */
+export const temasBiblia = () => TEMAS_BIBLIA.map(({ nombre, descripcion }) => ({ nombre, descripcion }));
+
+/**
+ * Qué buscar en los bancos de vídeo para una referencia: las suyas, si las
+ * tiene, y unas cuantas del tema sorteadas cada vez. Con las del tema fijas,
+ * todas las de un mismo tema salían con el mismo plano.
+ */
+export function busquedasDeVideo(r: { visual: string[]; tema: string }, cuantasDelTema = 3): string[] {
+  const delTema =
+    TEMAS_BIBLIA.find((t) => normalizar(t.nombre) === normalizar(r.tema))?.visual ?? palabrasDeBusqueda(r.tema, "biblia");
+  const sorteadas = [...delTema].sort(() => Math.random() - 0.5).slice(0, cuantasDelTema);
+  return [...new Set([...r.visual.slice(0, 3), ...sorteadas])].slice(0, 6);
+}
 
 export type Rango = "todo" | Testamento;
 export const RANGOS = ["todo", "AT", "NT"] as const;
@@ -91,8 +130,27 @@ export type VistaReferencia = ReturnType<typeof vista>;
  * Mete la base la primera vez (tabla vacía). Solo entra lo que pasa la
  * comprobación: cita que exista y palabras clave que estén en el texto.
  */
+let visualRellenado = false;
+
+/**
+ * En una instalación que ya tenía la base, las búsquedas de vídeo propias de
+ * cada referencia llegaron después: se rellenan una vez, solo donde no hay.
+ */
+async function rellenarVisual() {
+  if (visualRellenado) return;
+  visualRellenado = true;
+  for (const b of REFERENCIAS_BASE) {
+    const p = b.visual?.length ? leerCita(b.cita) : null;
+    if (!p) continue;
+    await db.referenciaBiblica.updateMany({ where: { ...p, visual: { isEmpty: true } }, data: { visual: b.visual } });
+  }
+}
+
 export async function asegurarReferencias(): Promise<number> {
-  if (await db.referenciaBiblica.count()) return 0;
+  if (await db.referenciaBiblica.count()) {
+    await rellenarVisual();
+    return 0;
+  }
   const filas = REFERENCIAS_BASE.flatMap((b) => {
     const p = leerCita(b.cita);
     if (!p || clavesQueFaltan(p, b.claves).length) return [];
@@ -106,6 +164,7 @@ export async function asegurarReferencias(): Promise<number> {
         frase: b.frase ?? "",
         remate: b.remate ?? "",
         tono: b.tono ?? "historico",
+        visual: b.visual ?? [],
         fuente: "MANUAL" as const,
       },
     ];
@@ -116,13 +175,21 @@ export async function asegurarReferencias(): Promise<number> {
 
 const enRango = (libro: number, rango: Rango) => rango === "todo" || libroPorNumero(libro).testamento === rango;
 
-export type FiltroReferencias = { rango?: Rango; libro?: number; estado?: EstadoReferencia | ""; q?: string };
+export type FiltroReferencias = {
+  rango?: Rango;
+  libro?: number;
+  estado?: EstadoReferencia | "";
+  q?: string;
+  /** Solo las de un tema; vacío = todas. */
+  tema?: string;
+};
 
 export async function listarReferencias(f: FiltroReferencias = {}) {
   await asegurarReferencias();
   const rango = f.rango ?? "todo";
+  const tema = f.tema ? normalizar(f.tema) : "";
   const todas = (await db.referenciaBiblica.findMany({ orderBy: [{ orden: "asc" }, { capituloFin: "asc" }] }))
-    .filter((r) => enRango(r.libro, rango))
+    .filter((r) => enRango(r.libro, rango) && (!tema || normalizar(r.tema) === tema))
     .map(vista);
   const q = f.q ? normalizar(f.q) : "";
   const referencias = todas.filter(
@@ -144,6 +211,8 @@ export async function listarReferencias(f: FiltroReferencias = {}) {
     siguiente: siguienteDe(todas),
     /** Los libros que tienen alguna referencia, para el filtro. */
     libros: [...new Set(todas.map((r) => r.libro))].map((n) => ({ numero: n, nombre: libroPorNumero(n).nombre })),
+    /** Los temas: los del catálogo y los que se hayan escrito a mano. */
+    temas: [...new Set([...TEMAS_BIBLIA.map((t) => t.nombre), ...todas.map((r) => r.tema).filter(Boolean)])],
   };
 }
 
@@ -159,8 +228,8 @@ function siguienteDe(todas: VistaReferencia[]): VistaReferencia | null {
   return listas.find((r) => r.usos === menos) ?? null;
 }
 
-export async function siguienteReferencia(rango: Rango = "todo") {
-  return (await listarReferencias({ rango })).siguiente;
+export async function siguienteReferencia(rango: Rango = "todo", tema = "") {
+  return (await listarReferencias({ rango, tema })).siguiente;
 }
 
 // ---------------------------------------------------------------------------
@@ -176,6 +245,7 @@ export const CambioReferencia = z
     frase: z.string().max(300),
     remate: z.string().max(300),
     tono: z.enum(["aliento", "historico"]),
+    visual: z.array(z.string().min(1).max(40)).max(6),
   })
   .partial();
 export type CambioReferencia = z.infer<typeof CambioReferencia>;
@@ -196,6 +266,7 @@ function limpio(c: CambioReferencia) {
     frase: c.frase === undefined ? undefined : sinCitaFinal(t(c.frase)!),
     remate: t(c.remate),
     tono: c.tono,
+    visual: c.visual?.map((v) => v.trim().toLowerCase()).filter(Boolean),
   };
 }
 
@@ -216,6 +287,7 @@ export async function crearReferencia(c: CambioReferencia & { cita: string }, fu
       frase: datos.frase ?? "",
       remate: datos.remate ?? "",
       tono: datos.tono ?? "historico",
+      visual: datos.visual ?? [],
       fuente,
     },
   });
@@ -281,7 +353,7 @@ export async function guionDeReferencia(id: string, titulo = TITULO_SERIE): Prom
     frase: conCita(r.frase, p),
     remate: r.remate,
     tono: r.tono === "aliento" ? "aliento" : "historico",
-    keywords: palabrasDeBusqueda(r.tema || v.libroNombre, "biblia"),
+    keywords: busquedasDeVideo(r),
     hashtags: ["aprendiendoconlabiblia", "biblia", normalizar(v.libroNombre).replace(/\s+/g, "")],
     referenciaId: r.id,
     intro: { titulo, subtitulo: v.libroNombre },
@@ -327,7 +399,18 @@ const ComplementoIA = z.object({
   frase: z.string().max(400),
   remate: z.string().max(400),
   tono: z.string().optional(),
+  visual: z.array(z.string().max(60)).max(6).optional(),
 });
+
+/** Dos o tres ya escritas del mismo tema, como muestra del tono. */
+async function ejemplosDeTema(tema: string, menos: string[]): Promise<string[]> {
+  const hechas = await db.referenciaBiblica.findMany({
+    where: { tema, palabra: { not: "" }, frase: { not: "" }, remate: { not: "" }, id: { notIn: menos } },
+    take: 3,
+    orderBy: { usos: "desc" },
+  });
+  return hechas.map((r) => `${formatearCita(pasajeDe(r))} → palabra «${r.palabra}», frase «${r.frase}», cierre «${r.remate}»`);
+}
 
 /**
  * Completa referencias pendientes con la IA: la palabra del sorteo, la frase
@@ -360,16 +443,25 @@ export async function completarConIA(o: {
 
   const bloques = elegidas.map((r) => {
     const v = vista(r);
-    return [`id: ${r.id}`, `cita: ${v.cita}`, `texto (Reina-Valera 1909): «${v.texto.slice(0, 900)}»`, r.dato ? `lo curioso: ${r.dato}` : ""]
+    return [
+      `id: ${r.id}`,
+      `cita: ${v.cita}`,
+      `texto (Reina-Valera 1909): «${v.texto.slice(0, 900)}»`,
+      r.tema ? `tema: ${temaParaIA(r.tema)}` : "",
+      r.dato ? `lo curioso: ${r.dato}` : "",
+    ]
       .filter(Boolean)
       .join("\n");
   });
+  const temas = [...new Set(elegidas.map((r) => r.tema).filter(Boolean))];
+  const ejemplos = (await Promise.all(temas.map((t) => ejemplosDeTema(t, elegidas.map((r) => r.id))))).flat().slice(0, 4);
   const prompt = [
-    "Vas a completar referencias de la serie de vídeos cortos «Aprendiendo con la Biblia»: datos curiosos de la Biblia",
-    "que hoy no pasarían por buena práctica cristiana, contados con respeto. Cada vídeo: un sorteo de palabras sobre negro",
-    "que se para en una, la frase sobre un vídeo, y un cierre sobre negro.",
+    CONTEXTO_BIBLIA,
     "",
-    "Para CADA referencia escribe:",
+    ejemplos.length ? "Así están escritas otras de la serie (el tono a seguir):" : "",
+    ...ejemplos.map((e) => `- ${e}`),
+    ejemplos.length ? "" : "",
+    "Para CADA referencia de abajo escribe:",
     "- palabra: de una a tres palabras con las que EMPIEZA la frase (lo que se sortea). Ejemplo: 'Los mariscos'.",
     "- frase: lo que dice ESE texto, contado en una o dos líneas (máximo veinte palabras), empezando por la palabra.",
     "  Solo lo que está en el texto que te doy: nada de detalles que no aparezcan ahí. SIN cita: la app la pone sola.",
@@ -381,13 +473,17 @@ export async function completarConIA(o: {
     "  Si el cierre cita otro versículo, ponlo entre paréntesis como '(Marcos 7:19)' y SOLO si estás seguro de que existe y dice eso;",
     "  si dudas, mejor un cierre sin cita. Nunca una burla de la fe ni de quien cree, ni contra el pueblo judío.",
     "- tono: 'aliento' o 'historico', según el cierre.",
+    "- visual: 3 búsquedas EN INGLÉS para un banco de vídeo (Pexels, Pixabay): cosas que se puedan filmar hoy y que evoquen",
+    "  el dato (p. ej. 'fishing nets', 'wool yarn', 'desert caravan'). Nada de Jesús, ángeles, cruces ni texto en pantalla.",
     "",
     "Las referencias:",
     "",
     bloques.join("\n\n"),
     "",
-    'Devuelve exactamente este JSON: { "referencias": [ { "id": "...", "palabra": "...", "frase": "...", "remate": "...", "tono": "aliento|historico" } ] }',
-  ].join("\n");
+    'Devuelve exactamente este JSON: { "referencias": [ { "id": "...", "palabra": "...", "frase": "...", "remate": "...", "tono": "aliento|historico", "visual": ["...", "...", "..."] } ] }',
+  ]
+    .filter((l, i, a) => l !== "" || a[i - 1] !== "")
+    .join("\n");
 
   const informe: InformeMotor = {};
   const crudo = await textoConMotor(o.motor, prompt, o.modelo, "es", "bolivia", false, informe);
@@ -408,6 +504,9 @@ export async function completarConIA(o: {
         frase: sinCitaFinal(c.data.frase.replace(/\s+/g, " ").trim()),
         remate: c.data.remate.replace(/\s+/g, " ").trim(),
         tono: c.data.tono === "aliento" ? "aliento" : "historico",
+        ...(c.data.visual?.length
+          ? { visual: c.data.visual.map((v) => v.trim().toLowerCase()).filter((v) => v && v.length <= 40).slice(0, 4) }
+          : {}),
         fuente: "IA",
       },
     });
@@ -429,23 +528,40 @@ const PropuestaIA = z.object({
  * cita exista y que esas palabras estén en el texto de 1909. Lo que no pasa,
  * no entra: así una cita inventada o con el número cambiado se queda fuera.
  */
-export async function proponerConIA(o: { libro: number | string; cuantas?: number; motor: string; modelo?: string | null }) {
+export async function proponerConIA(o: {
+  /** Un libro; sin él, toda la Biblia (dentro del tema, si lo hay). */
+  libro?: number | string | null;
+  tema?: string;
+  cuantas?: number;
+  motor: string;
+  modelo?: string | null;
+}) {
   if (!esMotor(o.motor)) throw new Error(`Motor desconocido: ${o.motor}`);
-  const libro = typeof o.libro === "number" ? libroPorNumero(o.libro) : libroPorNombre(o.libro);
-  if (!libro) throw new Error("Ese libro no existe");
-  const ya = (await db.referenciaBiblica.findMany({ where: { libro: libro.numero } })).map((r) => formatearCita(pasajeDe(r)));
+  const libro = o.libro ? (typeof o.libro === "number" ? libroPorNumero(o.libro) : libroPorNombre(o.libro)) : null;
+  if (o.libro && !libro) throw new Error("Ese libro no existe");
+  if (!libro && !o.tema) throw new Error("Elige un libro, un tema o los dos.");
+  const ya = (await db.referenciaBiblica.findMany({ where: libro ? { libro: libro.numero } : {} })).map((r) =>
+    formatearCita(pasajeDe(r)),
+  );
   const cuantas = Math.min(Math.max(o.cuantas ?? 8, 1), 15);
+  const donde = libro ? `en el libro de ${libro.nombre}` : "en toda la Biblia, de Génesis a Apocalipsis";
+  const ejemplo = libro?.nombre ?? "Levítico";
 
   const prompt = [
-    `Busca en el libro de ${libro.nombre} ${cuantas} pasajes con datos curiosos para la serie «Aprendiendo con la Biblia»:`,
-    "leyes, castigos, costumbres o hechos que hoy no pasarían por buena práctica cristiana, o que sorprenden al leerlos.",
-    ya.length ? `Ya están guardados (no los repitas): ${ya.join(", ")}.` : "",
+    CONTEXTO_BIBLIA,
+    "",
+    `Busca ${donde} ${cuantas} pasajes con datos curiosos para la serie: leyes, castigos, costumbres o hechos que hoy no`,
+    "pasarían por buena práctica cristiana, o que sorprenden al leerlos.",
+    o.tema ? `Todos del tema ${temaParaIA(o.tema)}` : "",
+    ya.length ? `Ya están guardados (no los repitas): ${ya.slice(0, 300).join(", ")}.` : "",
     "",
     "Para cada uno:",
-    `- cita: libro capítulo:versículo, o un rango corto ('${libro.nombre} 3:1-4'). La numeración de la Reina-Valera 1909.`,
+    `- cita: libro capítulo:versículo, o un rango corto ('${ejemplo} 3:1-4'). La numeración de la Reina-Valera 1909.`,
     "- claves: de 2 a 4 palabras que aparecen TAL CUAL en ese versículo en la Reina-Valera (la app las busca en el texto",
     "  para comprobar la cita; si no están, la descarta). Mejor sustantivos poco comunes.",
-    "- tema: la familia, en tres o cuatro palabras.",
+    o.tema
+      ? `- tema: «${o.tema}».`
+      : `- tema: uno de estos, el que mejor le vaya: ${TEMAS_BIBLIA.map((t) => t.nombre).join(", ")}.`,
     "- dato: lo curioso, en una línea, contado con respeto.",
     "",
     'Devuelve exactamente este JSON: { "propuestas": [ { "cita": "...", "claves": ["...", "..."], "tema": "...", "dato": "..." } ] }',
@@ -465,7 +581,7 @@ export async function proponerConIA(o: { libro: number | string; cuantas?: numbe
     const c = PropuestaIA.safeParse(x);
     if (!c.success) continue;
     const p = leerCita(c.data.cita);
-    if (!p || p.libro !== libro.numero || !pasajeValido(p)) {
+    if (!p || (libro && p.libro !== libro.numero) || !pasajeValido(p)) {
       descartadas.push({ cita: c.data.cita, motivo: "no existe en la Reina-Valera 1909" });
       continue;
     }
@@ -475,7 +591,9 @@ export async function proponerConIA(o: { libro: number | string; cuantas?: numbe
       continue;
     }
     try {
-      guardadas.push(await crearReferencia({ cita: formatearCita(p), tema: c.data.tema, dato: c.data.dato }, "IA"));
+      guardadas.push(
+        await crearReferencia({ cita: formatearCita(p), tema: o.tema || c.data.tema, dato: c.data.dato }, "IA"),
+      );
     } catch (err) {
       descartadas.push({ cita: formatearCita(p), motivo: err instanceof Error ? err.message : "no se pudo guardar" });
     }

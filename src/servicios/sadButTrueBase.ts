@@ -20,11 +20,11 @@ export type ParejaBase = { palabra: string; texto: string; remate?: string };
 export type FamiliaBase = { tema: string; seccion?: Seccion; parejas: ParejaBase[] };
 
 /**
- * Las secciones del formato. La de siempre es "triste". "biblia" no sale de
- * este banco sino de las referencias bíblicas (src/servicios/referencias.ts),
- * que llevan su cita comprobada contra el texto.
+ * Las secciones del formato. La de siempre es "triste". "biblia" y
+ * "pensadores" no salen de este banco sino de sus propias citas con fuente
+ * (src/servicios/referencias.ts y src/servicios/pensadores.ts).
  */
-export type Seccion = "triste" | "motivacion" | "sarcasmo" | "biblia";
+export type Seccion = "triste" | "motivacion" | "sarcasmo" | "biblia" | "pensadores";
 
 export const FAMILIAS: FamiliaBase[] = [
   {

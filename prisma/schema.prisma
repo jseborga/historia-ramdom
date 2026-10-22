@@ -321,6 +321,8 @@ model ReferenciaBiblica {
   /// El cierre: de aliento o histórico. Sus citas también se comprueban.
   remate       String     @default("")
   tono         String     @default("historico")
+  /// EN INGLÉS: qué buscar en los bancos de vídeo para esta referencia.
+  visual       String[]   @default([])
   fuente       FuenteIdea @default(MANUAL)
   usos         Int        @default(0)
   usadaEn      DateTime?
@@ -329,6 +331,37 @@ model ReferenciaBiblica {
 
   @@unique([libro, capitulo, versiculo, capituloFin, versiculoFin])
   @@index([orden])
+}
+
+/// «Grandes pensadores»: una cita con su autor y su fuente. Las de la base
+/// están comprobadas; las que escribe la IA quedan «por comprobar» hasta que
+/// alguien mire la fuente y la marque.
+model CitaPensador {
+  id         String     @id @default(uuid())
+  autor      String
+  /// La obra de donde sale: «Cartas a Lucilio», «Meditaciones»...
+  obra       String     @default("")
+  /// Dónde dentro de la obra: «carta 1, 2», «libro V, 20».
+  ubicacion  String     @default("")
+  /// La cita, en español, tal como se publica.
+  texto      String
+  /// De qué trata, en palabras sueltas: con ellas se busca por la semilla.
+  temas      String[]   @default([])
+  /// Quién era y de qué va la obra, en una línea.
+  contexto   String     @default("")
+  /// El cierre: lo que dice hoy, sin atribuírselo al autor.
+  remate     String     @default("")
+  /// EN INGLÉS: qué buscar en los bancos de vídeo.
+  visual     String[]   @default([])
+  verificada Boolean    @default(false)
+  fuente     FuenteIdea @default(MANUAL)
+  usos       Int        @default(0)
+  usadaEn    DateTime?
+  creadaEn   DateTime   @default(now())
+  editadaEn  DateTime   @updatedAt
+
+  @@unique([autor, texto])
+  @@index([autor])
 }
 
 /// Ganchos reutilizables: los que mejor retienen se vuelven a usar.

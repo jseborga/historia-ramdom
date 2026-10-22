@@ -442,12 +442,22 @@ const AMBIENTES: Record<Seccion, string[][]> = {
   ],
   // Antiguo Testamento: desierto, piedra, velas y pergamino. Ambiente de
   // época sin estampas religiosas literales, que competirían con la cita.
+  // Grandes pensadores: lo que acompaña a pensar sin ilustrar nada literal.
+  pensadores: [
+    ["old library books", "candle desk writing", "marble columns"],
+    ["mountain fog sunrise", "ocean waves rocks", "forest path morning"],
+    ["starry night sky", "city window rain", "man walking alone"],
+    ["ancient greek ruins", "hourglass sand", "chess board"],
+  ],
   biblia: [
     ["desert dunes wind", "ancient stone ruins", "sunset desert sky"],
     ["candle flame dark", "old book pages", "ancient scroll"],
     ["olive trees wind", "sheep herd hills", "desert night stars"],
   ],
 };
+
+/** Todos los ambientes de una sección, para sortear entre ellos. */
+export const ambientesDe = (seccion: Seccion): string[] => AMBIENTES[seccion].flat();
 
 export function palabrasDeBusqueda(tema: string, seccion: Seccion = "triste"): string[] {
   // Del tema sale siempre el mismo ambiente, no uno al azar: dos vídeos de la

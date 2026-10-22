@@ -16,6 +16,7 @@ import { SelectorBancos, SelectorMotor, SelectorRegion, motorInicial, nombreIdio
 import { EditorMontaje } from "./EditorMontaje";
 import { BancoFrases } from "./BancoFrases";
 import { ReferenciasBiblia, SerieBiblia, VersiculoDelGuion } from "./Biblia";
+import { CitaDelGuion, CitasPensadores, SemillaPensadores } from "./Pensadores";
 
 /**
  * Sad but true: diez segundos, sin voz y con el formato cerrado.
@@ -69,6 +70,14 @@ const SECCIONES: { id: SeccionSbt; nombre: string; nota: string; ejemplo: string
       "Datos curiosos de la Biblia, en orden de Genesis a Apocalipsis, que hoy no pasarian por buena practica cristiana: " +
       "cada video abre con el titulo de la serie y lleva su cita exacta, comprobada contra la Reina-Valera 1909. " +
       "Cierra con aliento o con el contexto historico. Con respeto: es historia, no burla.",
+    ejemplo: "",
+  },
+  {
+    id: "pensadores",
+    nombre: "Grandes pensadores",
+    nota:
+      "Una semilla —lo que urge decir— y el sorteo pasa por nombres de pensadores de la filosofia clasica y universal hasta " +
+      "pararse en uno: su cita con la obra sobre el video y un cierre para hoy. Las citas salen de un banco con su fuente.",
     ejemplo: "",
   },
 ];
@@ -268,7 +277,7 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
         Hacer un video
       </button>
       <button className={vista === "banco" ? "activo" : ""} onClick={() => setVista("banco")}>
-        {seccion === "biblia" ? "Referencias" : "Banco de frases"}
+        {seccion === "biblia" ? "Referencias" : seccion === "pensadores" ? "Citas" : "Banco de frases"}
       </button>
     </div>
     </>
@@ -278,7 +287,16 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
     return (
       <>
         {pestanas}
-        {seccion === "biblia" ? (
+        {seccion === "pensadores" ? (
+          <CitasPensadores
+            alUsar={(g, aviso) => {
+              setGuion(g);
+              setOk(aviso);
+              setError("");
+              setVista("video");
+            }}
+          />
+        ) : seccion === "biblia" ? (
           <ReferenciasBiblia
             catalogo={catalogo}
             alUsar={(g, aviso) => {
@@ -301,7 +319,16 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
       {error && <p className="aviso error">{error}</p>}
       {ok && <p className="aviso ok">{ok}</p>}
 
-      {seccion === "biblia" ? (
+      {seccion === "pensadores" ? (
+        <SemillaPensadores
+          catalogo={catalogo}
+          alGuion={(g, aviso) => {
+            setGuion(g);
+            setOk(aviso);
+            setError("");
+          }}
+        />
+      ) : seccion === "biblia" ? (
         <SerieBiblia
           alGuion={(g, aviso) => {
             setGuion(g);
@@ -409,6 +436,7 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
         <section className="tarjeta">
           <h2>2. Lee y corrige</h2>
           <VersiculoDelGuion guion={guion} />
+          <CitaDelGuion guion={guion} />
           <div className="campos">
             <div>
               <label htmlFor="tituloSbt">Titulo</label>
@@ -459,7 +487,9 @@ export function SadButTrue({ catalogo }: { catalogo: Catalogo }) {
               <label htmlFor="fraseSbt">
                 {seccion === "biblia"
                   ? "La frase (va sobre el video; la cita exacta la pone la app)"
-                  : "La frase (va sobre el video, un poco desmotivadora)"}
+                  : seccion === "pensadores"
+                    ? "La cita (va sobre el video; sale del banco con su obra al montar)"
+                    : "La frase (va sobre el video, un poco desmotivadora)"}
               </label>
               <textarea id="fraseSbt" rows={3} value={guion.frase} onChange={(e) => editar({ frase: e.target.value })} />
             </div>

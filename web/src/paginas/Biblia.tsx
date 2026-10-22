@@ -50,23 +50,29 @@ export function SerieBiblia({
 }) {
   const [titulo, setTitulo] = useState(TITULO_SERIE);
   const [rango, setRango] = useState<Rango>("todo");
+  const [tema, setTema] = useState("");
+  const [temas, setTemas] = useState<{ nombre: string; descripcion: string }[]>([]);
   const [datos, setDatos] = useState<ListaReferencias | null>(null);
   const [ocupado, setOcupado] = useState("");
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    api.get<{ nombre: string; descripcion: string }[]>("/api/biblia/temas").then(setTemas).catch(() => {});
+  }, []);
+
   const cargar = useCallback(() => {
     api
-      .get<ListaReferencias>(`/api/biblia/referencias?rango=${rango}&estado=lista`)
+      .get<ListaReferencias>(`/api/biblia/referencias?${new URLSearchParams({ rango, tema, estado: "lista" })}`)
       .then(setDatos)
       .catch((err) => setError(mensajeDe(err)));
-  }, [rango]);
+  }, [rango, tema]);
   useEffect(cargar, [cargar]);
 
   async function preparar(modo: "siguiente" | "azar") {
     setOcupado(modo);
     setError("");
     try {
-      const g = await api.post<GuionSadButTrue>("/api/biblia/guion", { modo, rango, titulo });
+      const g = await api.post<GuionSadButTrue>("/api/biblia/guion", { modo, rango, tema, titulo });
       alGuion(
         g,
         `${modo === "siguiente" ? "La siguiente de la serie" : "Una al azar"}: ${g.cita}, gana "${g.elegida}". ` +
@@ -106,7 +112,19 @@ export function SerieBiblia({
             ))}
           </select>
         </div>
+        <div>
+          <label htmlFor="temaSerie">Tema</label>
+          <select id="temaSerie" value={tema} onChange={(e) => setTema(e.target.value)}>
+            <option value="">todos, en orden de la Biblia</option>
+            {temas.map((t) => (
+              <option key={t.nombre} value={t.nombre}>
+                {t.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
+      {tema && <p className="suave">{temas.find((t) => t.nombre === tema)?.descripcion}</p>}
       {c && (
         <p className="suave">
           {c.listas} listas de {c.total} referencias · {c.publicadas} ya salieron · {c.pendientes} por completar
@@ -172,6 +190,8 @@ export function ReferenciasBiblia({
   const [rango, setRango] = useState<Rango>("todo");
   const [libro, setLibro] = useState(0);
   const [estado, setEstado] = useState<"" | ReferenciaBiblica["estado"]>("");
+  const [tema, setTema] = useState("");
+  const [temaProponer, setTemaProponer] = useState("");
   const [q, setQ] = useState("");
   const [datos, setDatos] = useState<ListaReferencias | null>(null);
   const [libros, setLibros] = useState<LibroBiblia[]>([]);
@@ -179,19 +199,19 @@ export function ReferenciasBiblia({
   const [modelo, setModelo] = useState<string | null>(null);
   const [tono, setTono] = useState<"" | "aliento" | "historico">("");
   const [cuantas, setCuantas] = useState(6);
-  const [libroProponer, setLibroProponer] = useState(1);
+  const [libroProponer, setLibroProponer] = useState(0);
   const [ocupado, setOcupado] = useState("");
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
 
   const cargar = useCallback(() => {
-    const p = new URLSearchParams({ rango, estado, q });
+    const p = new URLSearchParams({ rango, estado, q, tema });
     if (libro) p.set("libro", String(libro));
     api
       .get<ListaReferencias>(`/api/biblia/referencias?${p}`)
       .then(setDatos)
       .catch((err) => setError(mensajeDe(err)));
-  }, [rango, libro, estado, q]);
+  }, [rango, libro, estado, q, tema]);
   useEffect(cargar, [cargar]);
   useEffect(() => {
     api.get<LibroBiblia[]>("/api/biblia/libros").then(setLibros).catch(() => {});
@@ -232,9 +252,10 @@ export function ReferenciasBiblia({
         guardadas: ReferenciaBiblica[];
         descartadas: { cita: string; motivo: string }[];
         motorUsado: string | null;
-      }>("/api/biblia/proponer", { libro: libroProponer, cuantas: 8, motor, modelo });
+      }>("/api/biblia/proponer", { libro: libroProponer || null, tema: temaProponer, cuantas: 8, motor, modelo });
+      const donde = [libros.find((l) => l.numero === libroProponer)?.nombre, temaProponer].filter(Boolean).join(" · ");
       return (
-        `${r.guardadas.length} nuevas en ${libros.find((l) => l.numero === libroProponer)?.nombre ?? "ese libro"}` +
+        `${r.guardadas.length} nuevas en ${donde || "la Biblia"}` +
         (r.guardadas.length ? `: ${r.guardadas.map((g) => g.cita).join(", ")}` : "") +
         "." +
         (r.descartadas.length
@@ -295,9 +316,21 @@ export function ReferenciasBiblia({
           <div>
             <label htmlFor="libroProponer">Buscar mas datos curiosos en</label>
             <select id="libroProponer" value={libroProponer} onChange={(e) => setLibroProponer(Number(e.target.value))}>
+              <option value={0}>toda la Biblia</option>
               {libros.map((l) => (
                 <option key={l.numero} value={l.numero}>
                   {l.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="temaProponer">Del tema</label>
+            <select id="temaProponer" value={temaProponer} onChange={(e) => setTemaProponer(e.target.value)}>
+              <option value="">cualquiera</option>
+              {(datos?.temas ?? []).map((t) => (
+                <option key={t} value={t}>
+                  {t}
                 </option>
               ))}
             </select>
@@ -308,7 +341,7 @@ export function ReferenciasBiblia({
           solo guarda las que pasan. Las que no, se dicen y se descartan.
         </p>
         <div className="pie">
-          <button onClick={proponer} disabled={ocupado !== ""}>
+          <button onClick={proponer} disabled={ocupado !== "" || (!libroProponer && !temaProponer)}>
             {ocupado === "proponer" ? "Buscando..." : "Buscar con IA (y comprobar)"}
           </button>
         </div>
@@ -336,6 +369,17 @@ export function ReferenciasBiblia({
               {(datos?.libros ?? []).map((l) => (
                 <option key={l.numero} value={l.numero}>
                   {l.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="temaRef">Tema</label>
+            <select id="temaRef" value={tema} onChange={(e) => setTema(e.target.value)}>
+              <option value="">todos</option>
+              {(datos?.temas ?? []).map((t) => (
+                <option key={t} value={t}>
+                  {t}
                 </option>
               ))}
             </select>
@@ -401,7 +445,12 @@ function TarjetaReferencia({
   const [abierto, setAbierto] = useState(false);
   const [b, setB] = useState(r);
   useEffect(() => setB(r), [r]);
-  const cambiado = (["tema", "dato", "palabra", "frase", "remate", "tono"] as const).some((k) => b[k] !== r[k]);
+  const [visual, setVisual] = useState(r.visual.join(", "));
+  useEffect(() => setVisual(r.visual.join(", ")), [r]);
+  const listaVisual = visual.split(",").map((v) => v.trim()).filter(Boolean);
+  const cambiado =
+    (["tema", "dato", "palabra", "frase", "remate", "tono"] as const).some((k) => b[k] !== r[k]) ||
+    listaVisual.join("|") !== r.visual.join("|");
 
   async function guardar() {
     try {
@@ -412,6 +461,7 @@ function TarjetaReferencia({
         frase: b.frase,
         remate: b.remate,
         tono: b.tono,
+        visual: listaVisual.slice(0, 6),
       });
       alCambiar();
     } catch (err) {
@@ -475,6 +525,12 @@ function TarjetaReferencia({
             <div style={{ gridColumn: "1 / -1" }}>
               <label htmlFor={`rem-${r.id}`}>Cierre (si cita, entre parentesis: «(Marcos 7:19)»)</label>
               <textarea id={`rem-${r.id}`} rows={2} value={b.remate} onChange={(e) => setB({ ...b, remate: e.target.value })} />
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label htmlFor={`vis-${r.id}`}>
+                Que buscar de video (en ingles, separado por comas; vacio = los del tema, sorteados)
+              </label>
+              <input id={`vis-${r.id}`} value={visual} placeholder="fishing nets, fish market" onChange={(e) => setVisual(e.target.value)} />
             </div>
             <div>
               <label htmlFor={`tono-${r.id}`}>Tono del cierre</label>

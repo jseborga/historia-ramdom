@@ -369,7 +369,7 @@ export type TonoSadButTrue = "feliz" | "triste" | "reflexiva" | "desmotivadora" 
  * y el remate. Es todo lo que hay: el resto del formato son los tiempos.
  */
 /** Las secciones de "Sad but true": mismo formato, distinto tono. */
-export type SeccionSbt = "triste" | "motivacion" | "sarcasmo" | "biblia";
+export type SeccionSbt = "triste" | "motivacion" | "sarcasmo" | "biblia" | "pensadores";
 
 export type GuionSadButTrue = {
   titulo: string;
@@ -395,6 +395,41 @@ export type GuionSadButTrue = {
   /** Con referencia: la cita exacta y el versiculo literal (Reina-Valera 1909). */
   cita?: string;
   versiculo?: string;
+  /** Grandes pensadores: la cita guardada de la que sale, su fuente y si esta comprobada. */
+  citaId?: string;
+  fuenteCompleta?: string;
+  contexto?: string;
+  verificada?: boolean;
+};
+
+/** Una cita de "Grandes pensadores", con su fuente. */
+export type CitaPensador = {
+  id: string;
+  autor: string;
+  obra: string;
+  ubicacion: string;
+  texto: string;
+  temas: string[];
+  contexto: string;
+  remate: string;
+  visual: string[];
+  verificada: boolean;
+  fuente: "MANUAL" | "IA" | "REDDIT";
+  usos: number;
+  fuenteCompleta: string;
+};
+
+export type ListaCitas = {
+  citas: CitaPensador[];
+  autores: string[];
+  cuentas: { total: number; comprobadas: number; porComprobar: number; usadas: number };
+};
+
+export type BusquedaPensadores = {
+  guion: GuionSadButTrue;
+  encontradas: (CitaPensador & { remateSemilla?: string })[];
+  motorUsado?: string;
+  avisoMotor?: string | null;
 };
 
 /** Una referencia de "Aprendiendo con la Biblia", con su cita comprobada. */
@@ -417,6 +452,8 @@ export type ReferenciaBiblica = {
   usos: number;
   usadaEn: string | null;
   estado: "pendiente" | "revisar" | "lista";
+  /** EN INGLES: lo que se busca en los bancos de video para esta referencia. */
+  visual: string[];
   avisos: string[];
   citasRemate: { original: string; cita: string | null; texto: string | null }[];
 };
@@ -426,6 +463,7 @@ export type ListaReferencias = {
   cuentas: { total: number; listas: number; pendientes: number; revisar: number; publicadas: number };
   siguiente: ReferenciaBiblica | null;
   libros: { numero: number; nombre: string }[];
+  temas: string[];
 };
 
 export type LibroBiblia = { numero: number; nombre: string; testamento: "AT" | "NT" };

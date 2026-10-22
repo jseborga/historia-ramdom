@@ -3,7 +3,7 @@ import { z } from "zod";
 import { crearCarpetaProyecto } from "../almacen.js";
 import { buscarPreset } from "../render/presets.js";
 import { IdiomaCampo, MOTORES } from "../servicios/guion.js";
-import { elegirClips, esBancoElegible, esMedio, type TipoMedio } from "../servicios/clips.js";
+import { clipsRecientes, elegirClips, esBancoElegible, esMedio, recordarClips, type TipoMedio } from "../servicios/clips.js";
 import { ProyectoSchema, PublicacionSchema } from "../servicios/proyecto.js";
 import {
   SECCIONES,
@@ -28,6 +28,7 @@ import { db } from "../db.js";
 import { BancosCampo, MediosCampo } from "./historias.js";
 import { conMotivo } from "./errores.js";
 import { asegurarCitas, guionDeReferencia, listarReferencias, marcarUsada } from "../servicios/referencias.js";
+import { asegurarCitaDeGuion, buscarEnBanco, guionDeCita, marcarCitaUsada } from "../servicios/pensadores.js";
 
 /**
  * Sad but true: sorteo de palabras sobre negro, la frase sobre un vídeo
@@ -88,6 +89,13 @@ export async function rutasSadButTrue(app: FastifyInstance) {
     const p = PeticionSchema.parse(req.body);
     // En la Biblia el guion no se escribe libre: sale de una referencia
     // guardada, con la cita comprobada contra el texto.
+    if (p.seccion === "pensadores") {
+      return reply.code(400).send({
+        error:
+          "«Grandes pensadores» no escribe guiones libres: busca por la semilla en /api/pensadores/buscar (en el banco o con IA), " +
+          "que guarda cada cita con su autor y su obra.",
+      });
+    }
     if (p.seccion === "biblia") {
       return reply.code(400).send({
         error:
@@ -114,6 +122,14 @@ export async function rutasSadButTrue(app: FastifyInstance) {
         idioma: IdiomaCampo.default("es"),
       })
       .parse(req.body ?? {});
+    if (p.seccion === "pensadores") {
+      // Al azar, de las citas comprobadas: la semilla, si la hay, es el tema.
+      return conMotivo(reply, async () => {
+        const halladas = await buscarEnBanco(p.tema, { soloComprobadas: true });
+        if (!halladas.length) throw new Error("No hay citas comprobadas para eso.");
+        return guionDeCita(halladas[0].id, { semilla: p.tema, cercanos: halladas.map((c) => c.autor) });
+      });
+    }
     if (p.seccion === "biblia") {
       // Al azar, pero de las referencias listas: nunca de un texto sin cita comprobada.
       return conMotivo(reply, async () => {
@@ -207,17 +223,27 @@ export async function rutasSadButTrue(app: FastifyInstance) {
     // Las citas, comprobadas antes de montar nada: la de la frase sale del
     // pasaje guardado y las del cierre tienen que existir.
     let comprobado: Awaited<ReturnType<typeof asegurarCitas>>;
+    let pensador: Awaited<ReturnType<typeof asegurarCitaDeGuion>>;
     try {
       comprobado = await asegurarCitas(pedido);
+      // Grandes pensadores: cita, autor y obra, desde la cita guardada.
+      pensador = await asegurarCitaDeGuion(comprobado.guion);
     } catch (err) {
       return reply.code(422).send({ error: err instanceof Error ? err.message : "Cita no válida" });
     }
-    const guion = comprobado.guion;
+    const guion = pensador.guion;
 
-    const [clip] = await elegirClips([{ keywords: guion.keywords }], new Set(), {}, {
-      bancos: bancos.filter(esBancoElegible),
-      medios: medios.filter(esMedio) as TipoMedio[],
-    });
+    // Sin repetir: se evitan los últimos clips de esta sección y se sortea
+    // entre los mejores de cada búsqueda en vez de coger siempre el primero.
+    const ambito = `sadbuttrue:${guion.seccion}`;
+    const [clip] = await elegirClips(
+      [{ keywords: guion.keywords }],
+      await clipsRecientes(ambito),
+      {},
+      { bancos: bancos.filter(esBancoElegible), medios: medios.filter(esMedio) as TipoMedio[] },
+      { variar: true },
+    );
+    if (clip) await recordarClips(ambito, [clip.id]);
 
     const { video, textos } = pistasDeSadButTrue(guion, clip, { ...tiempos, revelarFrase });
     const leido = {
@@ -253,14 +279,20 @@ export async function rutasSadButTrue(app: FastifyInstance) {
     });
     await crearCarpetaProyecto(proyecto.id);
     if (guion.referenciaId) await marcarUsada(guion.referenciaId);
+    if (guion.citaId) await marcarCitaUsada(guion.citaId);
 
     // Con referencia, el versículo literal va en la descripción: quien lo vea
     // puede comprobar la cita sin buscarla.
     const literal = comprobado.cita && comprobado.versiculo
       ? `${comprobado.cita} (Reina-Valera 1909): «${comprobado.versiculo.length > 600 ? `${comprobado.versiculo.slice(0, 600)}…` : comprobado.versiculo}»`
       : "";
-    const descripcion = literal
-      ? [guion.frase, guion.remate, literal, guion.hashtags.map((h) => `#${h}`).join(" ")].filter(Boolean).join("\n\n")
+    // Con cita de pensador, la fuente entera: autor, obra y lugar, y si está comprobada.
+    const fuente = pensador.fuente
+      ? `Fuente: ${pensador.fuente}${pensador.verificada ? "" : " (cita por comprobar)"}`
+      : "";
+    const extra = literal || fuente;
+    const descripcion = extra
+      ? [guion.frase, guion.remate, extra, guion.hashtags.map((h) => `#${h}`).join(" ")].filter(Boolean).join("\n\n")
       : descripcionSadButTrue(guion);
 
     return reply.code(201).send({

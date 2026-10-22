@@ -54,7 +54,7 @@ export const NOMBRES_TONO: Record<Tono, string> = {
  * secciones y no pestañas: lo que distingue una de otra es el encargo a la IA
  * y de qué parte del banco se sortea, no el montaje.
  */
-export const SECCIONES = ["triste", "motivacion", "sarcasmo", "biblia"] as const;
+export const SECCIONES = ["triste", "motivacion", "sarcasmo", "biblia", "pensadores"] as const;
 export type { Seccion };
 export const esSeccion = (v: string): v is Seccion => (SECCIONES as readonly string[]).includes(v);
 
@@ -63,6 +63,7 @@ export const NOMBRES_SECCION: Record<Seccion, string> = {
   motivacion: "Motivación",
   sarcasmo: "Sarcasmo",
   biblia: "Aprendiendo con la Biblia",
+  pensadores: "Grandes pensadores",
 };
 
 /** Lo que tiene que hacer la frase en cada sección, dicho como se le dice al modelo. */
@@ -118,6 +119,12 @@ const ENCARGO: Record<
       "Cada remate es de aliento (esperanza; muchas veces lo que dijo después el Nuevo Testamento, también con su cita) o histórico (el contexto de la época, o qué pasó después con esa costumbre), el que mejor le vaya a su frase. Nunca una burla.",
     tonos: ["aliento", "historico"],
   },
+  pensadores: {
+    formato: "de grandes pensadores (una cita con su autor y su obra)",
+    frase: "La frase es una cita real de un pensador, con su obra.",
+    limite: "Solo citas documentadas en la obra que se nombra.",
+    ejemplo: "el tiempo, el miedo, la ira",
+  },
 };
 
 /** Los tonos de cierre que se ofrecen en cada sección. */
@@ -126,6 +133,7 @@ export const TONOS_SECCION: Record<Seccion, Tono[]> = {
   motivacion: ["feliz", "triste", "reflexiva", "desmotivadora"],
   sarcasmo: ["feliz", "triste", "reflexiva", "desmotivadora"],
   biblia: ENCARGO.biblia.tonos!,
+  pensadores: ["reflexiva"],
 };
 
 /** Una palabra del bombo con su frase y su cierre: una familia sale entera. */
@@ -167,6 +175,8 @@ export const SadButTrueSchema = z.object({
    * llegue, y el versículo literal va en la descripción.
    */
   referenciaId: z.string().uuid().optional(),
+  /** «Grandes pensadores»: la cita guardada de la que sale (autor, cita y obra). */
+  citaId: z.string().uuid().optional(),
   /** El título con el que abre el vídeo, sobre negro, antes del sorteo. */
   intro: z
     .object({ titulo: z.string().min(1).max(80), subtitulo: z.string().max(80).default("") })
@@ -326,6 +336,7 @@ export const HASHTAG_SECCION: Record<Seccion, string> = {
   motivacion: "motivacion",
   sarcasmo: "sarcasmo",
   biblia: "aprendiendoconlabiblia",
+  pensadores: "grandespensadores",
 };
 
 /** Los tiempos del formato, en segundos. Los de fábrica son los del guion. */

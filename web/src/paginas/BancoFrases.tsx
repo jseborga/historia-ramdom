@@ -68,6 +68,7 @@ const NOMBRE_SECCION: Record<SeccionSbt, string> = {
   motivacion: "Motivacion",
   sarcasmo: "Sarcasmo",
   biblia: "Aprendiendo con la Biblia",
+  pensadores: "Grandes pensadores",
 };
 
 /**

@@ -712,15 +712,67 @@ async function buscarEnBancos(keyword: string, o: OpcionesMedios): Promise<Busqu
  * editor para precargar la linea de tiempo y dejar mirar antes de bajar.
  * Devuelve null donde no encontro nada, para que la escena quede en color.
  */
+/**
+ * Los clips que salieron hace poco en un mismo formato, para no repetirlos.
+ *
+ * Las búsquedas se cachean un día y vienen siempre en el mismo orden, así que
+ * sin memoria dos vídeos con las mismas palabras de búsqueda salían con el
+ * mismo clip. Se guardan los últimos `RECIENTES` por ámbito (la sección de Sad
+ * but true, por ejemplo) y se evitan mientras haya otros.
+ */
+const RECIENTES = 60;
+const claveRecientes = (ambito: string) => `clips:recientes:${ambito}`;
+
+export async function clipsRecientes(ambito: string): Promise<Set<string>> {
+  return new Set(await redis.lrange(claveRecientes(ambito), 0, RECIENTES - 1));
+}
+
+export async function recordarClips(ambito: string, ids: string[]) {
+  if (!ids.length) return;
+  await redis.lpush(claveRecientes(ambito), ...ids);
+  await redis.ltrim(claveRecientes(ambito), 0, RECIENTES - 1);
+}
+
+/** Entre cuántos de los mejores de cada búsqueda se sortea al variar. */
+const ENTRE_LOS_MEJORES = 12;
+
 export async function elegirClips(
   escenas: { keywords: string[] }[],
   usados: Set<string> = new Set(),
   /** Clip elegido a mano por escena: indice -> id de clip. */
   preseleccion: Record<number, string> = {},
   medios: OpcionesMedios = {},
+  /**
+   * `variar`: en vez del primero que no esté usado, uno al azar entre los
+   * mejores de todas las palabras de búsqueda. Para los formatos cortos que
+   * se publican en serie, donde el mismo clip dos días seguidos se nota.
+   */
+  o: { variar?: boolean } = {},
 ): Promise<(ClipInfo | null)[]> {
   const yaElegidos = new Set(usados);
   const salida: (ClipInfo | null)[] = [];
+
+  if (o.variar && !Object.keys(preseleccion).length) {
+    for (const escena of escenas) {
+      // Las palabras en otro orden cada vez, y de cada una solo las primeras:
+      // más abajo la búsqueda ya no tiene que ver con lo que se pidió.
+      const palabras = [...escena.keywords].sort(() => Math.random() - 0.5);
+      const vistos = new Map<string, ClipInfo>();
+      for (const keyword of palabras) {
+        for (const c of (await buscarClips(keyword, medios)).slice(0, ENTRE_LOS_MEJORES)) {
+          if (!vistos.has(c.id)) vistos.set(c.id, c);
+        }
+      }
+      const todos = [...vistos.values()];
+      const libres = todos.filter((c) => !yaElegidos.has(c.id));
+      // Si todos están repetidos, uno repetido cualquiera antes que ninguno.
+      const monton = libres.length ? libres : todos;
+      const elegido = monton.length ? monton[Math.floor(Math.random() * monton.length)] : null;
+      if (elegido) yaElegidos.add(elegido.id);
+      salida.push(elegido);
+    }
+    return salida;
+  }
 
   for (const [i, escena] of escenas.entries()) {
     let elegido: ClipInfo | undefined;

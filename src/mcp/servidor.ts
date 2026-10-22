@@ -459,7 +459,12 @@ servidor.registerTool(
           tono: z.enum(["feliz", "triste", "reflexiva", "desmotivadora", "aliento", "historico"]).optional(),
           keywords: z.array(z.string().max(40)).min(1).max(6).describe("EN INGLES: con esto se busca el video"),
           hashtags: z.array(z.string().max(40)).max(8).optional(),
-          seccion: z.enum(["triste", "motivacion", "sarcasmo", "biblia"]).optional(),
+          seccion: z.enum(["triste", "motivacion", "sarcasmo", "biblia", "pensadores"]).optional(),
+          citaId: z
+            .string()
+            .uuid()
+            .describe("Grandes pensadores: la cita guardada de la que sale (la da pensadores_buscar). Cita, autor y obra los pone el servidor")
+            .optional(),
           referenciaId: z
             .string()
             .uuid()
@@ -514,6 +519,7 @@ servidor.registerTool(
     inputSchema: {
       rango: z.enum(["todo", "AT", "NT"]).describe("Toda la Biblia, Antiguo o Nuevo Testamento").optional(),
       libro: z.number().int().min(1).max(66).describe("1 = Genesis ... 66 = Apocalipsis").optional(),
+      tema: z.string().max(80).describe("Solo las de un tema (la lista sale en la respuesta, en 'temas')").optional(),
       estado: z.enum(["pendiente", "revisar", "lista"]).optional(),
       q: z.string().max(80).describe("Buscar en cita, tema, dato o texto").optional(),
     },
@@ -580,9 +586,10 @@ servidor.registerTool(
   "biblia_proponer",
   {
     description:
-      "Busca con IA mas datos curiosos en un libro de la Biblia. Solo se guardan los que pasan la comprobacion: la cita existe en la Reina-Valera 1909 y su texto contiene las palabras clave que propuso la IA. Devuelve las guardadas y las descartadas con el motivo.",
+      "Busca con IA mas datos curiosos en un libro de la Biblia, en un tema o en los dos. Solo se guardan los que pasan la comprobacion: la cita existe en la Reina-Valera 1909 y su texto contiene las palabras clave que propuso la IA. Devuelve las guardadas y las descartadas con el motivo.",
     inputSchema: {
-      libro: z.number().int().min(1).max(66).describe("1 = Genesis ... 66 = Apocalipsis"),
+      libro: z.number().int().min(1).max(66).describe("1 = Genesis ... 66 = Apocalipsis; sin libro, toda la Biblia").optional(),
+      tema: z.string().max(80).describe("Uno de los temas de la serie").optional(),
       cuantas: z.number().int().min(1).max(15).optional(),
       motor: z.enum(["groq", "openai", "gemini", "claude"]).optional(),
     },
@@ -599,10 +606,73 @@ servidor.registerTool(
       referenciaId: z.string().uuid().optional(),
       modo: z.enum(["siguiente", "azar"]).optional(),
       rango: z.enum(["todo", "AT", "NT"]).optional(),
+      tema: z.string().max(80).describe("La siguiente de un tema").optional(),
       titulo: z.string().max(80).describe("Titulo de la serie; por defecto 'Aprendiendo con la Biblia'").optional(),
     },
   },
   async (args) => texto(await llamar("/api/biblia/guion", { method: "POST", body: JSON.stringify(args) })),
+);
+
+servidor.registerTool(
+  "pensadores_buscar",
+  {
+    description:
+      "Grandes pensadores: de una semilla (un tema o una frase que urge, p. ej. 'la prisa' o 'siempre empiezo el lunes') al guion del video: sorteo de nombres de pensadores, el elegido con su cita y su obra, y un cierre para hoy. modo 'banco' busca en las citas guardadas sin IA; modo 'ia' le pide a la IA un pensador por epoca, y lo guarda todo en el banco 'por comprobar'. Devuelve el guion (va tal cual a montar_sad_but_true) y los demas encontrados.",
+    inputSchema: {
+      semilla: z.string().max(200),
+      modo: z.enum(["banco", "ia"]).optional(),
+      soloComprobadas: z.boolean().describe("En modo banco, solo citas comprobadas (por defecto si)").optional(),
+      cierre: z.enum(["aplicacion", "otra_cita"]).describe("aplicacion = lo que dice hoy; otra_cita = otra cita del mismo autor").optional(),
+      motor: z.enum(["groq", "openai", "gemini", "claude"]).optional(),
+      titulo: z.string().max(80).describe("Por defecto 'Grandes pensadores'").optional(),
+    },
+  },
+  async (args) => texto(await llamar("/api/pensadores/buscar", { method: "POST", body: JSON.stringify(args) })),
+);
+
+servidor.registerTool(
+  "pensadores_citas",
+  {
+    description:
+      "El banco de Grandes pensadores: citas con autor, obra, lugar exacto, temas, contexto y si estan comprobadas. Con q busca por tema o semilla.",
+    inputSchema: {
+      autor: z.string().max(60).optional(),
+      q: z.string().max(200).optional(),
+      verificada: z.enum(["si", "no"]).optional(),
+    },
+  },
+  async (args) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(args)) if (v) q.set(k, String(v));
+    return texto(await llamar(`/api/pensadores/citas?${q}`));
+  },
+);
+
+servidor.registerTool(
+  "pensadores_guardar_cita",
+  {
+    description:
+      "Guarda una cita nueva en Grandes pensadores, o corrige una (con id); verificada=true cuando se ha comprobado la fuente.",
+    inputSchema: {
+      id: z.string().uuid().optional(),
+      autor: z.string().max(40).optional(),
+      obra: z.string().max(120).optional(),
+      ubicacion: z.string().max(60).optional(),
+      texto: z.string().max(400).optional(),
+      temas: z.array(z.string().max(40)).max(10).optional(),
+      contexto: z.string().max(400).optional(),
+      remate: z.string().max(200).optional(),
+      visual: z.array(z.string().max(40)).max(6).optional(),
+      verificada: z.boolean().optional(),
+    },
+  },
+  async ({ id, ...cambios }) =>
+    texto(
+      await llamar(id ? `/api/pensadores/citas/${id}` : "/api/pensadores/citas", {
+        method: id ? "PUT" : "POST",
+        body: JSON.stringify(cambios),
+      }),
+    ),
 );
 
 servidor.registerTool(

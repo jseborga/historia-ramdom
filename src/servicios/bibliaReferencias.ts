@@ -26,6 +26,8 @@ export type ReferenciaBase = {
   frase?: string;
   remate?: string;
   tono?: "aliento" | "historico";
+  /** EN INGLÉS: qué buscar en los bancos de vídeo para ESTA referencia. */
+  visual?: string[];
 };
 
 const PUREZA = "Leyes de pureza";
@@ -36,6 +38,75 @@ const GUERRA = "Esclavitud y guerra";
 const RAREZAS = "Rarezas y milagros";
 const PROFETAS = "Lo que hicieron los profetas";
 const NUEVO = "Lo que pidieron los apóstoles";
+const FAMILIA = "Matrimonio y familia";
+const DINERO = "Dinero y trabajo";
+
+/**
+ * Los temas de la serie. La descripción es lo que se le explica a la IA al
+ * completar o buscar referencias de ese tema; `visual` son búsquedas de vídeo
+ * (en inglés, cosas que salen en un banco de vídeo) para cuando la referencia
+ * no trae las suyas: se sortean unas cuantas cada vez, para que dos vídeos del
+ * mismo tema no salgan con el mismo plano.
+ */
+export const TEMAS_BIBLIA: { nombre: string; descripcion: string; visual: string[] }[] = [
+  {
+    nombre: PUREZA,
+    descripcion:
+      "Lo puro y lo impuro de la ley de Moisés: comida prohibida, ropa, cuerpo, enfermedad, contacto con muertos. Normas de un pueblo nómada que marcaban su identidad.",
+    visual: ["ancient market food", "fish market", "bread oven fire", "olive oil pouring", "linen fabric weaving", "water jar well", "desert camp tents", "spices market"],
+  },
+  {
+    nombre: CASTIGOS,
+    descripcion:
+      "Penas de la ley antigua: lapidaciones, pena de muerte por faltas que hoy serían privadas, castigos colectivos. Lo que dice la ley, no si se aplicó.",
+    visual: ["stone wall ancient", "stones ground", "ancient city gate", "dark storm clouds", "prison bars shadow", "crowd silhouettes", "torch fire night", "scales of justice"],
+  },
+  {
+    nombre: MUJERES,
+    descripcion:
+      "Normas y relatos sobre las mujeres que hoy chocan: herencia, virginidad, impureza, obediencia, ser entregadas o vendidas. Contado con respeto hacia ellas.",
+    visual: ["woman silhouette window", "veil fabric wind", "woman walking desert", "candle woman hands", "old village street", "water jar woman", "mother child hands", "wedding veil"],
+  },
+  {
+    nombre: GUERRA,
+    descripcion:
+      "Esclavitud regulada por la ley y guerras de exterminio: botines, cautivos, ciudades arrasadas. Lo que el texto manda o narra, sin exagerarlo.",
+    visual: ["ancient ruins", "sword blade", "rusty chains", "desert dust storm", "horses running dust", "fortress walls", "smoke ruins", "old map"],
+  },
+  {
+    nombre: PERSONAJES,
+    descripcion:
+      "Patriarcas, reyes y jueces —los héroes de la historia— haciendo cosas que hoy nadie aprobaría: mentiras, poligamia, venganzas, borracheras.",
+    visual: ["old man beard portrait", "shepherd sheep hills", "king crown", "wine glass", "tent desert night", "old hands", "palace columns", "river reeds"],
+  },
+  {
+    nombre: PROFETAS,
+    descripcion:
+      "Gestos extraños, simbólicos o violentos de los profetas: andar desnudo, comer cosas raras, maldecir, matar a sus rivales.",
+    visual: ["man walking desert", "lightning storm", "wilderness mountain", "old scroll", "bonfire night", "sand wind desert", "cave light", "ox field"],
+  },
+  {
+    nombre: RAREZAS,
+    descripcion: "Sucesos asombrosos, números imposibles o detalles curiosos que casi nadie conoce del texto.",
+    visual: ["starry night sky", "solar eclipse", "whale ocean", "fog forest", "salt flats", "comet sky", "donkey field", "stormy sea waves"],
+  },
+  {
+    nombre: NUEVO,
+    descripcion:
+      "Normas del Nuevo Testamento que hoy casi ninguna iglesia sigue al pie de la letra: velo, silencio de las mujeres, esclavos, comida, cabello.",
+    visual: ["ancient roman street", "church candles", "quill letter writing", "mediterranean sea", "stone chapel", "bread table community", "sandals path", "oil lamp"],
+  },
+  {
+    nombre: FAMILIA,
+    descripcion: "Matrimonio, divorcio, hijos y herencia según la ley y los relatos: costumbres de familia que hoy no se aceptarían.",
+    visual: ["wedding rings", "family dinner table", "old couple hands", "children playing village", "house doorway", "bride veil", "cradle baby", "family portrait old"],
+  },
+  {
+    nombre: DINERO,
+    descripcion: "Deudas, intereses, diezmos, salarios y trabajo: lo que la Biblia manda con el dinero y que hoy suena raro.",
+    visual: ["ancient coins", "market stall", "field harvest", "scale weights", "workers field", "gold coins hands", "wheat field wind", "ledger old book"],
+  },
+];
 
 export const REFERENCIAS_BASE: ReferenciaBase[] = [
   // ---- Génesis ----
@@ -72,6 +143,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "Noé plantó una viña, se emborrachó y quedó desnudo en su tienda.",
     remate: "Hasta los héroes de la historia tuvieron su peor noche.",
     tono: "aliento",
+    visual: ["vineyard grapes", "wine barrel", "tent night desert"],
   },
   {
     cita: "Génesis 9:25",
@@ -88,6 +160,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "Abraham le pidió a su esposa que dijera que era su hermana, para salvar el pellejo.",
     remate: "Y era verdad a medias: Sara era su media hermana (Génesis 20:12).",
     tono: "historico",
+    visual: ["desert caravan", "egypt pyramids", "old couple walking"],
   },
   {
     cita: "Génesis 16:2-3",
@@ -146,6 +219,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "Jacob se casó con dos hermanas, Lea y Raquel, con una semana de diferencia.",
     remate: "La ley de Moisés lo prohibió después (Levítico 18:18).",
     tono: "historico",
+    visual: ["wedding veil", "sheep flock well", "two sisters"],
   },
   {
     cita: "Génesis 30:37-39",
@@ -187,6 +261,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "Maldecir a tus padres era delito de muerte.",
     remate: "El mandamiento que quedó es el otro: honra a tu padre y a tu madre (Éxodo 20:12).",
     tono: "aliento",
+    visual: ["elderly parents hands", "family argument", "old couple portrait"],
   },
   {
     cita: "Éxodo 21:20-21",
@@ -197,6 +272,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "Los esclavos podían ser golpeados: si sobrevivían un día o dos, el amo no era castigado.",
     remate: "Pablo escribió que en Cristo ya no hay siervo ni libre (Gálatas 3:28).",
     tono: "aliento",
+    visual: ["rusty chains", "field labor", "rope hands"],
   },
   {
     cita: "Éxodo 21:24",
@@ -207,6 +283,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "Ojo por ojo, diente por diente, mano por mano, pie por pie.",
     remate: "Era un límite a la venganza. Jesús pidió más: la otra mejilla (Mateo 5:39).",
     tono: "historico",
+    visual: ["eye close up", "scales of justice", "clenched fist"],
   },
   {
     cita: "Éxodo 21:28",
@@ -223,6 +300,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "La hechicera no debía quedar con vida.",
     remate: "Siglos después, ese versículo se usó para justificar la caza de brujas en Europa.",
     tono: "historico",
+    visual: ["herbs potion", "candles dark room", "bonfire forest night"],
   },
   {
     cita: "Éxodo 32:28",
@@ -239,6 +317,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "Trabajar en sábado se castigaba con la muerte.",
     remate: "Jesús: el sábado se hizo para el hombre, no el hombre para el sábado (Marcos 2:27).",
     tono: "aliento",
+    visual: ["sunset rest", "tools workshop", "candles table night"],
   },
   {
     cita: "Éxodo 35:3",
@@ -256,6 +335,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "El cerdo estaba prohibido: ni comer su carne ni tocar su cadáver.",
     remate: "A Pedro se le dijo: lo que Dios limpió, no lo llames común (Hechos 10:15).",
     tono: "aliento",
+    visual: ["pigs farm", "pig mud", "butcher market"],
   },
   {
     cita: "Levítico 11:10",
@@ -266,6 +346,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "Los mariscos eran «abominación»: nada del agua sin aletas ni escamas.",
     remate: "Jesús declaró limpios todos los alimentos (Marcos 7:19).",
     tono: "aliento",
+    visual: ["shrimp seafood", "fishing nets", "fish market"],
   },
   {
     cita: "Levítico 11:21-22",
@@ -288,6 +369,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "La lepra obligaba a vivir fuera del campamento gritando «¡Inmundo!».",
     remate: "Jesús tocó a un leproso antes de sanarlo (Marcos 1:41).",
     tono: "aliento",
+    visual: ["bandaged hands", "lonely figure desert", "camp outskirts"],
   },
   {
     cita: "Levítico 15:19",
@@ -298,6 +380,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "La menstruación dejaba «impura» a la mujer siete días, y a quien la tocara.",
     remate: "Jesús se dejó tocar por una mujer enferma de sangre, y la sanó (Marcos 5:34).",
     tono: "aliento",
+    visual: ["woman alone window", "red fabric", "moon night"],
   },
   {
     cita: "Levítico 18:18",
@@ -320,6 +403,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "La barba no se podía tocar en sus puntas, ni el pelo cortarse en redondo.",
     remate: "Por eso muchos judíos ortodoxos aún llevan barba y patillas largas.",
     tono: "historico",
+    visual: ["beard man portrait", "barber razor", "old man beard"],
   },
   {
     cita: "Levítico 19:28",
@@ -330,6 +414,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "Los tatuajes estaban prohibidos, igual que hacerse cortes por un muerto.",
     remate: "Se ligaban a los ritos de duelo de los pueblos vecinos.",
     tono: "historico",
+    visual: ["tattoo needle", "tattoo arm", "ink skin"],
   },
   {
     cita: "Levítico 20:10",
@@ -340,6 +425,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "El adulterio se pagaba con la muerte, de él y de ella.",
     remate: "Jesús, ante una adúltera: el que esté sin pecado, que tire la primera piedra (Juan 8:7).",
     tono: "aliento",
+    visual: ["stones ground", "crowd judging", "woman alone"],
   },
   {
     cita: "Levítico 20:27",
@@ -362,6 +448,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "Un defecto físico impedía al sacerdote ofrecer en el altar: ciegos, cojos, jorobados.",
     remate: "Nadie vale menos por su cuerpo: Dios mira el corazón (1 Samuel 16:7).",
     tono: "aliento",
+    visual: ["altar fire", "crutches", "hands praying"],
   },
   {
     cita: "Levítico 24:16",
@@ -372,6 +459,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "La blasfemia se castigaba con la muerte: toda la comunidad apedreaba al culpable.",
     remate: "Hoy la fe se propone; no se impone a pedradas.",
     tono: "aliento",
+    visual: ["crowd shouting", "stones", "ancient temple"],
   },
   {
     cita: "Levítico 25:44-46",
@@ -426,6 +514,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "El hijo rebelde y borracho podía morir apedreado por los hombres de su ciudad.",
     remate: "Los rabinos del Talmud dijeron que nunca llegó a aplicarse.",
     tono: "historico",
+    visual: ["teenager drunk", "father son argument", "city gate"],
   },
   {
     cita: "Deuteronomio 22:5",
@@ -442,6 +531,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "La ropa mezclada estaba prohibida: nada de lana y lino en la misma prenda.",
     remate: "Eran señales de un pueblo apartado, no reglas de moda.",
     tono: "historico",
+    visual: ["wool yarn", "linen fabric", "weaving loom"],
   },
   {
     cita: "Deuteronomio 22:20-21",
@@ -531,6 +621,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "Jefté prometió sacrificar lo primero que saliera de su casa. Salió su hija.",
     remate: "Las doncellas de Israel la lloraban cuatro días cada año (Jueces 11:40).",
     tono: "historico",
+    visual: ["girl dancing tambourine", "warrior returning home", "sad father"],
   },
   {
     cita: "Jueces 14:20",
@@ -541,6 +632,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "Sansón pagó una apuesta matando a treinta hombres para quitarles la ropa.",
     remate: "Los jueces de Israel no eran santos: eran caudillos de una época violenta.",
     tono: "historico",
+    visual: ["strong man", "ancient clothes market", "wedding feast"],
   },
   {
     cita: "Jueces 15:4-5",
@@ -612,6 +704,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "David, el rey según el corazón de Dios, mandó a la muerte al marido de Betsabé.",
     remate: "Su arrepentimiento también quedó escrito (Salmo 51).",
     tono: "aliento",
+    visual: ["palace rooftop night", "soldiers battle", "letter wax seal"],
   },
   {
     cita: "1 Reyes 1:1-4",
@@ -634,6 +727,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "Salomón tuvo setecientas esposas y trescientas concubinas.",
     remate: "Y el mismo texto dice que ellas le inclinaron el corazón (1 Reyes 11:4).",
     tono: "historico",
+    visual: ["golden palace", "crown jewels", "women silhouettes"],
   },
   {
     cita: "1 Reyes 18:40",
@@ -662,6 +756,7 @@ export const REFERENCIAS_BASE: ReferenciaBase[] = [
     frase: "Eliseo maldijo a unos muchachos que se burlaron de su calva, y dos osos despedazaron a cuarenta y dos.",
     remate: "En hebreo, «muchachos» también puede ser jóvenes, no niños.",
     tono: "historico",
+    visual: ["bald man", "bears forest", "mountain road"],
   },
   {
     cita: "1 Crónicas 21:1",
