@@ -16,6 +16,9 @@ export const IMG_SRC = [
   "https://pixabay.com",
   // Pixabay sirve las muestras de sus entradas antiguas desde aquí.
   "https://i.vimeocdn.com",
+  // Miniaturas de Coverr: storage. redirige a coverr.co.
+  "https://storage.coverr.co",
+  "https://coverr.co",
   "https://images-assets.nasa.gov",
   // Los tres bancos abiertos (sus muestras pasan por la app, pero si alguna
   // vista usa el enlace directo tiene que poder cargarlo).
@@ -42,6 +45,9 @@ export const MEDIA_SRC = [
   "https://cdn.pixabay.com",
   "https://videos.pixabay.com",
   "https://player.vimeo.com",
+  // Vídeo de Coverr: storage. redirige a cdn.
+  "https://storage.coverr.co",
+  "https://cdn.coverr.co",
   "https://images-assets.nasa.gov",
   // Vídeo de Wikimedia (webm) y de Internet Archive, que sirve desde
   // subdominios distintos en cada descarga.

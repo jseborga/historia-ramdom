@@ -36,6 +36,7 @@ import {
   textoAGuion,
   INSTRUCCIONES_IA,
 } from "../servicios/guionTexto.js";
+import { buscarClipsConIA } from "../servicios/clipsIA.js";
 import { cola, encolarHistoriaSuelta, encolarContinuacion } from "../cola/cola.js";
 import { MAX_LARGO_SEG } from "../render/presets.js";
 import { retrasoHasta } from "../cola/trabajos.js";
@@ -363,6 +364,29 @@ export async function rutasHistorias(app: FastifyInstance) {
     }
 
     return { clips: [...unicos.values()].slice(0, 24), bancos: [...porBanco.values()] };
+  });
+
+  /**
+   * Buscar describiendo lo que se quiere ver, en cualquier idioma: la IA
+   * convierte la descripción en búsquedas en inglés, pregunta a los bancos y
+   * ordena lo que vuelve por lo que cada banco dice de cada pieza.
+   */
+  app.post("/api/clips/ia", async (req) => {
+    const { descripcion, bancos, medios, motor, idioma } = z
+      .object({
+        descripcion: z.string().trim().min(3).max(400),
+        bancos: z.array(z.string().max(20)).max(8).default([]),
+        medios: z.array(z.string().max(20)).max(2).default([]),
+        motor: z.enum(MOTORES).nullable().default(null),
+        idioma: IdiomaCampo.default("es"),
+      })
+      .parse(req.body ?? {});
+    return buscarClipsConIA(
+      descripcion,
+      { bancos: bancos.filter(esBancoElegible), medios: medios.filter(esMedio) as TipoMedio[] },
+      motor,
+      idioma,
+    );
   });
 
   /**

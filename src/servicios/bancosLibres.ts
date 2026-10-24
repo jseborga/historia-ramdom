@@ -79,6 +79,7 @@ export async function buscarOpenverse(keyword: string, medios: TipoMedio[]): Pro
         // La miniatura la sirve la propia Openverse: un solo dominio en vez
         // de los cien de los proveedores originales.
         imagen: r.thumbnail ?? undefined,
+        titulo: r.title ? sinHtml(String(r.title)).slice(0, 120) : undefined,
       },
     });
   }
@@ -155,6 +156,7 @@ async function buscarEnCommons(keyword: string, filetype: string): Promise<Candi
         url: aHttps(String(ii.url)),
         imagen: ii.thumburl ? aHttps(String(ii.thumburl)) : undefined,
         duracion: typeof ii.duration === "number" ? ii.duration : undefined,
+        titulo: String(pagina.title ?? "").replace(/^File:/, "").replace(/\.[a-z0-9]+$/i, "").slice(0, 120) || undefined,
       },
     });
   }
@@ -260,6 +262,7 @@ async function archivoDeItem(doc: Record<string, unknown>): Promise<Candidato | 
       url: `https://archive.org/download/${encodeURIComponent(id)}/${encodeURIComponent(String(elegido.name))}`,
       imagen: `https://archive.org/services/img/${encodeURIComponent(id)}`,
       duracion: Number(elegido.length) > 0 ? Number(elegido.length) : undefined,
+      titulo: doc.title ? sinHtml(String(doc.title)).slice(0, 120) : undefined,
     },
   };
 }

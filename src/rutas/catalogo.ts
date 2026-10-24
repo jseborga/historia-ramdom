@@ -131,6 +131,7 @@ export async function rutasCatalogo(app: FastifyInstance) {
       clips: {
         pexels: Boolean(env.PEXELS_API_KEY),
         pixabay: Boolean(env.PIXABAY_API_KEY),
+        coverr: Boolean(env.COVERR_API_KEY),
         /** Los cuatro abiertos no piden clave: siempre están. */
         nasa: true,
         openverse: true,
@@ -155,6 +156,12 @@ export async function rutasCatalogo(app: FastifyInstance) {
         },
         { id: "pexels", nombre: "Pexels", nota: "Vídeos y fotos libres, con autor.", listo: Boolean(env.PEXELS_API_KEY) },
         { id: "pixabay", nombre: "Pixabay", nota: "Vídeos y fotos libres, con autor.", listo: Boolean(env.PIXABAY_API_KEY) },
+        {
+          id: "coverr",
+          nombre: "Coverr",
+          nota: "Vídeo de banco con pinta de cine (ciudad, naturaleza, gente); gratis y sin obligación de acreditar. Solo vídeo.",
+          listo: Boolean(env.COVERR_API_KEY),
+        },
         { id: "nasa", nombre: "NASA", nota: "Espacio, planetas y misiones; dominio público y sin clave.", listo: true },
         {
           id: "openverse",

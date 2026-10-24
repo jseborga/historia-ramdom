@@ -16,6 +16,7 @@ const CIFRABLES = [
   "GROQ_API_KEY",
   "PEXELS_API_KEY",
   "PIXABAY_API_KEY",
+  "COVERR_API_KEY",
   "OPENVERSE_TOKEN",
   "AMAZON_ACCESS_KEY",
   "AMAZON_SECRET_KEY",
@@ -132,6 +133,12 @@ const Env = z.object({
   // Clips
   PEXELS_API_KEY: z.string().optional(),
   PIXABAY_API_KEY: z.string().optional(),
+  /**
+   * Coverr (coverr.co): vídeo de banco gratis, sin obligación de acreditar.
+   * La clave se pide en coverr.co/developers; de salida va en modo demo,
+   * 50 peticiones por hora (la caché de un día por búsqueda ayuda).
+   */
+  COVERR_API_KEY: z.string().optional(),
   /**
    * Openverse funciona sin registrarse (20 peticiones por minuto, 200 al dia).
    * Con un token de su API esos limites suben; no hace falta para empezar.

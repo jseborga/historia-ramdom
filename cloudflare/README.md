@@ -115,7 +115,7 @@ npx wrangler secret put R2_SECRET_ACCESS_KEY
 
 Y los del resto de la app que uses, con el mismo nombre que en Easypanel:
 `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`,
-`PEXELS_API_KEY`, `PIXABAY_API_KEY`, `TIKTOK_CLIENT_KEY`,
+`PEXELS_API_KEY`, `PIXABAY_API_KEY`, `COVERR_API_KEY`, `TIKTOK_CLIENT_KEY`,
 `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`, `REDDIT_CLIENT_ID`… Todo lo
 que tenga el Worker (vars y secretos) le llega a la app como variable de
 entorno.

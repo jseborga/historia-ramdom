@@ -295,7 +295,7 @@ const STOP = new Set(
 );
 
 /** Sin motor a mano: palabras largas del propio texto, mejor que nada. */
-function keywordsHeuristicas(texto: string): string[] {
+export function keywordsHeuristicas(texto: string): string[] {
   const ws = texto.toLowerCase().replace(/[^\p{L}\s]/gu, " ").split(/\s+/)
     .filter((w) => w.length >= 5 && !STOP.has(w));
   return [...new Set(ws)].slice(0, 2).length ? [...new Set(ws)].slice(0, 2) : ["cinematic"];

@@ -29,9 +29,11 @@ Implementa la guía de `docs/guia-original.md`.
   teasers con los vídeos que vas subiendo.
 - **Miniseries.** Una historia larga planeada de golpe en capítulos, cada uno
   con su corte final, y dos formatos largos (hasta 15 min) para publicarlos.
-- **Bancos de imagen a elegir.** Pexels, Pixabay y la **NASA** (dominio público,
-  sin clave, la buena para ciencia y espacio), con vídeo, fotos o las dos cosas;
-  las fotos se animan solas para que parezcan vídeo.
+- **Bancos de imagen a elegir.** Pexels, Pixabay, Coverr y la **NASA** (dominio
+  público, sin clave, la buena para ciencia y espacio), con vídeo, fotos o las
+  dos cosas; las fotos se animan solas para que parezcan vídeo. Y se puede
+  **buscar con IA**: describes lo que quieres ver y ella propone las búsquedas
+  y ordena lo que vuelve.
 - **Galería.** Biblioteca propia de vídeo y foto: se sube, se guarda de los
   bancos y se compone un montaje con lo elegido, en el orden elegido.
 - **Diálogos.** Dos o tres voces distintas discutiendo un tema, con el rótulo
@@ -175,7 +177,7 @@ ENCRYPTION_KEY=... node dist/scripts/cifrar-secreto.js
 
 Admiten cifrado: `DATABASE_URL`, `REDIS_URL`, `ADMIN_PASSWORD`,
 `ADMIN_PASSWORD_HASH`, las cuatro claves de IA, `PEXELS_API_KEY`,
-`PIXABAY_API_KEY`, `OPENVERSE_TOKEN`, `AMAZON_ACCESS_KEY`, `AMAZON_SECRET_KEY`,
+`PIXABAY_API_KEY`, `COVERR_API_KEY`, `OPENVERSE_TOKEN`, `AMAZON_ACCESS_KEY`, `AMAZON_SECRET_KEY`,
 `TIKTOK_CLIENT_KEY` y `TIKTOK_CLIENT_SECRET`. Si una falla al
 descifrarse, la app no arranca y el registro solo menciona el **nombre** de la
 variable, nunca su valor.
@@ -552,13 +554,14 @@ contradicen ni repiten.
 
 ## De dónde salen las imágenes
 
-Seis bancos, y se eligen a mano, los elige la categoría o los elige **al azar**
+Siete bancos, y se eligen a mano, los elige la categoría o los elige **al azar**
 la propia app:
 
 | Banco | Qué tiene | Clave |
 |---|---|---|
 | **Pexels** | vídeos y fotos verticales de todo | `PEXELS_API_KEY` |
 | **Pixabay** | vídeos y fotos verticales de todo | `PIXABAY_API_KEY` |
+| **Coverr** | vídeo de banco con pinta de cine (ciudad, naturaleza, gente, trabajo); solo vídeo | `COVERR_API_KEY` |
 | **NASA** | espacio, planetas, misiones y la Tierra desde fuera; **dominio público** | ninguna |
 | **Openverse** | cientos de millones de fotos con licencia libre (Flickr, museos, archivos) | ninguna |
 | **Wikimedia Commons** | retratos, cuadros, mapas, primeras ediciones y archivo histórico; también vídeo | ninguna |
@@ -576,6 +579,53 @@ archivo), que es donde más las hay, y buscan en **Commons y Openverse** antes
 que en los bancos de vídeo comercial: un retrato de Marie Curie o un grabado de
 Goya está ahí, no en Pexels. *Historia real* y *crimen* miran además a
 **Internet Archive**, que es donde están los noticiarios.
+
+### Coverr
+
+[Coverr](https://coverr.co) regala vídeo de banco con pinta de cine, también
+para uso comercial y **sin obligación de acreditar** (la app acredita igual:
+`Coverr (Coverr, Coverr License) - https://coverr.co/videos/…`). Solo tiene
+vídeo, y su API no filtra por orientación: se trae lo que haya y lo vertical
+va delante. La clave se saca en [coverr.co/developers](https://coverr.co/developers)
+(hace falta cuenta) y entra como `COVERR_API_KEY`.
+
+Dos cosas que conviene saber:
+
+- La clave sale en **modo demo: 50 peticiones por hora**. Cada búsqueda se
+  cachea un día, así que para buscar a mano sobra; en una serie automática con
+  muchas escenas puede agotarse, y entonces Coverr contesta 429, el buscador lo
+  dice y los demás bancos rellenan. Las 2 000 por hora del modo producción
+  piden su plan de pago.
+- Su API obliga a **avisarles cada vez que se usa un vídeo**
+  (`PATCH /videos/:id/stats/downloads`); la app lo hace al descargarlo para un
+  render o para la Galería. Su licencia prohíbe revender las piezas y entrenar
+  modelos con ellas.
+
+### Buscar con IA: describir lo que se quiere ver
+
+En el buscador de clips (la Galería y el editor de montaje) hay una casilla
+**buscar con IA**. En vez de adivinar las palabras en inglés que entiende cada
+banco, se describe lo que se quiere ver, en el idioma que sea («una abuela
+amasando pan al amanecer»), y la IA hace dos cosas:
+
+1. Convierte la descripción en **tres o cuatro búsquedas en inglés** con
+   ángulos distintos: lo literal, el lugar o el ambiente, un detalle de cerca
+   y una imagen que lo evoque. Una sola búsqueda literal suele traer lo mismo
+   que ya salía a mano.
+2. Con lo que trajeron los bancos, **elige y ordena**: cada pieza va con el
+   título o las etiquetas que da su banco (Coverr y la NASA dan título, Pixabay
+   etiquetas, Pexels lo lleva en la dirección de la ficha) y el modelo dice
+   cuáles encajan. Salen primero «lo que mejor encaja, según la IA» y debajo el
+   resto, por si acaso.
+
+Las búsquedas que hizo se ven y se pueden repetir a mano con un clic, para
+afinar. Sin motor de IA con clave, o si el modelo falla, se busca por las
+palabras de la descripción y se avisa.
+
+- **API**: `POST /api/clips/ia` con `descripcion`, y opcionalmente `bancos`,
+  `medios`, `motor` e `idioma`. Devuelve `clips`, `bancos`, `busquedas`,
+  `destacados` (cuántos de los primeros eligió la IA) e `informe`.
+- **MCP**: `buscar_clips`, con `descripcion` (con IA) o `keywords` (tal cual).
 
 ### Las licencias no son todas iguales
 
@@ -1678,7 +1728,7 @@ API desplegada usando `API_TOKEN`. No abre ningún puerto nuevo en el servidor.
 ```
 
 Herramientas disponibles: `catalogo`, `diagnostico`, `listar_series`,
-`listar_historias`, `listar_categorias`, `plantear_historia`, `escribir_guion`,
+`listar_historias`, `listar_categorias`, `buscar_clips`, `plantear_historia`, `escribir_guion`,
 `crear_historia`, `programar_subida`, `listar_ideas`, `agregar_ideas`,
 `importar_musica_suno`, `crear_videoclip`, `sugerir_lineamientos`,
 `unir_canciones`, `sad_but_true`, `sortear_sad_but_true`,

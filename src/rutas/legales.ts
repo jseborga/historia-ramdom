@@ -162,7 +162,7 @@ imprescindible a estos proveedores, cada uno con su propia política:</p>
 <ul>
   <li><strong>Motores de texto</strong> (Anthropic, Google, OpenAI o Groq, según cuál se configure):
       reciben las instrucciones y el texto del guion que se les pide escribir.</li>
-  <li><strong>Bancos de imagen</strong> (Pexels, Pixabay, NASA, Openverse, Wikimedia Commons,
+  <li><strong>Bancos de imagen</strong> (Pexels, Pixabay, Coverr, NASA, Openverse, Wikimedia Commons,
       Internet Archive): reciben las palabras de búsqueda.</li>
   <li><strong>Amazon</strong> (Product Advertising API), si está configurada: recibe los términos de
       búsqueda o el código del producto.</li>
@@ -243,7 +243,7 @@ our own models.</p>
 <h2>3. Sharing</h2>
 <p>Data is never sold or shared for commercial purposes. The app sends the minimum necessary to:
 text engines (Anthropic, Google, OpenAI or Groq — the script prompt and text); stock media banks
-(Pexels, Pixabay, NASA, Openverse, Wikimedia Commons, Internet Archive — the search keywords);
+(Pexels, Pixabay, Coverr, NASA, Openverse, Wikimedia Commons, Internet Archive — the search keywords);
 Amazon’s Product Advertising API, if configured (search terms or product code); TikTok (the video and
 its caption, when the operator publishes); and the hosting provider running the server.</p>
 
@@ -307,7 +307,7 @@ entran las cuentas que crea el titular.</p>
 vídeo como en la etiqueta correspondiente al publicarlo.</p>
 
 <h2>4. Material de terceros y créditos</h2>
-<p>La aplicación busca vídeo y fotos en Pexels, Pixabay, la NASA, Openverse, Wikimedia Commons e
+<p>La aplicación busca vídeo y fotos en Pexels, Pixabay, Coverr, la NASA, Openverse, Wikimedia Commons e
 Internet Archive, y guarda de cada pieza su autor, su página y su licencia. Quien publica es
 responsable de respetar esa licencia y de mantener los créditos que la app prepara.</p>
 
@@ -374,7 +374,7 @@ publishing in ways that breach the destination platform’s rules. AI-generated 
 such, both in the caption and with the platform’s AI-generated content tag.</p>
 
 <h2>4. Third-party material and credits</h2>
-<p>The app searches Pexels, Pixabay, NASA, Openverse, Wikimedia Commons and the Internet Archive, and
+<p>The app searches Pexels, Pixabay, Coverr, NASA, Openverse, Wikimedia Commons and the Internet Archive, and
 stores each item’s author, source page and licence. Whoever publishes is responsible for honouring
 those licences and keeping the credits the app prepares.</p>
 
