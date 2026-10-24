@@ -69,7 +69,7 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
   const tiktokListo = catalogo.tiktok.configurado && catalogo.tiktok.cuentasConectadas > 0;
   // La NASA no pide clave, así que siempre queda algo donde buscar; sin las
   // otras dos, eso sí, solo hay material de espacio y ciencia.
-  const soloNasa = !catalogo.clips.pexels && !catalogo.clips.pixabay;
+  const soloNasa = !catalogo.clips.pexels && !catalogo.clips.pixabay && !catalogo.clips.coverr;
   const sinClips = soloNasa && !catalogo.clips.nasa;
 
   async function plantear() {
@@ -220,12 +220,12 @@ export function Editor({ catalogo }: { catalogo: Catalogo }) {
       {ok && <p className="aviso ok">{ok}</p>}
       {sinClips && (
         <p className="aviso error">
-          No hay claves de Pexels ni de Pixabay: sin ellas no se pueden buscar clips.
+          No hay claves de Pexels, Pixabay ni Coverr: sin ellas no se pueden buscar clips.
         </p>
       )}
       {!sinClips && soloNasa && (
         <p className="aviso error">
-          Sin claves de Pexels ni de Pixabay solo se puede buscar en la NASA: sirve para ciencia y espacio,
+          Sin claves de Pexels, Pixabay ni Coverr solo se puede buscar en la NASA: sirve para ciencia y espacio,
           no para el resto de temas.
         </p>
       )}

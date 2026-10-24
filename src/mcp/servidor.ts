@@ -107,7 +107,7 @@ const categoriaSchema = z
 const subcategoriaSchema = z.string().max(40).describe("Id de subcategoría; vacío = al azar dentro de la categoría").optional();
 
 const bancosSchema = z
-  .array(z.enum(["pexels", "pixabay", "nasa"]))
+  .array(z.enum(["pexels", "pixabay", "coverr", "nasa", "openverse", "wikimedia", "archive"]))
   .describe("Dónde buscar imagen; vacío = lo que use la categoría (ciencia mira a la NASA)")
   .optional();
 const mediosSchema = z
@@ -168,6 +168,56 @@ servidor.registerTool(
       areas?: unknown;
     };
     return texto({ categorias: c.categorias, areas: c.areas, aleatoria: c.categoriaAleatoria });
+  },
+);
+
+servidor.registerTool(
+  "buscar_clips",
+  {
+    description:
+      "Busca vídeo y foto en los bancos (Pexels, Pixabay, Coverr, NASA, Openverse, Wikimedia Commons, Internet Archive y la biblioteca propia). " +
+      "Con 'descripcion' la IA convierte lo que se quiere ver (en cualquier idioma) en búsquedas en inglés y ordena lo que vuelve; " +
+      "con 'keywords' se busca tal cual (en inglés, hasta 3 separadas por coma). Devuelve de cada clip su id, banco, lo que el banco dice de él, duración y página; " +
+      "el id es lo que se pasa como clip elegido.",
+    inputSchema: {
+      descripcion: z.string().max(400).describe("Lo que se quiere ver; la IA lo convierte en búsquedas").optional(),
+      keywords: z.string().max(200).describe("Búsqueda directa en inglés, hasta 3 separadas por coma").optional(),
+      bancos: z
+        .array(z.string().max(20))
+        .max(8)
+        .describe("aleatorio, biblioteca, pexels, pixabay, coverr, nasa, openverse, wikimedia, archive; vacío = todos los que tengan clave")
+        .optional(),
+      medios: mediosSchema,
+      motor: z.enum(["groq", "openai", "gemini", "claude"]).optional(),
+    },
+  },
+  async ({ descripcion, keywords, bancos, medios, motor }) => {
+    type Resultado = { clips: Record<string, unknown>[] } & Record<string, unknown>;
+    let r: Resultado;
+    if (descripcion?.trim()) {
+      r = (await llamar("/api/clips/ia", {
+        method: "POST",
+        body: JSON.stringify({ descripcion, bancos, medios, motor }),
+      })) as Resultado;
+    } else {
+      if (!keywords?.trim()) throw new Error("Hace falta descripcion o keywords");
+      const q = new URLSearchParams({ keywords });
+      if (bancos?.length) q.set("bancos", bancos.join(","));
+      if (medios?.length) q.set("medios", medios.join(","));
+      r = (await llamar(`/api/clips?${q}`)) as Resultado;
+    }
+    // Sin enlaces: lo que hace falta para elegir, no para descargar.
+    const clips = r.clips.map(({ id, fuente, tipo, titulo, duracion, autor, licencia, pagina }) => ({
+      id,
+      fuente,
+      tipo,
+      titulo,
+      duracion,
+      autor,
+      licencia,
+      pagina,
+    }));
+    return texto({ ...r, clips });
   },
 );
 

@@ -119,6 +119,7 @@ export function Ajustes({
           ))}
           <li>Clips de Pexels: {si(catalogo.clips.pexels)}</li>
           <li>Clips de Pixabay: {si(catalogo.clips.pixabay)}</li>
+          <li>Clips de Coverr: {si(catalogo.clips.coverr ?? false)}</li>
           <li>Claves de TikTok: {si(catalogo.tiktok.configurado)}</li>
           <li>Permisos que se piden a TikTok: {catalogo.tiktok.permisos.join(", ")}</li>
           <li>Los MP4 se conservan {catalogo.retencionDias} dias</li>

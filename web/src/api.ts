@@ -67,6 +67,7 @@ export type Catalogo = {
   clips: {
     pexels: boolean;
     pixabay: boolean;
+    coverr?: boolean;
     nasa?: boolean;
     openverse?: boolean;
     wikimedia?: boolean;
@@ -625,9 +626,18 @@ export type Busqueda = {
   bancos: { banco: string; encontrados: number; error?: string }[];
 };
 
+/** La búsqueda con IA: además, qué buscó, cuántos destacó y con qué motor. */
+export type BusquedaIA = Busqueda & {
+  busquedas: string[];
+  /** Los primeros `destacados` de `clips` son los que la IA eligió. */
+  destacados: number;
+  informe: { motor?: string; modelo?: string; sustituto?: boolean; aviso?: string };
+  aviso?: string;
+};
+
 export type ClipCandidato = {
   id: string;
-  fuente: "pexels" | "pixabay" | "nasa" | "openverse" | "wikimedia" | "archive" | "subido";
+  fuente: "pexels" | "pixabay" | "coverr" | "nasa" | "openverse" | "wikimedia" | "archive" | "subido";
   /** "imagen" = foto: en el render se anima para que parezca vídeo. */
   tipo?: "video" | "imagen";
   autor: string;
@@ -635,6 +645,8 @@ export type ClipCandidato = {
   licencia: string;
   url: string;
   imagen?: string;
+  /** Lo que el banco dice de la pieza (título o etiquetas), si lo dice. */
+  titulo?: string;
   /** Duracion real del archivo en origen, en segundos. */
   duracion?: number;
   /** Nombre en la biblioteca: si está, sale del disco y no de un banco. */

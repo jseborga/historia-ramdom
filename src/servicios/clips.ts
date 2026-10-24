@@ -10,7 +10,7 @@ import { buscarArchive, buscarOpenverse, buscarWikimedia } from "./bancosLibres.
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 
 /**
- * Solo se descargan archivos de los CDN de Pexels, Pixabay y la NASA. Asi una
+ * Solo se descargan archivos de los CDN de Pexels, Pixabay, Coverr y la NASA. Asi una
  * URL manipulada no puede hacer que el servidor acceda a direcciones internas
  * (SSRF).
  */
@@ -35,6 +35,11 @@ const HOSTS_PERMITIDOS = new Set([
   // estos dos; sin ellos, sus resultados salen sin muestra o no se descargan.
   "videos.pixabay.com",
   "i.vimeocdn.com",
+  // Coverr: la API da enlaces en storage., que redirigen al vídeo en cdn. y
+  // a la miniatura en coverr.co; la descarga comprueba cada salto.
+  "storage.coverr.co",
+  "cdn.coverr.co",
+  "coverr.co",
   "images-assets.nasa.gov",
   "api.openverse.org",
   "archive.org",
@@ -47,7 +52,7 @@ const HOSTS_PERMITIDOS = new Set([
 ]);
 
 /** De dónde pueden salir las imágenes y los vídeos. */
-export const BANCOS = ["pexels", "pixabay", "nasa", "openverse", "wikimedia", "archive"] as const;
+export const BANCOS = ["pexels", "pixabay", "coverr", "nasa", "openverse", "wikimedia", "archive"] as const;
 export type Banco = (typeof BANCOS)[number];
 export const esBanco = (v: string): v is Banco => (BANCOS as readonly string[]).includes(v);
 
@@ -77,6 +82,11 @@ export type ClipInfo = {
   url: string;
   /** Fotograma de muestra, para elegir el clip sin descargarlo. */
   imagen?: string;
+  /**
+   * Cómo describe el banco la pieza (título o etiquetas), si lo dice. Es lo
+   * que lee la IA para decidir cuál encaja con lo que se pidió.
+   */
+  titulo?: string;
   /** Duracion real del archivo en origen, en segundos. */
   duracion?: number;
   /**
@@ -145,11 +155,12 @@ export type OpcionesMedios = {
 /** A partir de aqui un clip cuenta como "largo". */
 export const CLIP_LARGO = 30;
 
-/** Pexels y Pixabay piden clave; los otros cuatro son abiertos. */
+/** Pexels, Pixabay y Coverr piden clave; los otros cuatro son abiertos. */
 export const bancosDisponibles = (): Banco[] =>
   [
     env.PEXELS_API_KEY ? ("pexels" as const) : null,
     env.PIXABAY_API_KEY ? ("pixabay" as const) : null,
+    env.COVERR_API_KEY ? ("coverr" as const) : null,
     "nasa" as const,
     "openverse" as const,
     "wikimedia" as const,
@@ -248,8 +259,13 @@ export async function destinoAdmitido(u: URL, abierto: boolean) {
 }
 
 /** Descarga el archivo de un clip aplicando la política de su banco. */
-export const descargarDeClip = (clip: Pick<ClipInfo, "url" | "fuente" | "tipo">, destino: string) =>
-  descargarClip(clip.url, destino, { abierto: esOrigenAbierto(clip.fuente), tipo: clip.tipo });
+export async function descargarDeClip(
+  clip: Pick<ClipInfo, "url" | "fuente" | "tipo"> & { id?: string },
+  destino: string,
+) {
+  await descargarClip(clip.url, destino, { abierto: esOrigenAbierto(clip.fuente), tipo: clip.tipo });
+  if (clip.fuente === "coverr" && clip.id) await registrarUsoCoverr(clip.id);
+}
 
 export async function descargarClip(
   url: string,
@@ -360,6 +376,9 @@ async function buscarPexels(keyword: string, largos: boolean): Promise<Candidato
         licencia: "Pexels License",
         url: mejor.link,
         imagen: v.image,
+        // La ficha no trae título, pero su dirección sí lo lleva:
+        // pexels.com/video/woman-walking-in-the-rain-123/.
+        titulo: tituloDeRuta(v.url),
         duracion: typeof v.duration === "number" ? v.duration : undefined,
       },
     });
@@ -406,6 +425,7 @@ async function buscarPixabay(keyword: string): Promise<Candidato[]> {
         licencia: "Pixabay Content License",
         url: mejor.url,
         imagen: variantes.find((v) => v.thumbnail)?.thumbnail,
+        titulo: typeof h.tags === "string" ? h.tags.slice(0, 120) : undefined,
         duracion: typeof h.duration === "number" ? h.duration : undefined,
       },
     });
@@ -491,6 +511,96 @@ async function buscarPixabayFotos(keyword: string): Promise<Candidato[]> {
   return salida;
 }
 
+/** El título que lleva la dirección de una ficha: "woman-walking-in-the-rain-123" → "woman walking in the rain". */
+function tituloDeRuta(pagina: unknown): string | undefined {
+  if (typeof pagina !== "string") return undefined;
+  const tramo = pagina.split("/").filter(Boolean).pop() ?? "";
+  const palabras = tramo.replace(/-\d+$/, "").split("-").filter(Boolean);
+  return palabras.length ? palabras.join(" ").slice(0, 120) : undefined;
+}
+
+/**
+ * Vídeo de Coverr (coverr.co): tomas de banco con pinta de cine —ciudad,
+ * naturaleza, gente, trabajo—, gratis también para uso comercial y sin
+ * obligación de acreditar (la app acredita igual). Solo vídeo, y su API no
+ * filtra por orientación: se trae lo que haya y la puntuación pone delante
+ * lo vertical. Su licencia prohíbe revender las piezas y entrenar modelos
+ * con ellas, que aquí no se hace.
+ */
+const COVERR_API = "https://api.coverr.co";
+
+async function buscarCoverr(keyword: string): Promise<Candidato[]> {
+  if (!env.COVERR_API_KEY) return [];
+  const url = new URL(`${COVERR_API}/videos`);
+  url.search = new URLSearchParams({ query: keyword, page_size: "20", urls: "true" }).toString();
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${env.COVERR_API_KEY}` },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) throw new Error(await motivo("Coverr", res));
+  return candidatosCoverr(await leerJSON(res));
+}
+
+/** Lo que devuelve su API en candidatos; aparte para poder probarlo sin clave. */
+export function candidatosCoverr(data: unknown): Candidato[] {
+  const hits = (data as { hits?: unknown[] })?.hits ?? [];
+  const salida: Candidato[] = [];
+  for (const h of hits as {
+    id?: string;
+    title?: string;
+    description?: string;
+    tags?: string[];
+    poster?: string;
+    thumbnail?: string;
+    duration?: number;
+    max_width?: number;
+    max_height?: number;
+    urls?: { mp4?: string };
+  }[]) {
+    const enlace = h.urls?.mp4;
+    if (!h.id || !enlace) continue;
+    const etiquetas = Array.isArray(h.tags) ? h.tags.filter((t) => typeof t === "string").slice(0, 8) : [];
+    salida.push({
+      alto: h.max_height ?? 0,
+      ancho: h.max_width ?? 0,
+      info: {
+        id: `coverr-${h.id}`,
+        fuente: "coverr",
+        tipo: "video",
+        autor: "Coverr",
+        // coverr.co/videos/<id> redirige a la ficha con su nombre.
+        pagina: `https://coverr.co/videos/${encodeURIComponent(h.id)}`,
+        licencia: "Coverr License",
+        url: enlace,
+        imagen: h.thumbnail ?? h.poster,
+        duracion: typeof h.duration === "number" ? h.duration : undefined,
+        titulo: [h.title, etiquetas.length ? etiquetas.join(", ") : ""].filter(Boolean).join(" · ").slice(0, 160) || undefined,
+      },
+    });
+  }
+  return salida;
+}
+
+/**
+ * Coverr pide que se le avise cada vez que se usa un vídeo que no se bajó por
+ * su enlace de descarga (es condición de su API, y revisan que se cumpla).
+ * Si falla no pasa nada: el clip ya está en disco.
+ */
+async function registrarUsoCoverr(id: string) {
+  if (!env.COVERR_API_KEY) return;
+  const crudo = id.replace(/^coverr-/, "");
+  try {
+    const res = await fetch(`${COVERR_API}/videos/${encodeURIComponent(crudo)}/stats/downloads`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${env.COVERR_API_KEY}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    await res.body?.cancel();
+  } catch {
+    // Sin registro: no se puede hacer más que volver a intentarlo otro día.
+  }
+}
+
 /**
  * Imágenes y vídeos de la NASA (images.nasa.gov). No pide clave y su material
  * es de dominio público: es la fuente natural de los cuentos de ciencia,
@@ -571,6 +681,7 @@ async function buscarNasaTipo(keyword: string, tipoPedido: TipoMedio): Promise<C
           licencia: "Dominio público (NASA)",
           url: enlace,
           imagen: muestra ? aHttps(muestra) : undefined,
+          titulo: typeof d.title === "string" ? d.title.slice(0, 120) : undefined,
         },
       } satisfies Candidato;
     }),
@@ -681,6 +792,8 @@ async function buscarEnBancos(keyword: string, o: OpcionesMedios): Promise<Busqu
           ]),
         );
       }
+      // Coverr solo tiene vídeo.
+      if (bancos.includes("coverr") && conVideo) porBanco.push(pedir("coverr", [buscarCoverr(keyword)]));
       if (bancos.includes("nasa")) porBanco.push(pedir("nasa", [buscarNasa(keyword, medios)]));
       // Los tres abiertos: sin clave, con la licencia de cada pieza dentro.
       if (bancos.includes("openverse")) porBanco.push(pedir("openverse", [buscarOpenverse(keyword, medios)]));
@@ -850,6 +963,7 @@ type ClipAcreditable = Pick<ClipInfo, "id" | "fuente" | "autor" | "pagina" | "li
 const NOMBRE_FUENTE: Record<Fuente, string> = {
   pexels: "Pexels",
   pixabay: "Pixabay",
+  coverr: "Coverr",
   nasa: "NASA",
   openverse: "Openverse",
   wikimedia: "Wikimedia Commons",

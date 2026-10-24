@@ -175,7 +175,7 @@ export function Galeria({ catalogo }: { catalogo: Catalogo }) {
         </div>
         <div className="pie">
           <button onClick={() => setBuscando(!buscando)}>
-            {buscando ? "Cerrar la busqueda" : "Buscar en los bancos (Pexels, Pixabay, NASA, Openverse, Commons, Archive)"}
+            {buscando ? "Cerrar la busqueda" : "Buscar en los bancos (Pexels, Pixabay, Coverr, NASA, Openverse, Commons, Archive)"}
           </button>
           <DesdeEnlace<Medio>
             ruta="/api/medios/enlace"

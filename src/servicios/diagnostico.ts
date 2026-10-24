@@ -239,6 +239,16 @@ export async function diagnosticar(): Promise<Prueba[]> {
       return `Clave valida${restantes ? ` · quedan ${restantes} peticiones` : ""}`;
     }),
 
+    medir("coverr", "Coverr", "Clips", async () => {
+      if (!env.COVERR_API_KEY) return SIN_CONFIGURAR;
+      const res = await pedir("https://api.coverr.co/videos?query=sky&page_size=1&urls=true", "Coverr", {
+        headers: { Authorization: `Bearer ${env.COVERR_API_KEY}` },
+      });
+      const data = (await res.json()) as { total?: number; hits?: { urls?: { mp4?: string } }[] };
+      const enlace = data.hits?.[0]?.urls?.mp4;
+      return `Clave valida · ${data.total ?? 0} resultados para "sky"${enlace ? " · con enlaces de descarga" : ""}`;
+    }),
+
     /**
      * Pixabay se prueba por sus dos APIs, la de vídeo y la de foto, porque
      * tienen rutas distintas y fallan por separado: con una sola prueba se
